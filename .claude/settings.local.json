@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:pub.dev)",
+      "WebFetch(domain:github.com)",
+      "Bash(flutter --version)",
+      "Read(//c/Users/levi/flutter/**)",
+      "Read(//c/Users/levi/flutter/bin/cache/**)"
+    ]
+  }
+}
