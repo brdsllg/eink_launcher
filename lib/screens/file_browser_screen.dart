@@ -344,10 +344,6 @@ Future<void> _promptNewFolder() async {
                           _barAction(Icons.drive_file_move, 'Rename',
                               _renameSelected,
                               enabled: _controller.selectedPaths.length == 1),
-                          _barAction(
-                              Icons.create_new_folder, 'New folder', () async {
-                                await _promptNewFolder();
-                              }),
                           _barAction(Icons.delete_outline, 'Delete',
                               _confirmDeleteSelected,
                               enabled: _controller.hasSelection),

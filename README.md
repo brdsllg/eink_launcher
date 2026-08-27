@@ -90,7 +90,7 @@ eink_launcher/
 #### Top-Level
 - **[`lib/main.dart`](lib/main.dart)**:
   - Initializes Flutter bindings and native plugins, including `pdfrxFlutterInitialize()`.
-  - Locks screen orientation to `DeviceOrientation.portraitUp`.
+  - Leaves screen orientation under Android system control.
   - Enables `SystemUiMode.immersiveSticky` to keep Android system status and navigation bars hidden.
   - Builds the root `MaterialApp` with an E-Ink-optimized theme (monochrome color scheme, zero splash factory, square outlined buttons, custom popup menus) and boots `FileBrowserScreen`.
 - **[`lib/constants.dart`](lib/constants.dart)**:

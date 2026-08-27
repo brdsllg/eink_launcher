@@ -11,7 +11,6 @@ void main() async {
   // The LaunchTheme/NormalTheme in styles.xml hide them from the moment the
   // process starts, and this keeps them hidden once Flutter takes over.
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(const MyApp());
 }
 

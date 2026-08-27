@@ -1,3 +1,5 @@
+* this file is ai generated, so skepticism is allowed and even encouraged 
+
 # E-Ink Reader — Implementation Blueprint
 
 A native PDF / EPUB / TXT / Markdown reader inside `eink_launcher`.
