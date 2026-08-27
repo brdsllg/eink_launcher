@@ -48,7 +48,10 @@ eink_launcher/
 │   │   │   └── toc_entry.dart            # Table of Contents hierarchy model
 │   │   └── services/
 │   │       ├── book_store_service.dart   # library.json atomic persistence service
-│   │       └── doc_identity_service.dart # SHA-1 content fingerprinting service
+│   │       ├── doc_identity_service.dart # SHA-1 content fingerprinting service
+│   │       ├── page_bitmap_cache.dart    # Memory-bounded LRU for rendered PDF pages
+│   │       ├── pdf_crop_service.dart     # Isolate-backed PDF ink-bound detection
+│   │       └── pdf_document_service.dart # pdfrx document open/render/outline wrapper
 │   ├── screens/
 │   │   ├── app_drawer_screen.dart        # Paginated application drawer & search screen
 │   │   └── file_browser_screen.dart      # Main home file manager screen
@@ -70,7 +73,10 @@ eink_launcher/
 │   ├── widget_test.dart                  # Basic UI smoke tests
 │   └── reader/
 │       ├── book_store_service_test.dart  # Unit tests for library.json persistence & reload
-│       └── doc_identity_service_test.dart# Unit tests for SHA-1 docId generation
+│       ├── doc_identity_service_test.dart# Unit tests for SHA-1 docId generation
+│       ├── page_bitmap_cache_test.dart   # Unit tests for PDF bitmap LRU eviction
+│       ├── pdf_crop_service_test.dart    # Unit tests for crop bounds & noise filtering
+│       └── pdf_document_service_test.dart# PDF service unit tests & opt-in native smoke test
 └── android/                              # Native Android platform configuration
 ```
 
@@ -123,6 +129,12 @@ eink_launcher/
   - Generates stable `sha1(first 64 KB + fileSize)` document keys so moved/renamed files retain reading positions.
 - **[`lib/reader/services/book_store_service.dart`](lib/reader/services/book_store_service.dart)**:
   - Manages `library.json` using atomic write-to-temp-then-rename and 2-second debounced background flushing.
+- **[`lib/reader/services/page_bitmap_cache.dart`](lib/reader/services/page_bitmap_cache.dart)**:
+  - Owns rendered Flutter images in a 40 MB least-recently-used cache and disposes replaced or evicted bitmaps.
+- **[`lib/reader/services/pdf_crop_service.dart`](lib/reader/services/pdf_crop_service.dart)**:
+  - Renders low-resolution page samples and detects padded ink bounds on a background isolate, filtering isolated scanner specks.
+- **[`lib/reader/services/pdf_document_service.dart`](lib/reader/services/pdf_document_service.dart)**:
+  - Owns the `pdfrx` document handle and provides capped page rendering, page geometry, and PDF-outline conversion.
 
 #### Launcher Models (`lib/models/`)
 - **[`lib/models/file_entry.dart`](lib/models/file_entry.dart)**:
@@ -173,6 +185,9 @@ eink_launcher/
 - **[`test/widget_test.dart`](test/widget_test.dart)**: Smoke tests verifying base UI rendering.
 - **[`test/reader/doc_identity_service_test.dart`](test/reader/doc_identity_service_test.dart)**: Unit tests for docId computation.
 - **[`test/reader/book_store_service_test.dart`](test/reader/book_store_service_test.dart)**: Unit tests for `library.json` persistence.
+- **[`test/reader/page_bitmap_cache_test.dart`](test/reader/page_bitmap_cache_test.dart)**: Unit tests for memory budgeting and LRU eviction.
+- **[`test/reader/pdf_crop_service_test.dart`](test/reader/pdf_crop_service_test.dart)**: Unit tests for ink bounds, blank pages, alpha compositing, and noise filtering.
+- **[`test/reader/pdf_document_service_test.dart`](test/reader/pdf_document_service_test.dart)**: Unit tests for PDF lifecycle/rendering and an opt-in native PDFium smoke test.
 
 ---
 

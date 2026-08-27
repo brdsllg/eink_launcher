@@ -353,6 +353,7 @@ class ReaderSettings {
 - [ ] **Step 0.2: Smoke test PDF render on device**
   - Create minimal verification widget/test calling `PdfDocument.openFile` and rendering page 0.
   - Run release build on the Bigme B751C device to confirm native asset loading.
+  - Automated service coverage and an opt-in native PDFium smoke test are now present; the Bigme release-device run is still required.
 
 ---
 
@@ -375,7 +376,7 @@ class ReaderSettings {
     - Global defaults + per-document override lookup.
   - Add unit tests in `test/reader/book_store_service_test.dart`.
 
-- [ ] **Step 1.3: PDF Services & Auto-Crop**
+- [x] **Step 1.3: PDF Services & Auto-Crop**
   - Create `lib/reader/services/pdf_document_service.dart` (pdfrx open, page count, outline parser).
   - Create `lib/reader/services/page_bitmap_cache.dart` (LRU memory cache with 25–40MB budget).
   - Create `lib/reader/services/pdf_crop_service.dart` (isolate-backed ink bbox detection, minimum-run filtering).

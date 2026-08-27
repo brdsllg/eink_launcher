@@ -1,0 +1,217 @@
+import 'dart:isolate';
+import 'dart:math' as math;
+import 'dart:typed_data';
+
+import 'package:pdfrx/pdfrx.dart';
+
+import '../../constants.dart';
+
+/// A normalized PDF crop rectangle. All edges are fractions of page size.
+class PdfCropRect {
+  final double left;
+  final double top;
+  final double right;
+  final double bottom;
+
+  const PdfCropRect({
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  }) : assert(left >= 0 && left < right),
+       assert(top >= 0 && top < bottom),
+       assert(right <= 1),
+       assert(bottom <= 1);
+
+  static const fullPage = PdfCropRect(left: 0, top: 0, right: 1, bottom: 1);
+
+  double get width => right - left;
+  double get height => bottom - top;
+
+  List<double> toList() => [left, top, right, bottom];
+
+  factory PdfCropRect.fromList(List<double> values) {
+    if (values.length != 4) {
+      throw ArgumentError.value(values, 'values', 'Expected four crop edges');
+    }
+    return PdfCropRect(
+      left: values[0],
+      top: values[1],
+      right: values[2],
+      bottom: values[3],
+    );
+  }
+}
+
+/// Detects PDF content bounds from low-resolution BGRA page renders.
+class PdfCropService {
+  static const int defaultSampleWidth = 200;
+  static const int defaultMinimumInkRun = 3;
+  static const double defaultPaddingFraction = 0.015;
+
+  /// Renders a small page preview and scans it outside the UI isolate.
+  Future<PdfCropRect> detectPageCrop(
+    PdfPage page, {
+    int sampleWidth = defaultSampleWidth,
+    int luminanceThreshold = kPdfInkLuminanceThreshold,
+    int minimumInkRun = defaultMinimumInkRun,
+    double paddingFraction = defaultPaddingFraction,
+  }) async {
+    if (sampleWidth <= 0) {
+      throw ArgumentError.value(sampleWidth, 'sampleWidth', 'Must be positive');
+    }
+    final sampleHeight = math.max(
+      1,
+      (sampleWidth * page.height / page.width).round(),
+    );
+    final rendered = await page.render(
+      fullWidth: sampleWidth.toDouble(),
+      fullHeight: sampleHeight.toDouble(),
+      width: sampleWidth,
+      height: sampleHeight,
+      flags:
+          PdfPageRenderFlags.grayscale | PdfPageRenderFlags.limitedImageCache,
+    );
+    if (rendered == null) return PdfCropRect.fullPage;
+
+    try {
+      // Copy before disposing the native PdfImage backing store.
+      final pixels = Uint8List.fromList(rendered.pixels);
+      return await detectBgraCrop(
+        pixels,
+        width: rendered.width,
+        height: rendered.height,
+        luminanceThreshold: luminanceThreshold,
+        minimumInkRun: minimumInkRun,
+        paddingFraction: paddingFraction,
+      );
+    } finally {
+      rendered.dispose();
+    }
+  }
+
+  /// Scans a BGRA8888 image for ink and returns its padded normalized bounds.
+  Future<PdfCropRect> detectBgraCrop(
+    Uint8List pixels, {
+    required int width,
+    required int height,
+    int luminanceThreshold = kPdfInkLuminanceThreshold,
+    int minimumInkRun = defaultMinimumInkRun,
+    double paddingFraction = defaultPaddingFraction,
+  }) async {
+    if (width <= 0 || height <= 0) {
+      throw ArgumentError('Image dimensions must be positive');
+    }
+    if (pixels.lengthInBytes != width * height * 4) {
+      throw ArgumentError.value(
+        pixels.lengthInBytes,
+        'pixels',
+        'Expected ${width * height * 4} BGRA bytes',
+      );
+    }
+    if (luminanceThreshold < 0 || luminanceThreshold > 255) {
+      throw RangeError.range(luminanceThreshold, 0, 255, 'luminanceThreshold');
+    }
+    if (minimumInkRun <= 0) {
+      throw ArgumentError.value(
+        minimumInkRun,
+        'minimumInkRun',
+        'Must be positive',
+      );
+    }
+    if (paddingFraction < 0 || paddingFraction >= 0.5) {
+      throw ArgumentError.value(
+        paddingFraction,
+        'paddingFraction',
+        'Must be at least 0 and less than 0.5',
+      );
+    }
+
+    final transferable = TransferableTypedData.fromList([pixels]);
+    final edges = await Isolate.run<List<double>>(
+      () => _scanBgraCrop(
+        transferable.materialize().asUint8List(),
+        width,
+        height,
+        luminanceThreshold,
+        minimumInkRun,
+        paddingFraction,
+      ),
+    );
+    return PdfCropRect.fromList(edges);
+  }
+}
+
+List<double> _scanBgraCrop(
+  Uint8List pixels,
+  int width,
+  int height,
+  int threshold,
+  int minimumRun,
+  double paddingFraction,
+) {
+  final ink = Uint8List(width * height);
+  for (var pixelIndex = 0; pixelIndex < ink.length; pixelIndex++) {
+    final offset = pixelIndex * 4;
+    final blue = pixels[offset];
+    final green = pixels[offset + 1];
+    final red = pixels[offset + 2];
+    final alpha = pixels[offset + 3];
+    final rawLuminance = (299 * red + 587 * green + 114 * blue) ~/ 1000;
+    final compositedLuminance =
+        (rawLuminance * alpha + 255 * (255 - alpha)) ~/ 255;
+    if (compositedLuminance < threshold) ink[pixelIndex] = 1;
+  }
+
+  var minX = width;
+  var minY = height;
+  var maxX = -1;
+  var maxY = -1;
+
+  void includeRun(int startX, int startY, int endX, int endY) {
+    minX = math.min(minX, math.min(startX, endX));
+    minY = math.min(minY, math.min(startY, endY));
+    maxX = math.max(maxX, math.max(startX, endX));
+    maxY = math.max(maxY, math.max(startY, endY));
+  }
+
+  // A pixel is accepted when it belongs to a sufficiently long horizontal or
+  // vertical run. This removes isolated scanner dust without erasing strokes.
+  for (var y = 0; y < height; y++) {
+    var runStart = -1;
+    for (var x = 0; x <= width; x++) {
+      final isInk = x < width && ink[y * width + x] != 0;
+      if (isInk && runStart == -1) runStart = x;
+      if (!isInk && runStart != -1) {
+        if (x - runStart >= minimumRun) {
+          includeRun(runStart, y, x - 1, y);
+        }
+        runStart = -1;
+      }
+    }
+  }
+  for (var x = 0; x < width; x++) {
+    var runStart = -1;
+    for (var y = 0; y <= height; y++) {
+      final isInk = y < height && ink[y * width + x] != 0;
+      if (isInk && runStart == -1) runStart = y;
+      if (!isInk && runStart != -1) {
+        if (y - runStart >= minimumRun) {
+          includeRun(x, runStart, x, y - 1);
+        }
+        runStart = -1;
+      }
+    }
+  }
+
+  if (maxX < minX || maxY < minY) return [0, 0, 1, 1];
+
+  final paddingX = (width * paddingFraction).ceil();
+  final paddingY = (height * paddingFraction).ceil();
+  minX = math.max(0, minX - paddingX);
+  minY = math.max(0, minY - paddingY);
+  maxX = math.min(width - 1, maxX + paddingX);
+  maxY = math.min(height - 1, maxY + paddingY);
+
+  return [minX / width, minY / height, (maxX + 1) / width, (maxY + 1) / height];
+}
