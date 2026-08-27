@@ -2,6 +2,4 @@ aider --model openrouter/google/gemini-3.7-flash --no-git --no-show-model-warnin
 
 
 
-git add .
-git commit -m "update"
-git push
+git add .; git commit -m "update"; git push
