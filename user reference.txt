@@ -1,0 +1,7 @@
+aider --model openrouter/google/gemini-3.7-flash --no-git --no-show-model-warnings READER_PLAN.md README.md pubspec.yaml lib/constants.dart lib/main.dart
+
+
+
+git add .
+git commit -m "update"
+git push
