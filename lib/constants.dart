@@ -4,20 +4,18 @@ import 'package:flutter/material.dart';
 // universal fallback home folder and as the "whole device" search scope.
 const String kStorageRoot = '/storage/emulated/0';
 
-// Fixed row height for paginated lists (file browser, app drawer). Rows are
-// pinned to this height so the page-size calculation in each screen
-// (available height ÷ row height) is exact, regardless of text scale or
-// theme density.
+// Default row height for generic paginated lists such as the app drawer. The
+// file browser overrides this with its orientation-derived shared band height.
 const double kRowHeight = 60.0;
 
-// Height of the Previous/Next bar under each paginated list. Must match
-// PageNavBar's own height — kept as one constant so they can't drift apart.
+// Default navigation height for generic paginated lists. The file browser
+// overrides this so its bottom bar exactly matches every other band.
 const double kNavBarHeight = 56.0;
 
-// Height of the file browser's "Up a folder" bar. Kept separate from
-// kNavBarHeight since it isn't load-bearing for any page-size math, just
-// visual consistency with the enlarged nav bar.
-const double kFolderUpBarHeight = 56.0;
+// The file browser divides the full display into a fixed number of equal
+// horizontal bands. These totals include its top, Up, and bottom bars.
+const int kPortraitBarCount = 15;
+const int kLandscapeBarCount = 12;
 
 // Phase 8: no page-transition animations (e-ink ghosting/jank risk). Wrap
 // any pushed route in this instead of using MaterialPageRoute directly.
@@ -34,12 +32,7 @@ Route<T> noTransitionRoute<T>(Widget page) {
 // -----------------------------------------------------------------------------
 
 /// File extensions opened by the built-in document reader.
-const Set<String> kReadableExtensions = {
-  '.pdf',
-  '.epub',
-  '.txt',
-  '.md',
-};
+const Set<String> kReadableExtensions = {'.pdf', '.epub', '.txt', '.md'};
 
 /// Tap zone proportions across the viewport width for page turning & menu.
 const double kTapZoneEdgeWidthRatio = 0.30;
@@ -68,9 +61,4 @@ const List<double> kReaderFontSizeSteps = [
 ];
 
 /// Margin steps mapping (step 0..3: tight, normal, wide, extra).
-const List<double> kReaderMarginSteps = [
-  8.0,
-  16.0,
-  24.0,
-  36.0,
-];
+const List<double> kReaderMarginSteps = [8.0, 16.0, 24.0, 36.0];

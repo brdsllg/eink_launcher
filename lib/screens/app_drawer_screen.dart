@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:installed_apps/app_info.dart';
+
 import '../constants.dart';
 import '../services/app_list_service.dart';
 import '../widgets/clock_text.dart';
@@ -38,7 +39,10 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
       includeSystemApps: _includeSystemApps,
     );
     if (!mounted) return;
-    setState(() => _apps = apps);
+    setState(() {
+      _apps = apps;
+      _filterApps(_searchController.text);
+    });
   }
 
   void _refresh() {
@@ -60,18 +64,21 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
     _loadApps();
   }
 
-  // Substring match against the already-loaded list — no isolate needed, it's
-  // at most a few hundred items. Triggered on submit/tap rather than on every
-  // keystroke, matching the file browser's own search: e-ink panels redraw
-  // slowly, so re-filtering (and repainting the list) on every keypress would
-  // be distracting rather than helpful.
-  void _runSearch() {
-    final query = _searchController.text.trim().toLowerCase();
+  // Substring matching a few hundred in-memory app names is cheap enough to do
+  // as the query changes, and gives immediate results without a search button.
+  void _filterApps(String rawQuery) {
+    final query = rawQuery.trim().toLowerCase();
+    _filteredApps = query.isEmpty
+        ? null
+        : _apps?.where((app) {
+            return app.name.toLowerCase().contains(query);
+          }).toList();
+  }
+
+  void _onSearchChanged(String query) {
     setState(() {
       _currentPage = 0;
-      _filteredApps = query.isEmpty
-          ? null
-          : _apps?.where((a) => a.name.toLowerCase().contains(query)).toList();
+      _filterApps(query);
     });
   }
 
@@ -90,11 +97,93 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
 
   List<AppInfo> get _displayedApps => _filteredApps ?? _apps ?? const [];
 
+  Widget _buildAppRow(AppInfo app, double barHeight) {
+    return Container(
+      height: barHeight,
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.black, width: 0.5)),
+      ),
+      child: InkWell(
+        onTap: () => AppListService.launch(app.packageName),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              app.name,
+              style: TextStyle(
+                fontSize: (barHeight * 0.44).clamp(16.0, 26.0).toDouble(),
+                height: 1,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyRow(double barHeight) {
+    return Container(
+      height: barHeight,
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.black, width: 0.5)),
+      ),
+    );
+  }
+
+  Widget _buildAppGrid({
+    required double barHeight,
+    required int appRowCount,
+    String? message,
+  }) {
+    return Stack(
+      children: [
+        PaginatedList<AppInfo>(
+          items: _displayedApps,
+          currentPage: _currentPage,
+          onPageChanged: (page) => setState(() => _currentPage = page),
+          itemBuilder: (context, app) => _buildAppRow(app, barHeight),
+          rowHeight: barHeight,
+          navBarHeight: barHeight,
+          preferredItemsPerPage: appRowCount,
+          emptyItemBuilder: (context) => _buildEmptyRow(barHeight),
+        ),
+        if (message != null)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: barHeight,
+            child: IgnorePointer(
+              child: Center(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: (barHeight * 0.36).clamp(15.0, 22.0).toDouble(),
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final loading = _apps == null;
+    final mediaQuery = MediaQuery.of(context);
+    final totalBars = mediaQuery.orientation == Orientation.portrait
+        ? kPortraitBarCount
+        : kLandscapeBarCount;
+    final barHeight = mediaQuery.size.height / totalBars;
+    final appRowCount = totalBars - 2;
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: barHeight,
         leading: _searchOpen
             ? IconButton(
                 icon: const Icon(Icons.close),
@@ -106,26 +195,44 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (_) => _runSearch(),
+                onChanged: _onSearchChanged,
+                style: TextStyle(
+                  fontSize: (barHeight * 0.4).clamp(17.0, 24.0).toDouble(),
+                  height: 1,
+                ),
                 decoration: const InputDecoration(
                   hintText: 'Search apps',
                   border: InputBorder.none,
                 ),
               )
-            : const Text('Apps'),
+            : Text(
+                'Apps',
+                style: TextStyle(
+                  fontSize: (barHeight * 0.4).clamp(17.0, 24.0).toDouble(),
+                  height: 1,
+                ),
+              ),
         centerTitle: !_searchOpen,
         actions: [
           if (!_searchOpen)
-            const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: Center(child: ClockText()),
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Center(
+                child: ClockText(
+                  style: TextStyle(
+                    fontSize: (barHeight * 0.25).clamp(11.0, 15.0).toDouble(),
+                    height: 1,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
             ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            tooltip: _searchOpen ? 'Run search' : 'Search apps',
-            onPressed: _searchOpen ? _runSearch : _openSearch,
-          ),
+          if (!_searchOpen)
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: 'Search apps',
+              onPressed: _openSearch,
+            ),
           if (!_searchOpen) ...[
             IconButton(
               icon: const Icon(Icons.refresh),
@@ -148,23 +255,19 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
             ),
           ],
         ],
+        shape: const Border(
+          bottom: BorderSide(color: Colors.black, width: 0.5),
+        ),
       ),
-      body: loading
-          ? const Center(child: Text('Loading…'))
-          : _displayedApps.isEmpty
-              ? const Center(child: Text('No matching apps'))
-              : PaginatedList<AppInfo>(
-                  items: _displayedApps,
-                  currentPage: _currentPage,
-                  onPageChanged: (page) => setState(() => _currentPage = page),
-                  itemBuilder: (context, app) => SizedBox(
-                    height: kRowHeight,
-                    child: ListTile(
-                      title: Text(app.name),
-                      onTap: () => AppListService.launch(app.packageName),
-                    ),
-                  ),
-                ),
+      body: _buildAppGrid(
+        barHeight: barHeight,
+        appRowCount: appRowCount,
+        message: loading
+            ? 'Loading…'
+            : _displayedApps.isEmpty
+            ? 'No matching apps'
+            : null,
+      ),
     );
   }
 }

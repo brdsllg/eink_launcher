@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../constants.dart';
 import 'page_nav_bar.dart';
 
@@ -12,6 +13,10 @@ class PaginatedList<T> extends StatelessWidget {
   final int currentPage;
   final ValueChanged<int> onPageChanged;
   final Widget Function(BuildContext context, T item) itemBuilder;
+  final double rowHeight;
+  final double navBarHeight;
+  final int? preferredItemsPerPage;
+  final WidgetBuilder? emptyItemBuilder;
 
   /// Called after every layout with the real number of rows that fit in the
   /// available height. Optional — callers that don't need to know the page
@@ -26,20 +31,32 @@ class PaginatedList<T> extends StatelessWidget {
     required this.onPageChanged,
     required this.itemBuilder,
     this.onItemsPerPageChanged,
+    this.rowHeight = kRowHeight,
+    this.navBarHeight = kNavBarHeight,
+    this.preferredItemsPerPage,
+    this.emptyItemBuilder,
   });
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final listHeight =
-            (constraints.maxHeight - kNavBarHeight).clamp(0.0, double.infinity);
+        final listHeight = (constraints.maxHeight - navBarHeight).clamp(
+          0.0,
+          double.infinity,
+        );
         // Only claim room for a row if a full row actually fits — flooring to
         // a minimum of 1 regardless of available space used to be able to
         // force a row into less height than it needs, overflowing into the
         // nav bar (e.g. with a keyboard open eating most of the screen).
-        final itemsPerPage =
-            listHeight < kRowHeight ? 0 : (listHeight / kRowHeight).floor();
+        final fittingItems = listHeight < rowHeight
+            ? 0
+            : ((listHeight / rowHeight) + 0.000001).floor();
+        final itemsPerPage = preferredItemsPerPage == null
+            ? fittingItems
+            : (preferredItemsPerPage! < fittingItems
+                  ? preferredItemsPerPage!
+                  : fittingItems);
 
         if (onItemsPerPageChanged != null) {
           final reportedValue = itemsPerPage;
@@ -60,8 +77,10 @@ class PaginatedList<T> extends StatelessWidget {
           );
         }
 
-        final totalPages =
-            (items.length / itemsPerPage).ceil().clamp(1, 1000000);
+        final totalPages = (items.length / itemsPerPage).ceil().clamp(
+          1,
+          1000000,
+        );
         final page = currentPage.clamp(0, totalPages - 1);
         final start = page * itemsPerPage;
         final end = (start + itemsPerPage).clamp(0, items.length);
@@ -70,20 +89,27 @@ class PaginatedList<T> extends StatelessWidget {
         return Column(
           children: [
             Expanded(
-              child: ListView(
-                physics: const NeverScrollableScrollPhysics(),
+              child: Column(
                 children: [
                   for (final item in pageItems) itemBuilder(context, item),
+                  if (emptyItemBuilder != null)
+                    for (var i = pageItems.length; i < itemsPerPage; i++)
+                      emptyItemBuilder!(context),
                 ],
               ),
             ),
             PageNavBar(
               currentPage: page,
               totalPages: totalPages,
-              onPrevious:
-                  page > 0 ? () => onPageChanged(page - 1) : null,
-              onNext:
-                  page < totalPages - 1 ? () => onPageChanged(page + 1) : null,
+              onFirst: page > 0 ? () => onPageChanged(0) : null,
+              onPrevious: page > 0 ? () => onPageChanged(page - 1) : null,
+              onNext: page < totalPages - 1
+                  ? () => onPageChanged(page + 1)
+                  : null,
+              onLast: page < totalPages - 1
+                  ? () => onPageChanged(totalPages - 1)
+                  : null,
+              height: navBarHeight,
             ),
           ],
         );

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
+
 import '../constants.dart';
 import '../controllers/file_browser_controller.dart';
 import '../models/file_entry.dart';
+import '../services/file_mime_type_service.dart';
+import '../services/open_with_service.dart';
+import '../widgets/battery_status.dart';
 import '../widgets/clock_text.dart';
 import '../widgets/file_action_dialogs.dart';
 import '../widgets/file_entry_tile.dart';
@@ -25,6 +29,7 @@ class FileBrowserScreen extends StatefulWidget {
 
 class _FileBrowserScreenState extends State<FileBrowserScreen> {
   late final FileBrowserController _controller;
+  String? _openingPath;
 
   @override
   void initState() {
@@ -89,9 +94,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: SingleChildScrollView(
-          child: Text(errors.join('\n')),
-        ),
+        content: SingleChildScrollView(child: Text(errors.join('\n'))),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -103,22 +106,39 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
   }
 
   Future<void> _openEntry(FileEntry entry) async {
-    if (entry.isDirectory) {
-      _controller.loadFolder(entry.path);
-      return;
-    }
-    final result = await OpenFilex.open(entry.path);
-    if (result.type != ResultType.done && mounted) {
-      _showSnack('Could not open ${entry.name}: ${result.message}');
+    if (_openingPath != null) return;
+    final path = entry.path;
+    setState(() => _openingPath = path);
+    // Guarantee that the inverted row reaches the e-ink panel before a folder
+    // load or external Android activity starts replacing the current view.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || _openingPath != path) return;
+
+    try {
+      if (entry.isDirectory) {
+        await _controller.loadFolder(path);
+        return;
+      }
+      final result = await OpenFilex.open(
+        path,
+        type: FileMimeTypeService.forPath(path),
+      );
+      if (result.type != ResultType.done && mounted) {
+        _showSnack('Could not open ${entry.name}: ${result.message}');
+      }
+    } finally {
+      if (mounted && _openingPath == path) {
+        setState(() => _openingPath = null);
+      }
     }
   }
 
   Future<void> _openAppDrawer() async {
-    await Navigator.of(context).push(
-      noTransitionRoute(const AppDrawerScreen()),
-    );
+    await Navigator.of(context)
+        .push(noTransitionRoute(const AppDrawerScreen()));
   }
-Future<void> _promptNewFolder() async {
+
+  Future<void> _promptNewFolder() async {
     final existing = _controller.entries.map((e) => e.name).toList();
     final name = await showNewFolderDialog(context, existing);
     if (name == null || !mounted) return;
@@ -161,7 +181,9 @@ Future<void> _promptNewFolder() async {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Set Home Folder'),
-        content: Text('Make this your home folder?\n\n${_controller.currentPath}'),
+        content: Text(
+          'Make this your home folder?\n\n${_controller.currentPath}',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -188,15 +210,18 @@ Future<void> _promptNewFolder() async {
     final segments = path.split('/').where((s) => s.isNotEmpty);
     return segments.isEmpty ? path : segments.last;
   }
-// One row of the file list. While selecting, the row is inverted (black bg /
+
+  // One row of the file list. While selecting, the row is inverted (black bg /
   // white text — e-ink friendly, no color) to mark selection.
-  Widget _buildRow(FileEntry entry) {
+  Widget _buildRow(FileEntry entry, double barHeight) {
     final isSelected = _controller.selectedPaths.contains(entry.path);
     return SizedBox(
-      height: kRowHeight,
+      height: barHeight,
       child: FileEntryTile(
         entry: entry,
         isSelected: isSelected,
+        isOpening: _openingPath == entry.path,
+        height: barHeight,
         onTap: () {
           if (_controller.selecting) {
             _controller.toggleSelect(entry.path);
@@ -213,7 +238,18 @@ Future<void> _promptNewFolder() async {
     );
   }
 
-  Widget _buildTopBar() {
+  Widget _buildEmptyRow(double barHeight) {
+    return Container(
+      height: barHeight,
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.black, width: 0.5)),
+      ),
+    );
+  }
+
+  Widget _buildTopBar(double barHeight) {
+    final textSize = (barHeight * 0.44).clamp(16.0, 26.0).toDouble();
+    final iconSize = (barHeight * 0.48).clamp(22.0, 30.0).toDouble();
     if (!_controller.permissionGranted) {
       return SizedBox(
         width: double.infinity,
@@ -221,16 +257,22 @@ Future<void> _promptNewFolder() async {
           key: const Key('request-permission-button'),
           style: TextButton.styleFrom(
             foregroundColor: Colors.black,
-            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
+            ),
           ),
           onPressed: _checkPermission,
-          icon: const Icon(Icons.folder_open),
-          label: const Text('Grant storage access'),
+          icon: Icon(Icons.folder_open, size: iconSize),
+          label: Text(
+            'Grant storage access',
+            style: TextStyle(fontSize: textSize, height: 1),
+          ),
         ),
       );
     }
-    final onPressed =
-        (_controller.atRoot || _controller.selecting) ? null : _controller.goUp;
+    final onPressed = (_controller.atRoot || _controller.selecting)
+        ? null
+        : _controller.goUp;
     return SizedBox(
       width: double.infinity,
       child: InkWell(
@@ -241,14 +283,17 @@ Future<void> _promptNewFolder() async {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.arrow_upward,
-                  size: 26,
-                  color: onPressed == null ? Colors.grey : Colors.black),
+              Icon(
+                Icons.arrow_upward,
+                size: iconSize,
+                color: onPressed == null ? Colors.grey : Colors.black,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Up a folder',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: textSize,
+                  height: 1,
                   color: onPressed == null ? Colors.grey : Colors.black,
                 ),
               ),
@@ -264,30 +309,209 @@ Future<void> _promptNewFolder() async {
     IconData icon,
     String label,
     VoidCallback onPressed, {
-    bool enabled = true,
+    bool compact = false,
+    double barHeight = kToolbarHeight,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 2 : 6),
       child: TextButton(
         style: TextButton.styleFrom(
-          foregroundColor: enabled ? Colors.black : Colors.grey,
+          foregroundColor: Colors.black,
           minimumSize: const Size(0, 0),
-          padding: const EdgeInsets.symmetric(horizontal: 6),
+          padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 6),
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         ),
-        onPressed: enabled ? onPressed : null,
+        onPressed: onPressed,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 22),
+            Icon(icon, size: (barHeight * 0.4).clamp(20.0, 24.0).toDouble()),
             const SizedBox(width: 4),
-            Text(label, style: const TextStyle(fontSize: 14)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: (barHeight * 0.3).clamp(14.0, 18.0).toDouble(),
+                height: 1,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
-@override
+
+  FileEntry? get _singleSelectedFile {
+    if (_controller.selectedPaths.length != 1) return null;
+    final selectedPath = _controller.selectedPaths.first;
+    for (final entry in _controller.entries) {
+      if (entry.path == selectedPath && !entry.isDirectory) return entry;
+    }
+    return null;
+  }
+
+  Future<void> _openSelectedWith() async {
+    final file = _singleSelectedFile;
+    if (file == null) return;
+    try {
+      await OpenWithService.open(file.path);
+      if (mounted) _controller.exitSelection();
+    } catch (error) {
+      _showSnack('Could not show apps for ${file.name}: $error');
+    }
+  }
+
+  double _textWidth(BuildContext context, String text, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    return painter.width;
+  }
+
+  bool _selectionBarNeedsTwoRows(BuildContext context, double barHeight) {
+    final theme = Theme.of(context);
+    final titleStyle =
+        theme.appBarTheme.titleTextStyle ??
+        theme.textTheme.titleLarge ??
+        const TextStyle(fontSize: 20);
+    final actionStyle = TextStyle(
+      fontSize: (barHeight * 0.3).clamp(14.0, 18.0).toDouble(),
+    );
+    final selectedLabel = '${_controller.selectedPaths.length} selected';
+    final actionLabels = [
+      if (_singleSelectedFile != null) 'Open with',
+      'Copy',
+      'Cut',
+      if (_controller.selectedPaths.length == 1) 'Rename',
+      'Delete',
+    ];
+
+    // Each action uses a 22 px icon, 4 px gap, 24 px of horizontal padding,
+    // and its label. The remaining width accounts for the leading close
+    // button, the balancing trailing space, and the AppBar's title spacing.
+    final requiredWidth =
+        16 +
+        _textWidth(context, selectedLabel, titleStyle) +
+        actionLabels.fold<double>(
+          0,
+          (width, label) =>
+              width + 50 + _textWidth(context, label, actionStyle),
+        );
+    final availableWidth =
+        MediaQuery.sizeOf(context).width -
+        (kToolbarHeight * 2) -
+        NavigationToolbar.kMiddleSpacing * 2;
+    return requiredWidth > availableWidth;
+  }
+
+  List<Widget> _selectionActions(double barHeight, {bool compact = false}) {
+    return [
+      if (_singleSelectedFile != null)
+        _barAction(
+          Icons.open_in_new,
+          'Open with',
+          _openSelectedWith,
+          compact: compact,
+          barHeight: barHeight,
+        ),
+      _barAction(
+        Icons.copy,
+        'Copy',
+        () {
+          _showSnackFrom(_controller.copySelected());
+        },
+        compact: compact,
+        barHeight: barHeight,
+      ),
+      _barAction(
+        Icons.content_cut,
+        'Cut',
+        () {
+          _showSnackFrom(_controller.cutSelected());
+        },
+        compact: compact,
+        barHeight: barHeight,
+      ),
+      if (_controller.selectedPaths.length == 1)
+        _barAction(
+          Icons.drive_file_move,
+          'Rename',
+          _renameSelected,
+          compact: compact,
+          barHeight: barHeight,
+        ),
+      _barAction(
+        Icons.delete_outline,
+        'Delete',
+        _confirmDeleteSelected,
+        compact: compact,
+        barHeight: barHeight,
+      ),
+    ];
+  }
+
+  PreferredSizeWidget _buildSelectionBar(
+    BuildContext context,
+    double barHeight, {
+    required bool twoRows,
+  }) {
+    final actions = _selectionActions(barHeight, compact: twoRows);
+    final topActionCount = actions.length >= 5 ? 2 : 1;
+    final selectedCount = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Text(
+        '${_controller.selectedPaths.length} selected',
+        style: TextStyle(
+          fontSize: (barHeight * 0.38).clamp(17.0, 22.0).toDouble(),
+          height: 1,
+        ),
+      ),
+    );
+
+    return AppBar(
+      toolbarHeight: twoRows ? barHeight * 2 : barHeight,
+      leading: InkResponse(
+        onTap: _controller.exitSelection,
+        radius: 24,
+        child: const Padding(
+          padding: EdgeInsets.all(12),
+          child: Icon(Icons.close),
+        ),
+      ),
+      titleSpacing: twoRows ? 0 : NavigationToolbar.kMiddleSpacing,
+      title: twoRows
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  height: barHeight,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [selectedCount, ...actions.take(topActionCount)],
+                  ),
+                ),
+                SizedBox(
+                  height: barHeight,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: actions.skip(topActionCount).toList(),
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [selectedCount, ...actions],
+            ),
+      centerTitle: !twoRows,
+      actions: twoRows ? null : const [SizedBox(width: kToolbarHeight)],
+      shape: const Border(bottom: BorderSide(color: Colors.black, width: 0.5)),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
@@ -307,75 +531,80 @@ Future<void> _promptNewFolder() async {
       child: ListenableBuilder(
         listenable: _controller,
         builder: (context, _) {
+          final mediaQuery = MediaQuery.of(context);
+          final totalBars = mediaQuery.orientation == Orientation.portrait
+              ? kPortraitBarCount
+              : kLandscapeBarCount;
+          final barHeight = mediaQuery.size.height / totalBars;
+          final selectionUsesTwoRows =
+              _controller.selecting &&
+              _selectionBarNeedsTwoRows(context, barHeight);
+          final topBarUnits = selectionUsesTwoRows ? 2 : 1;
+          final fileRowCount = totalBars - topBarUnits - 2;
           return Scaffold(
             appBar: _controller.selecting
-                ? AppBar(
-                    leading: InkResponse(
-                      onTap: _controller.exitSelection,
-                      radius: 24,
-                      child: const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Icon(Icons.close),
-                      ),
-                    ),
-                    title: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Text(
-                                '${_controller.selectedPaths.length} selected'),
-                          ),
-                          _barAction(Icons.copy, 'Copy', () {
-                            _showSnackFrom(_controller.copySelected());
-                          },
-                              enabled: _controller.hasSelection),
-                          _barAction(Icons.content_cut, 'Cut', () {
-                            _showSnackFrom(_controller.cutSelected());
-                          },
-                              enabled: _controller.hasSelection),
-                          _barAction(Icons.content_paste, 'Paste', () {
-                            _showSnackFrom(_controller.paste(
-                              onErrors: (errors) =>
-                                  _showErrorsDialog('Paste errors', errors),
-                            ));
-                          }, enabled: _controller.ops.hasClipboard),
-                          _barAction(Icons.drive_file_move, 'Rename',
-                              _renameSelected,
-                              enabled: _controller.selectedPaths.length == 1),
-                          _barAction(Icons.delete_outline, 'Delete',
-                              _confirmDeleteSelected,
-                              enabled: _controller.hasSelection),
-                        ],
-                      ),
-                    ),
-                    centerTitle: true,
-                    actions: const [SizedBox(width: 56)],
+                ? _buildSelectionBar(
+                    context,
+                    barHeight,
+                    twoRows: selectionUsesTwoRows,
                   )
                 : AppBar(
-                    leading: Tooltip(
-                      message: 'Home (long-press to set as Home)',
-                      child: InkResponse(
-                        onTap: _controller.goHome,
-                        onLongPress: _confirmSetHome,
-                        radius: 24,
-                        child: const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: Icon(Icons.home),
+                    toolbarHeight: barHeight,
+                    leadingWidth: kToolbarHeight + 82,
+                    leading: Row(
+                      children: [
+                        SizedBox(
+                          width: kToolbarHeight,
+                          child: Tooltip(
+                            message: 'Home (long-press to set as Home)',
+                            child: InkResponse(
+                              onTap: _controller.goHome,
+                              onLongPress: _confirmSetHome,
+                              radius: 24,
+                              child: const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: Icon(Icons.home),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        Expanded(
+                          child: Center(
+                            child: ClockText(
+                              style: TextStyle(
+                                fontSize: (barHeight * 0.25)
+                                    .clamp(11.0, 15.0)
+                                    .toDouble(),
+                                height: 1,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     title: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(_displayName(_controller.currentPath)),
+                        Text(
+                          _displayName(_controller.currentPath),
+                          style: TextStyle(
+                            fontSize: (barHeight * 0.4)
+                                .clamp(17.0, 24.0)
+                                .toDouble(),
+                            height: 1,
+                          ),
+                        ),
                         if (_controller.status.isNotEmpty)
                           Text(
                             _controller.status,
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.grey),
+                            style: TextStyle(
+                              fontSize: (barHeight * 0.21)
+                                  .clamp(10.0, 13.0)
+                                  .toDouble(),
+                              height: 1,
+                              color: Colors.grey,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -383,9 +612,22 @@ Future<void> _promptNewFolder() async {
                     ),
                     centerTitle: true,
                     actions: [
-                      const Padding(
-                        padding: EdgeInsets.only(right: 12),
-                        child: Center(child: ClockText()),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Center(
+                          child: BatteryStatus(
+                            style: TextStyle(
+                              fontSize: (barHeight * 0.25)
+                                  .clamp(11.0, 15.0)
+                                  .toDouble(),
+                              height: 1,
+                              color: Colors.black,
+                            ),
+                            iconSize: (barHeight * 0.46)
+                                .clamp(21.0, 28.0)
+                                .toDouble(),
+                          ),
+                        ),
                       ),
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.add),
@@ -402,20 +644,28 @@ Future<void> _promptNewFolder() async {
                               _promptNewFolder();
                               break;
                             case 'paste':
-                              _showSnackFrom(_controller.paste(
-                                onErrors: (errors) => _showErrorsDialog(
-                                    'Paste errors', errors),
-                              ));
+                              _showSnackFrom(
+                                _controller.paste(
+                                  onErrors: (errors) =>
+                                      _showErrorsDialog('Paste errors', errors),
+                                ),
+                              );
                               break;
                           }
                         },
                         itemBuilder: (context) => [
                           const PopupMenuItem(
-                              value: 'search', child: Text('Search')),
+                            value: 'search',
+                            child: Text('Search'),
+                          ),
                           const PopupMenuItem(
-                              value: 'apps', child: Text('Apps')),
+                            value: 'apps',
+                            child: Text('Apps'),
+                          ),
                           const PopupMenuItem(
-                              value: 'newFolder', child: Text('New Folder')),
+                            value: 'newFolder',
+                            child: Text('New Folder'),
+                          ),
                           PopupMenuItem(
                             value: 'paste',
                             enabled: _controller.ops.hasClipboard,
@@ -424,23 +674,35 @@ Future<void> _promptNewFolder() async {
                         ],
                       ),
                     ],
+                    shape: const Border(
+                      bottom: BorderSide(color: Colors.black, width: 0.5),
+                    ),
                   ),
-body: Stack(
+            body: Stack(
               children: [
                 Column(
                   children: [
-                    const Divider(height: 1),
-                    SizedBox(
-                      height: kFolderUpBarHeight,
-                      child: _buildTopBar(),
+                    Container(
+                      height: barHeight,
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(color: Colors.black, width: 0.5),
+                        ),
+                      ),
+                      child: _buildTopBar(barHeight),
                     ),
-                    const Divider(height: 1),
                     Expanded(
                       child: PaginatedList<FileEntry>(
                         items: _controller.entries,
                         currentPage: _controller.currentPage,
                         onPageChanged: _controller.setPage,
-                        itemBuilder: (context, entry) => _buildRow(entry),
+                        itemBuilder: (context, entry) =>
+                            _buildRow(entry, barHeight),
+                        rowHeight: barHeight,
+                        navBarHeight: barHeight,
+                        preferredItemsPerPage: fileRowCount,
+                        emptyItemBuilder: (context) =>
+                            _buildEmptyRow(barHeight),
                         onItemsPerPageChanged: (n) {
                           if (_controller.setItemsPerPageHint(n)) {
                             _controller.loadStatsForCurrentPage();
