@@ -60,3 +60,4 @@ app.*.map.json
 .env
 .env.*
 secrets.dart
+.aider*

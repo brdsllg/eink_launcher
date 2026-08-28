@@ -8,11 +8,16 @@ const String kStorageRoot = '/storage/emulated/0';
 // pinned to this height so the page-size calculation in each screen
 // (available height ÷ row height) is exact, regardless of text scale or
 // theme density.
-const double kRowHeight = 48.0;
+const double kRowHeight = 60.0;
 
 // Height of the Previous/Next bar under each paginated list. Must match
 // PageNavBar's own height — kept as one constant so they can't drift apart.
-const double kNavBarHeight = 48.0;
+const double kNavBarHeight = 56.0;
+
+// Height of the file browser's "Up a folder" bar. Kept separate from
+// kNavBarHeight since it isn't load-bearing for any page-size math, just
+// visual consistency with the enlarged nav bar.
+const double kFolderUpBarHeight = 56.0;
 
 // Phase 8: no page-transition animations (e-ink ghosting/jank risk). Wrap
 // any pushed route in this instead of using MaterialPageRoute directly.

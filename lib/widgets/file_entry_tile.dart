@@ -45,13 +45,13 @@ class FileEntryTile extends StatelessWidget {
             ? Icon(
                 entry.isDirectory ? Icons.folder : Icons.insert_drive_file,
                 color: Colors.white,
-                size: 18,
+                size: 26,
               )
             : (entry.isDirectory
-                ? const Icon(Icons.folder, color: Colors.grey, size: 18)
+                ? const Icon(Icons.folder, color: Colors.grey, size: 26)
                 : Text(
                     entry.sizeLabel ?? '',
-                    style: const TextStyle(fontSize: 13, color: Colors.black),
+                    style: const TextStyle(fontSize: 14, color: Colors.black),
                   )),
         onTap: onTap,
         onLongPress: onLongPress,

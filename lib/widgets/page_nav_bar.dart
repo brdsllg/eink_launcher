@@ -27,11 +27,13 @@ class PageNavBar extends StatelessWidget {
         children: [
           IconButton(
             icon: const Icon(Icons.chevron_left),
+            iconSize: 28,
             onPressed: onPrevious,
           ),
           Text('Page ${currentPage + 1} of $totalPages'),
           IconButton(
             icon: const Icon(Icons.chevron_right),
+            iconSize: 28,
             onPressed: onNext,
           ),
         ],

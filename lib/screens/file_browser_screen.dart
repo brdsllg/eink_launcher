@@ -242,12 +242,13 @@ Future<void> _promptNewFolder() async {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.arrow_upward,
+                  size: 26,
                   color: onPressed == null ? Colors.grey : Colors.black),
               const SizedBox(width: 8),
               Text(
                 'Up a folder',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   color: onPressed == null ? Colors.grey : Colors.black,
                 ),
               ),
@@ -266,21 +267,21 @@ Future<void> _promptNewFolder() async {
     bool enabled = true,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
       child: TextButton(
         style: TextButton.styleFrom(
           foregroundColor: enabled ? Colors.black : Colors.grey,
           minimumSize: const Size(0, 0),
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         ),
         onPressed: enabled ? onPressed : null,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18),
+            Icon(icon, size: 22),
             const SizedBox(width: 4),
-            Text(label, style: const TextStyle(fontSize: 12)),
+            Text(label, style: const TextStyle(fontSize: 14)),
           ],
         ),
       ),
@@ -428,8 +429,9 @@ body: Stack(
               children: [
                 Column(
                   children: [
+                    const Divider(height: 1),
                     SizedBox(
-                      height: 44,
+                      height: kFolderUpBarHeight,
                       child: _buildTopBar(),
                     ),
                     const Divider(height: 1),
