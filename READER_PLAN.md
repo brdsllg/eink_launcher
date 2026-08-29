@@ -382,7 +382,7 @@ class ReaderSettings {
   - Create `lib/reader/services/pdf_crop_service.dart` (isolate-backed ink bbox detection, minimum-run filtering).
   - Add unit tests in `test/reader/pdf_crop_service_test.dart`.
 
-- [ ] **Step 1.4: Session Management & Suspend Contract**
+- [x] **Step 1.4: Session Management & Suspend Contract**
   - Create `lib/reader/controllers/reader_session.dart` (abstract session base with lifecycle contract).
   - Create `lib/reader/controllers/pdf_reader_session.dart`:
     - Implement page navigation (`nextPage`, `prevPage`, `goToPage`, `goToPercent`).
@@ -391,20 +391,21 @@ class ReaderSettings {
     - Logical position mapping.
   - Create `lib/reader/controllers/reader_session_registry.dart` (singleton session pool, max 4 active, auto-suspend).
 
-- [ ] **Step 1.5: UI Layer (Tap Zones, Menu, PDF View)**
+- [x] **Step 1.5: UI Layer (Tap Zones, Menu, PDF View)**
   - Create `lib/reader/widgets/tap_zone_layer.dart` (30% left / 40% centre / 30% right zones + swipe handling).
   - Create `lib/reader/widgets/pdf_page_view.dart` (handles fit-height, fit-width sub-screen slices, and free-zoom `InteractiveViewer`).
   - Create `lib/reader/widgets/reader_menu_overlay.dart` (top/bottom bars: page jump, fit mode toggle, crop toggle, rotation, settings entry).
   - Create `lib/reader/screens/reader_settings_screen.dart` (discrete buttons for settings).
 
-- [ ] **Step 1.6: Reader Shell Screen & Lifecycle Hooks**
-  - Create `lib/reader/screens/reader_screen.dart` (format-agnostic host with `AppLifecycleListener` position saving).
+- [x] **Step 1.6: Reader Shell Screen & Lifecycle Hooks**
+  - Create `lib/reader/screens/reader_screen.dart` (format-agnostic host with lifecycle-observer position saving).
   - Handle manual landscape/portrait orientation locking.
 
 - [ ] **Step 1.7: Wire File Browser Integration**
   - Update `lib/screens/file_browser_screen.dart`:
-    - On file tap: if extension is in `kReadableExtensions`, push `ReaderScreen` via `noTransitionRoute`.
-    - In selection action bar: add "Open with…" button using `OpenFilex` when 1 file is selected.
+    - [x] On PDF tap, push `ReaderScreen` via `noTransitionRoute`.
+    - [ ] Route EPUB/TXT/Markdown internally after `TextReaderSession` exists; until then they continue through Android rather than opening a non-functional reader.
+    - [x] In the selection action bar, provide "Open with…" for one selected file through the native chooser bridge.
   - Update `lib/controllers/file_browser_controller.dart` if needed.
 
 - [ ] **Step 1.8: Phase 1 Verification**
@@ -415,17 +416,18 @@ class ReaderSettings {
 ### Phase 1b — Continuous Scroll Mode (PDF)
 **Objective:** Add continuous vertical scrolling without unneeded screen churn or layout shifts.
 
-- [ ] **Step 1b.1: Uniform Crop & Cumulative Heights Table**
+- [x] **Step 1b.1: Uniform Crop & Cumulative Heights Table**
   - Extend `pdf_crop_service.dart` with document-uniform crop sampling (~10 sample pages).
   - Add cumulative height table calculation to `pdf_reader_session.dart`.
   - Add `NoMomentumScrollPhysics` (stops dead on release, no ballistic deceleration).
 
-- [ ] **Step 1b.2: Scrollable PDF View**
-  - Implement continuous scroll branch in `pdf_page_view.dart` using `CustomScrollView` + `ListView.builder` with `itemExtentBuilder`.
+- [x] **Step 1b.2: Scrollable PDF View**
+  - Implement continuous scroll branch in `pdf_page_view.dart` using the `CustomScrollView`-backed `ListView.builder` with `itemExtentBuilder`.
   - Wire tap zones to jump one viewport height minus overlap.
   - Map scroll offset ↔ `PdfReadingPosition` bidirectionally.
 
 - [ ] **Step 1b.3: Phase 1b Verification**
+  - [x] Automated coverage for exact extents, offset/position mapping, dominant-page selection, uniform crop sampling, no-momentum physics, and continuous-list construction.
   - Verify continuous mode on device: dragging stops without momentum ghosting, tap jumps exactly one screen, TOC/percent jumps land accurately, switching fit modes preserves position.
 
 ---
@@ -515,12 +517,9 @@ class ReaderSettings {
 
 ### Phase 5 — Polish, E-Ink Optimisations & Edge Cases
 **Objective:** Final hardening, memory management, and display tuning.
-
-- [ ] **Step 5.1: Ghost-Clearing Flash**
-  - Add full-black/full-white flash widget triggered every $N$ page turns (configurable setting, default off).
-- [ ] **Step 5.2: Error Boundaries & Fallback UI**
+- [ ] **Step 5.1: Error Boundaries & Fallback UI**
   - Handle corrupt PDFs, malformed EPUBs, missing files, and memory warnings gracefully.
-- [ ] **Step 5.3: Update Documentation & Tests**
+- [ ] **Step 5.2: Update Documentation & Tests**
   - Update `README.md` with new file listings and architectural details.
   - Run full test suite (`flutter test`, `flutter analyze`).
 

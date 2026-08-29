@@ -56,6 +56,17 @@ void main() {
     expect(crop.toList(), PdfCropRect.fullPage.toList());
   });
 
+  test('reports blank samples separately from full-page crop bounds', () async {
+    final detection = await service.detectBgraCropResult(
+      _whiteBgra(width, height),
+      width: width,
+      height: height,
+    );
+
+    expect(detection.hasInk, isFalse);
+    expect(detection.rect.toList(), PdfCropRect.fullPage.toList());
+  });
+
   test('composites transparent pixels over white', () async {
     final pixels = _whiteBgra(width, height);
     _setBgra(pixels, width, 5, 5, blue: 0, green: 0, red: 0, alpha: 0);
@@ -69,6 +80,35 @@ void main() {
     );
 
     expect(crop.toList(), PdfCropRect.fullPage.toList());
+  });
+
+  test('spreads uniform-crop samples across the whole document', () {
+    expect(PdfCropService.samplePageIndices(100), [
+      0,
+      11,
+      22,
+      33,
+      44,
+      55,
+      66,
+      77,
+      88,
+      99,
+    ]);
+    expect(PdfCropService.samplePageIndices(3), [0, 1, 2]);
+  });
+
+  test('unions sampled ink rectangles', () {
+    final crop = PdfCropService.unionCropRects(const [
+      PdfCropRect(left: 0.2, top: 0.1, right: 0.8, bottom: 0.9),
+      PdfCropRect(left: 0.1, top: 0.2, right: 0.9, bottom: 0.8),
+    ]);
+
+    expect(crop.toList(), [0.1, 0.1, 0.9, 0.9]);
+    expect(
+      PdfCropService.unionCropRects(const []).toList(),
+      PdfCropRect.fullPage.toList(),
+    );
   });
 }
 

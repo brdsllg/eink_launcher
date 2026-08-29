@@ -12,7 +12,10 @@ class BookState {
   final double percent;
   final ReaderSettings? settingsOverride;
   final List<Bookmark> bookmarks;
-  final Map<int, List<double>> cachedCropRects; // pageIndex -> [left, top, right, bottom] fractions
+
+  /// pageIndex -> [left, top, right, bottom] normalized fractions.
+  final Map<int, List<double>> cachedCropRects;
+  final List<double>? uniformPdfCrop;
 
   const BookState({
     required this.docId,
@@ -24,6 +27,7 @@ class BookState {
     this.settingsOverride,
     this.bookmarks = const [],
     this.cachedCropRects = const {},
+    this.uniformPdfCrop,
   });
 
   BookState copyWith({
@@ -34,6 +38,7 @@ class BookState {
     ReaderSettings? settingsOverride,
     List<Bookmark>? bookmarks,
     Map<int, List<double>>? cachedCropRects,
+    List<double>? uniformPdfCrop,
   }) {
     return BookState(
       docId: docId,
@@ -45,47 +50,57 @@ class BookState {
       settingsOverride: settingsOverride ?? this.settingsOverride,
       bookmarks: bookmarks ?? this.bookmarks,
       cachedCropRects: cachedCropRects ?? this.cachedCropRects,
+      uniformPdfCrop: uniformPdfCrop ?? this.uniformPdfCrop,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'docId': docId,
-        'lastPath': lastPath,
-        'format': format.name,
-        'lastRead': lastRead.toIso8601String(),
-        'position': position.toJson(),
-        'percent': percent,
-        if (settingsOverride != null)
-          'settingsOverride': settingsOverride!.toJson(),
-        if (bookmarks.isNotEmpty)
-          'bookmarks': bookmarks.map((b) => b.toJson()).toList(),
-        if (cachedCropRects.isNotEmpty)
-          'cachedCropRects': cachedCropRects.map(
-            (k, v) => MapEntry(k.toString(), v),
-          ),
-      };
+    'docId': docId,
+    'lastPath': lastPath,
+    'format': format.name,
+    'lastRead': lastRead.toIso8601String(),
+    'position': position.toJson(),
+    'percent': percent,
+    if (settingsOverride != null)
+      'settingsOverride': settingsOverride!.toJson(),
+    if (bookmarks.isNotEmpty)
+      'bookmarks': bookmarks.map((b) => b.toJson()).toList(),
+    if (cachedCropRects.isNotEmpty)
+      'cachedCropRects': cachedCropRects.map(
+        (k, v) => MapEntry(k.toString(), v),
+      ),
+    if (uniformPdfCrop != null) 'uniformPdfCrop': uniformPdfCrop,
+  };
 
   factory BookState.fromJson(Map<String, dynamic> json) => BookState(
-        docId: json['docId'] as String,
-        lastPath: json['lastPath'] as String,
-        format: DocFormat.values.byName(json['format'] as String),
-        lastRead: DateTime.parse(json['lastRead'] as String),
-        position: ReadingPosition.fromJson(
-            json['position'] as Map<String, dynamic>),
-        percent: (json['percent'] as num?)?.toDouble() ?? 0.0,
-        settingsOverride: json['settingsOverride'] != null
-            ? ReaderSettings.fromJson(
-                json['settingsOverride'] as Map<String, dynamic>)
-            : null,
-        bookmarks: (json['bookmarks'] as List<dynamic>?)
-                ?.map((b) => Bookmark.fromJson(b as Map<String, dynamic>))
-                .toList() ??
-            const [],
-        cachedCropRects: (json['cachedCropRects'] as Map<String, dynamic>?)
-                ?.map((k, v) => MapEntry(
-                      int.parse(k),
-                      (v as List<dynamic>).map((e) => (e as num).toDouble()).toList(),
-                    )) ??
-            const {},
-      );
+    docId: json['docId'] as String,
+    lastPath: json['lastPath'] as String,
+    format: DocFormat.values.byName(json['format'] as String),
+    lastRead: DateTime.parse(json['lastRead'] as String),
+    position: ReadingPosition.fromJson(
+      json['position'] as Map<String, dynamic>,
+    ),
+    percent: (json['percent'] as num?)?.toDouble() ?? 0.0,
+    settingsOverride: json['settingsOverride'] != null
+        ? ReaderSettings.fromJson(
+            json['settingsOverride'] as Map<String, dynamic>,
+          )
+        : null,
+    bookmarks:
+        (json['bookmarks'] as List<dynamic>?)
+            ?.map((b) => Bookmark.fromJson(b as Map<String, dynamic>))
+            .toList() ??
+        const [],
+    cachedCropRects:
+        (json['cachedCropRects'] as Map<String, dynamic>?)?.map(
+          (k, v) => MapEntry(
+            int.parse(k),
+            (v as List<dynamic>).map((e) => (e as num).toDouble()).toList(),
+          ),
+        ) ??
+        const {},
+    uniformPdfCrop: (json['uniformPdfCrop'] as List<dynamic>?)
+        ?.map((value) => (value as num).toDouble())
+        .toList(growable: false),
+  );
 }

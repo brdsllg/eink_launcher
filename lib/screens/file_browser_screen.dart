@@ -5,6 +5,9 @@ import 'package:open_filex/open_filex.dart';
 import '../constants.dart';
 import '../controllers/file_browser_controller.dart';
 import '../models/file_entry.dart';
+import '../reader/models/doc_ref.dart';
+import '../reader/screens/reader_screen.dart';
+import '../reader/services/doc_identity_service.dart';
 import '../services/file_mime_type_service.dart';
 import '../services/open_with_service.dart';
 import '../widgets/battery_status.dart';
@@ -119,6 +122,18 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
         await _controller.loadFolder(path);
         return;
       }
+      final dotIndex = entry.name.lastIndexOf('.');
+      final extension = dotIndex < 0
+          ? ''
+          : entry.name.substring(dotIndex).toLowerCase();
+      final format = DocFormat.tryFromExtension(extension);
+      if (kReadableExtensions.contains(extension) && format == DocFormat.pdf) {
+        final doc = await DocIdentityService.createDocRef(path);
+        if (!mounted) return;
+        await Navigator.of(context)
+            .push(noTransitionRoute(ReaderScreen(doc: doc)));
+        return;
+      }
       final result = await OpenFilex.open(
         path,
         type: FileMimeTypeService.forPath(path),
@@ -126,6 +141,8 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
       if (result.type != ResultType.done && mounted) {
         _showSnack('Could not open ${entry.name}: ${result.message}');
       }
+    } catch (error) {
+      _showSnack('Could not open ${entry.name}: $error');
     } finally {
       if (mounted && _openingPath == path) {
         setState(() => _openingPath = null);

@@ -49,15 +49,24 @@ eink_launcher/
 │   │   │   ├── bookmark.dart             # Reader bookmark data model
 │   │   │   ├── book_state.dart           # Per-document persisted state model
 │   │   │   ├── doc_ref.dart              # Document format enum & identity model
+│   │   │   ├── pdf_continuous_layout.dart # Exact PDF scroll extents & offset mapping
 │   │   │   ├── reader_settings.dart      # Typography, display & fit settings model
 │   │   │   ├── reading_position.dart     # Logical reading position (Pdf / Text)
 │   │   │   └── toc_entry.dart            # Table of Contents hierarchy model
-│   │   └── services/
-│   │       ├── book_store_service.dart   # library.json atomic persistence service
-│   │       ├── doc_identity_service.dart # SHA-1 content fingerprinting service
-│   │       ├── page_bitmap_cache.dart    # Memory-bounded LRU for rendered PDF pages
-│   │       ├── pdf_crop_service.dart     # Isolate-backed PDF ink-bound detection
-│   │       └── pdf_document_service.dart # pdfrx document open/render/outline wrapper
+│   │   ├── services/
+│   │   │   ├── book_store_service.dart   # library.json atomic persistence service
+│   │   │   ├── doc_identity_service.dart # SHA-1 content fingerprinting service
+│   │   │   ├── page_bitmap_cache.dart    # Memory-bounded LRU for rendered PDF pages
+│   │   │   ├── pdf_crop_service.dart     # Isolate-backed PDF ink-bound detection
+│   │   │   └── pdf_document_service.dart # pdfrx document open/render/outline wrapper
+│   │   ├── screens/
+│   │   │   ├── reader_screen.dart        # Full-bleed PDF reader shell & lifecycle hooks
+│   │   │   └── reader_settings_screen.dart # Discrete PDF display settings
+│   │   └── widgets/
+│   │       ├── no_momentum_scroll_physics.dart # Drag-without-fling scroll behavior
+│   │       ├── pdf_page_view.dart        # Cached PDF page, zoom & continuous views
+│   │       ├── reader_menu_overlay.dart  # E-ink reader controls and page status
+│   │       └── tap_zone_layer.dart       # Invisible tap zones and swipe navigation
 │   ├── screens/
 │   │   ├── app_drawer_screen.dart        # Paginated application drawer & search screen
 │   │   └── file_browser_screen.dart      # Main home file manager screen
@@ -86,10 +95,14 @@ eink_launcher/
 │       ├── book_store_service_test.dart  # Unit tests for library.json persistence & reload
 │       ├── doc_identity_service_test.dart# Unit tests for SHA-1 docId generation
 │       ├── page_bitmap_cache_test.dart   # Unit tests for PDF bitmap LRU eviction
+│       ├── no_momentum_scroll_physics_test.dart # No-fling physics unit test
+│       ├── pdf_continuous_layout_test.dart # Exact scroll geometry mapping tests
 │       ├── pdf_crop_service_test.dart    # Unit tests for crop bounds & noise filtering
 │       ├── pdf_document_service_test.dart# PDF service unit tests & opt-in native smoke test
 │       ├── pdf_reader_session_test.dart  # PDF session navigation, cache & lifecycle tests
-│       └── reader_session_registry_test.dart # Reader session registry lifecycle tests
+│       ├── reader_session_registry_test.dart # Reader session registry lifecycle tests
+│       ├── reader_settings_screen_test.dart # Discrete PDF settings widget tests
+│       └── tap_zone_layer_test.dart      # Tap boundary and swipe-direction tests
 └── android/                              # Native Android platform configuration
 ```
 
@@ -128,12 +141,17 @@ eink_launcher/
 
 #### Reader Module (`lib/reader/`)
 
+The Phase 1 PDF path and Phase 1b continuous-scroll mode are wired end-to-end:
+selecting a PDF in the file browser opens the built-in full-screen reader.
+EPUB, TXT, and Markdown remain declared future formats and continue opening
+through Android until the shared text reader arrives in Phases 2–3.
+
 ##### Controllers
 
 - **[`lib/reader/controllers/reader_session.dart`](lib/reader/controllers/reader_session.dart)**:
   - Defines the shared reader-session lifecycle, navigation, rendering, and viewport contracts.
 - **[`lib/reader/controllers/pdf_reader_session.dart`](lib/reader/controllers/pdf_reader_session.dart)**:
-  - Implements PDF session loading, navigation, fit modes, persistence, and cached viewport rendering.
+  - Implements PDF session loading, navigation, fit modes, continuous offset mapping, persistence, and cached viewport rendering.
 - **[`lib/reader/controllers/reader_session_registry.dart`](lib/reader/controllers/reader_session_registry.dart)**:
   - Tracks open document sessions and coordinates suspension, resumption, and disposal.
 
@@ -144,6 +162,8 @@ eink_launcher/
   - `DocRef` model representing document identity, location, format, title, and size.
 - **[`lib/reader/models/reading_position.dart`](lib/reader/models/reading_position.dart)**:
   - Sealed `ReadingPosition` hierarchy (`PdfReadingPosition` with fractional page offset and `TextReadingPosition` with spine, block, and character offsets).
+- **[`lib/reader/models/pdf_continuous_layout.dart`](lib/reader/models/pdf_continuous_layout.dart)**:
+  - Calculates exact fit-width page heights, cumulative offsets, logical-position conversions, and the page occupying most of the viewport.
 - **[`lib/reader/models/reader_settings.dart`](lib/reader/models/reader_settings.dart)**:
   - Reader configuration model encompassing fonts, font size steps, margins, line height, hyphenation, justification, `PdfFitMode`, and `ParagraphMode`.
 - **[`lib/reader/models/bookmark.dart`](lib/reader/models/bookmark.dart)**:
@@ -151,7 +171,7 @@ eink_launcher/
 - **[`lib/reader/models/toc_entry.dart`](lib/reader/models/toc_entry.dart)**:
   - Hierarchical Table of Contents tree entry with nesting support.
 - **[`lib/reader/models/book_state.dart`](lib/reader/models/book_state.dart)**:
-  - Comprehensive document persistence state holding reading progress, timestamp, document overrides, bookmarks, and cached crop rects.
+  - Comprehensive document persistence state holding reading progress, timestamp, document overrides, bookmarks, per-page crops, and the continuous-mode uniform crop.
 - **[`lib/reader/services/doc_identity_service.dart`](lib/reader/services/doc_identity_service.dart)**:
   - Generates stable `sha1(first 64 KB + fileSize)` document keys so moved/renamed files retain reading positions.
 - **[`lib/reader/services/book_store_service.dart`](lib/reader/services/book_store_service.dart)**:
@@ -159,9 +179,24 @@ eink_launcher/
 - **[`lib/reader/services/page_bitmap_cache.dart`](lib/reader/services/page_bitmap_cache.dart)**:
   - Owns rendered Flutter images in a 40 MB least-recently-used cache and disposes replaced or evicted bitmaps.
 - **[`lib/reader/services/pdf_crop_service.dart`](lib/reader/services/pdf_crop_service.dart)**:
-  - Renders low-resolution page samples and detects padded ink bounds on a background isolate, filtering isolated scanner specks.
+  - Detects padded ink bounds on a background isolate, distinguishes blank samples, and unions up to ten spread page samples for stable document-uniform cropping.
 - **[`lib/reader/services/pdf_document_service.dart`](lib/reader/services/pdf_document_service.dart)**:
   - Owns the `pdfrx` document handle and provides capped page rendering, page geometry, and PDF-outline conversion.
+
+##### Screens and Widgets
+
+- **[`lib/reader/screens/reader_screen.dart`](lib/reader/screens/reader_screen.dart)**:
+  - Obtains long-lived sessions from the registry, presents a full-bleed PDF, coordinates app pause/resume persistence, and applies manual portrait/landscape locks.
+- **[`lib/reader/screens/reader_settings_screen.dart`](lib/reader/screens/reader_settings_screen.dart)**:
+  - Provides discrete fit-mode, auto-crop, momentum, and overlap controls without animated switches or sliders.
+- **[`lib/reader/widgets/no_momentum_scroll_physics.dart`](lib/reader/widgets/no_momentum_scroll_physics.dart)**:
+  - Allows direct vertical dragging but returns no ballistic simulation, so release stops immediately by default.
+- **[`lib/reader/widgets/pdf_page_view.dart`](lib/reader/widgets/pdf_page_view.dart)**:
+  - Presents tap-driven bitmaps, free zoom, or an exact-extent lazy continuous list with two-viewports of render look-ahead.
+- **[`lib/reader/widgets/reader_menu_overlay.dart`](lib/reader/widgets/reader_menu_overlay.dart)**:
+  - Supplies page status, previous/next, fit, crop, orientation, settings, and exit controls in high-contrast top and bottom bars.
+- **[`lib/reader/widgets/tap_zone_layer.dart`](lib/reader/widgets/tap_zone_layer.dart)**:
+  - Implements fixed left/back, centre/menu, and right/forward tap zones plus horizontal swipes; free zoom narrows the edge targets and preserves PDF pan gestures.
 
 #### Launcher Models (`lib/models/`)
 - **[`lib/models/file_entry.dart`](lib/models/file_entry.dart)**:
@@ -221,10 +256,14 @@ eink_launcher/
 - **[`test/reader/doc_identity_service_test.dart`](test/reader/doc_identity_service_test.dart)**: Unit tests for docId computation.
 - **[`test/reader/book_store_service_test.dart`](test/reader/book_store_service_test.dart)**: Unit tests for `library.json` persistence.
 - **[`test/reader/page_bitmap_cache_test.dart`](test/reader/page_bitmap_cache_test.dart)**: Unit tests for memory budgeting and LRU eviction.
+- **[`test/reader/no_momentum_scroll_physics_test.dart`](test/reader/no_momentum_scroll_physics_test.dart)**: Unit test proving release creates no ballistic fling.
+- **[`test/reader/pdf_continuous_layout_test.dart`](test/reader/pdf_continuous_layout_test.dart)**: Unit tests for exact extents, offset mapping, dominant-page selection, and boundary clamping.
 - **[`test/reader/pdf_crop_service_test.dart`](test/reader/pdf_crop_service_test.dart)**: Unit tests for ink bounds, blank pages, alpha compositing, and noise filtering.
 - **[`test/reader/pdf_document_service_test.dart`](test/reader/pdf_document_service_test.dart)**: Unit tests for PDF lifecycle/rendering and an opt-in native PDFium smoke test.
-- **[`test/reader/pdf_reader_session_test.dart`](test/reader/pdf_reader_session_test.dart)**: Unit tests for PDF session navigation, fit modes, persistence, caching, suspension, and resumption.
+- **[`test/reader/pdf_reader_session_test.dart`](test/reader/pdf_reader_session_test.dart)**: Unit and widget tests for PDF navigation, fit and continuous modes, persistence, caching, suspension, and resumption.
 - **[`test/reader/reader_session_registry_test.dart`](test/reader/reader_session_registry_test.dart)**: Unit tests for reader-session registry reuse and lifecycle management.
+- **[`test/reader/reader_settings_screen_test.dart`](test/reader/reader_settings_screen_test.dart)**: Widget tests for discrete PDF settings controls.
+- **[`test/reader/tap_zone_layer_test.dart`](test/reader/tap_zone_layer_test.dart)**: Widget tests for tap boundaries, fixed navigation direction, and swipe callbacks.
 
 ---
 

@@ -9,6 +9,7 @@ import 'dart:ui';
 import '../../constants.dart';
 import '../models/book_state.dart';
 import '../models/doc_ref.dart';
+import '../models/pdf_continuous_layout.dart';
 import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
 import '../models/toc_entry.dart';
@@ -49,6 +50,9 @@ class PdfReaderSession extends ReaderSession {
   List<TocEntry> _toc = const [];
   ReaderSettings _settings = const ReaderSettings();
   final Map<int, PdfCropRect> _cropRectCache = {};
+  PdfCropRect? _uniformCropRect;
+  PdfContinuousLayout? _continuousLayout;
+  int? _continuousCurrentPage;
 
   /// Last viewport size reported by the reader widget (Step 1.5). Sub-screen
   /// math and prefetching are no-ops until this is known.
@@ -78,7 +82,9 @@ class PdfReaderSession extends ReaderSession {
   int get pageCount => _pageCount;
 
   @override
-  int get currentPage => _pageIndex;
+  int get currentPage => _settings.fitMode == PdfFitMode.continuousScroll
+      ? _continuousCurrentPage ?? _pageIndex
+      : _pageIndex;
 
   @override
   double get percent => _pageCount == 0
@@ -159,6 +165,12 @@ class PdfReaderSession extends ReaderSession {
   Future<void> nextPage() async {
     if (!_isReady) return;
     final viewport = _lastViewport;
+    if (_settings.fitMode == PdfFitMode.continuousScroll) {
+      if (viewport != null && _continuousLayout != null) {
+        _moveContinuousViewport(viewport.height * (1 - _settings.splitOverlap));
+      }
+      return;
+    }
     if (_settings.fitMode == PdfFitMode.fitWidth && viewport != null) {
       final starts = await _subScreenStarts(_pageIndex, viewport);
       final idx = _nearestIndex(starts, _withinPage);
@@ -178,6 +190,14 @@ class PdfReaderSession extends ReaderSession {
   Future<void> prevPage() async {
     if (!_isReady) return;
     final viewport = _lastViewport;
+    if (_settings.fitMode == PdfFitMode.continuousScroll) {
+      if (viewport != null && _continuousLayout != null) {
+        _moveContinuousViewport(
+          -viewport.height * (1 - _settings.splitOverlap),
+        );
+      }
+      return;
+    }
     if (_settings.fitMode == PdfFitMode.fitWidth && viewport != null) {
       final starts = await _subScreenStarts(_pageIndex, viewport);
       final idx = _nearestIndex(starts, _withinPage);
@@ -203,6 +223,7 @@ class PdfReaderSession extends ReaderSession {
     if (!_isReady || _pageCount == 0) return;
     _pageIndex = pageIndex.clamp(0, _pageCount - 1).toInt();
     _withinPage = 0.0;
+    _continuousCurrentPage = _pageIndex;
     _afterPositionChanged();
   }
 
@@ -212,6 +233,7 @@ class PdfReaderSession extends ReaderSession {
     if (!_isReady || _pageCount == 0 || target is! PdfReadingPosition) return;
     _pageIndex = target.pageIndex.clamp(0, _pageCount - 1).toInt();
     _withinPage = target.withinPage;
+    _continuousCurrentPage = _pageIndex;
     _afterPositionChanged();
   }
 
@@ -219,14 +241,27 @@ class PdfReaderSession extends ReaderSession {
   Future<void> goToPercent(double pct) async {
     if (!_isReady || _pageCount == 0) return;
     final clamped = clampDouble(pct, 0.0, 1.0);
-    _pageIndex = (clamped * _pageCount).floor().clamp(0, _pageCount - 1).toInt();
+    _pageIndex = (clamped * _pageCount)
+        .floor()
+        .clamp(0, _pageCount - 1)
+        .toInt();
     _withinPage = 0.0;
+    _continuousCurrentPage = _pageIndex;
     _afterPositionChanged();
   }
 
   @override
   Future<void> applySettings(ReaderSettings settings) async {
+    final oldSettings = _settings;
     _settings = settings;
+    if (oldSettings.autoCrop != settings.autoCrop) {
+      _continuousLayout = null;
+    }
+    if (settings.fitMode == PdfFitMode.continuousScroll) {
+      _continuousCurrentPage ??= _pageIndex;
+    } else {
+      _continuousCurrentPage = null;
+    }
     notifyListeners();
     _persistState(settingsOverride: settings);
   }
@@ -237,6 +272,86 @@ class PdfReaderSession extends ReaderSession {
   void updateViewport(Size size) {
     if (size == _lastViewport) return;
     _lastViewport = size;
+  }
+
+  // ---------------------------------------------------------------------
+  // Continuous-scroll geometry and position mapping
+  // ---------------------------------------------------------------------
+
+  Future<PdfContinuousLayout> continuousLayoutForViewport(Size viewport) async {
+    if (!_isReady || viewport.width <= 0 || viewport.height <= 0) {
+      throw StateError('Cannot prepare continuous layout before opening');
+    }
+    updateViewport(viewport);
+    final cached = _continuousLayout;
+    if (cached != null && cached.viewportWidth == viewport.width) return cached;
+
+    final crop = _settings.autoCrop
+        ? await _resolveUniformCropRect()
+        : PdfCropRect.fullPage;
+    final pageSizes = List<Size>.generate(_pageCount, (pageIndex) {
+      final info = _documentService!.pageInfo(pageIndex);
+      return Size(info.width, info.height);
+    }, growable: false);
+    final layout = PdfContinuousLayout.fromPageSizes(
+      pageSizes: pageSizes,
+      viewportWidth: viewport.width,
+      cropWidth: crop.width,
+      cropHeight: crop.height,
+    );
+    _continuousLayout = layout;
+    _continuousCurrentPage = layout.dominantPage(
+      layout.offsetForPosition(
+        position as PdfReadingPosition,
+        viewportHeight: viewport.height,
+      ),
+      viewport.height,
+    );
+    return layout;
+  }
+
+  double continuousOffsetForPosition(
+    PdfContinuousLayout layout,
+    double viewportHeight,
+  ) {
+    return layout.offsetForPosition(
+      position as PdfReadingPosition,
+      viewportHeight: viewportHeight,
+    );
+  }
+
+  /// Records a user-driven scroll without rebuilding on every drag pixel.
+  /// Listeners are notified only when the dominant page shown in the menu
+  /// changes; the logical top-of-viewport position is still always persisted.
+  void updateContinuousScrollOffset(
+    double offset,
+    PdfContinuousLayout layout,
+    double viewportHeight,
+  ) {
+    if (_settings.fitMode != PdfFitMode.continuousScroll) return;
+    final logical = layout.positionForOffset(offset);
+    final dominant = layout.dominantPage(offset, viewportHeight);
+    final pageChanged = dominant != _continuousCurrentPage;
+    _pageIndex = logical.pageIndex;
+    _withinPage = logical.withinPage;
+    _continuousCurrentPage = dominant;
+    _persistState();
+    if (pageChanged) notifyListeners();
+  }
+
+  void _moveContinuousViewport(double delta) {
+    final layout = _continuousLayout;
+    final viewport = _lastViewport;
+    if (layout == null || viewport == null) return;
+    final current = continuousOffsetForPosition(layout, viewport.height);
+    final target = (current + delta)
+        .clamp(0.0, layout.maxScrollOffset(viewport.height))
+        .toDouble();
+    final logical = layout.positionForOffset(target);
+    _pageIndex = logical.pageIndex;
+    _withinPage = logical.withinPage;
+    _continuousCurrentPage = layout.dominantPage(target, viewport.height);
+    _afterPositionChanged();
   }
 
   // ---------------------------------------------------------------------
@@ -253,6 +368,39 @@ class PdfReaderSession extends ReaderSession {
     }
     updateViewport(viewport);
     return _renderPageAt(_pageIndex, _withinPage, viewport);
+  }
+
+  Future<Image> renderContinuousPage(
+    int pageIndex,
+    PdfContinuousLayout layout,
+  ) async {
+    if (!_isReady || _settings.fitMode != PdfFitMode.continuousScroll) {
+      throw StateError('Continuous PDF rendering is not active');
+    }
+    final crop = _settings.autoCrop
+        ? await _resolveUniformCropRect()
+        : PdfCropRect.fullPage;
+    final pixelWidth = layout.viewportWidth.round();
+    final pixelHeight = layout.pageHeights[pageIndex].round();
+    final key = PdfBitmapCacheKey(
+      pageIndex: pageIndex,
+      pixelWidth: pixelWidth,
+      pixelHeight: pixelHeight,
+      cropLeft: crop.left,
+      cropTop: crop.top,
+      cropRight: crop.right,
+      cropBottom: crop.bottom,
+    );
+    final cached = _bitmapCache.get(key);
+    if (cached != null) return cached;
+    final image = await _documentService!.renderPage(
+      pageIndex: pageIndex,
+      pixelWidth: pixelWidth,
+      pixelHeight: pixelHeight,
+      crop: crop,
+    );
+    _bitmapCache.put(key, image);
+    return image;
   }
 
   Future<Image> _renderPageAt(
@@ -289,9 +437,8 @@ class PdfReaderSession extends ReaderSession {
   /// Computes output pixel size and the (possibly sub-screen-sliced) crop
   /// rect to render, for the current [ReaderSettings.fitMode].
   ///
-  /// Continuous scroll (Phase 1b) is treated as fit-height for now — one
-  /// full top-anchored page per screen — until the cumulative height table
-  /// and scrollable view land.
+  /// Continuous scroll has its own whole-document rendering path; this branch
+  /// is retained as a safe single-page fallback during mode transitions.
   ({int pixelWidth, int pixelHeight, PdfCropRect crop}) _geometryFor(
     PdfPageInfo info,
     PdfCropRect crop,
@@ -347,11 +494,7 @@ class PdfReaderSession extends ReaderSession {
           pixelHeight = kPdfMaxRenderDimension.round();
           pixelWidth = (kPdfMaxRenderDimension * aspect).round();
         }
-        return (
-          pixelWidth: pixelWidth,
-          pixelHeight: pixelHeight,
-          crop: crop,
-        );
+        return (pixelWidth: pixelWidth, pixelHeight: pixelHeight, crop: crop);
     }
   }
 
@@ -414,11 +557,25 @@ class PdfReaderSession extends ReaderSession {
     return detected;
   }
 
+  Future<PdfCropRect> _resolveUniformCropRect() async {
+    if (!_settings.autoCrop) return PdfCropRect.fullPage;
+    final cached = _uniformCropRect;
+    if (cached != null) return cached;
+    final detected = await _cropService.detectDocumentCrop(
+      pageCount: _pageCount,
+      pageAt: _documentService!.pageAt,
+    );
+    _uniformCropRect = detected;
+    _persistState();
+    return detected;
+  }
+
   // ---------------------------------------------------------------------
   // Prefetch
   // ---------------------------------------------------------------------
 
   void _prefetchNeighbors() {
+    if (_settings.fitMode == PdfFitMode.continuousScroll) return;
     unawaited(_prefetchPage(_pageIndex + 1));
     unawaited(_prefetchPage(_pageIndex - 1));
   }
@@ -467,6 +624,10 @@ class PdfReaderSession extends ReaderSession {
           (e) => MapEntry(e.key, PdfCropRect.fromList(e.value)),
         ),
       );
+    final uniformCrop = saved.uniformPdfCrop;
+    _uniformCropRect = uniformCrop == null
+        ? null
+        : PdfCropRect.fromList(uniformCrop);
   }
 
   void _afterPositionChanged() {
@@ -491,6 +652,7 @@ class PdfReaderSession extends ReaderSession {
           for (final entry in _cropRectCache.entries)
             entry.key: entry.value.toList(),
         },
+        uniformPdfCrop: _uniformCropRect?.toList(),
       ),
     );
   }

@@ -1,13 +1,16 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui';
 
 import 'package:eink_launcher/reader/controllers/pdf_reader_session.dart';
 import 'package:eink_launcher/reader/models/doc_ref.dart';
 import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:eink_launcher/reader/models/reading_position.dart';
 import 'package:eink_launcher/reader/services/book_store_service.dart';
+import 'package:eink_launcher/reader/services/pdf_crop_service.dart';
 import 'package:eink_launcher/reader/services/pdf_document_service.dart';
+import 'package:eink_launcher/reader/widgets/no_momentum_scroll_physics.dart';
+import 'package:eink_launcher/reader/widgets/pdf_page_view.dart' as reader;
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -17,9 +20,7 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp(
-      'pdf_reader_session_test_',
-    );
+    tempDir = await Directory.systemTemp.createTemp('pdf_reader_session_test_');
     await BookStoreService.instance.init(
       customFile: File('${tempDir.path}/library.json'),
     );
@@ -46,10 +47,8 @@ void main() {
   }) {
     return PdfReaderSession(
       doc: docRef,
-      documentServiceFactory: (path) => PdfDocumentService(
-        path,
-        documentOpener: (p, pw) async => fakeDoc,
-      ),
+      documentServiceFactory: (path) =>
+          PdfDocumentService(path, documentOpener: (p, pw) async => fakeDoc),
     );
   }
 
@@ -82,25 +81,32 @@ void main() {
     expect(session.error, contains('boom'));
   });
 
-  test('goToPage clamps to the valid range and persists the position', () async {
-    final session = makeSession(
-      fakeDoc: _FakePdfDocument(pageCount: 3, pageWidth: 200, pageHeight: 300),
-    );
-    await session.open();
+  test(
+    'goToPage clamps to the valid range and persists the position',
+    () async {
+      final session = makeSession(
+        fakeDoc: _FakePdfDocument(
+          pageCount: 3,
+          pageWidth: 200,
+          pageHeight: 300,
+        ),
+      );
+      await session.open();
 
-    await session.goToPage(1);
-    expect(session.currentPage, 1);
+      await session.goToPage(1);
+      expect(session.currentPage, 1);
 
-    await session.goToPage(99);
-    expect(session.currentPage, 2); // clamped to pageCount - 1
+      await session.goToPage(99);
+      expect(session.currentPage, 2); // clamped to pageCount - 1
 
-    await session.goToPage(-5);
-    expect(session.currentPage, 0);
+      await session.goToPage(-5);
+      expect(session.currentPage, 0);
 
-    final saved = BookStoreService.instance.getBookState('doc-1');
-    expect(saved, isNotNull);
-    expect((saved!.position as PdfReadingPosition).pageIndex, 0);
-  });
+      final saved = BookStoreService.instance.getBookState('doc-1');
+      expect(saved, isNotNull);
+      expect((saved!.position as PdfReadingPosition).pageIndex, 0);
+    },
+  );
 
   test('percent reflects the current page fraction', () async {
     final session = makeSession(
@@ -112,49 +118,44 @@ void main() {
     expect(session.percent, closeTo(2 / 4, 0.0001));
   });
 
-  test(
-    'fit-width nextPage/prevPage step through sub-screens before crossing pages',
-    () async {
-      final session = makeSession(
-        fakeDoc: _FakePdfDocument(
-          pageCount: 3,
-          pageWidth: 200,
-          pageHeight: 1600, // tall page => several fit-width sub-screens
-        ),
-      );
-      await session.open();
-      await session.applySettings(
-        session.settings.copyWith(fitMode: PdfFitMode.fitWidth),
-      );
-      session.updateViewport(const Size(400, 800));
+  test('fit-width nextPage/prevPage step through sub-screens before crossing pages', () async {
+    final session = makeSession(
+      fakeDoc: _FakePdfDocument(
+        pageCount: 3,
+        pageWidth: 200,
+        pageHeight: 1600, // tall page => several fit-width sub-screens
+      ),
+    );
+    await session.open();
+    await session.applySettings(
+      session.settings.copyWith(fitMode: PdfFitMode.fitWidth),
+    );
+    session.updateViewport(const Size(400, 800));
 
-      final seenWithinPage = <double>[0.0];
-      for (var i = 0; i < 4; i++) {
-        await session.nextPage();
-        seenWithinPage.add(
-          (session.position as PdfReadingPosition).withinPage,
-        );
-      }
+    final seenWithinPage = <double>[0.0];
+    for (var i = 0; i < 4; i++) {
+      await session.nextPage();
+      seenWithinPage.add((session.position as PdfReadingPosition).withinPage);
+    }
 
-      // All four taps stay on page 0, walking through strictly increasing
-      // sub-screen fractions before the page boundary is reached.
-      expect(session.currentPage, 0);
-      for (var i = 1; i < seenWithinPage.length; i++) {
-        expect(seenWithinPage[i], greaterThan(seenWithinPage[i - 1]));
-      }
+    // All four taps stay on page 0, walking through strictly increasing
+    // sub-screen fractions before the page boundary is reached.
+    expect(session.currentPage, 0);
+    for (var i = 1; i < seenWithinPage.length; i++) {
+      expect(seenWithinPage[i], greaterThan(seenWithinPage[i - 1]));
+    }
 
-      await session.nextPage(); // crosses onto page 1
-      expect(session.currentPage, 1);
-      expect((session.position as PdfReadingPosition).withinPage, 0.0);
+    await session.nextPage(); // crosses onto page 1
+    expect(session.currentPage, 1);
+    expect((session.position as PdfReadingPosition).withinPage, 0.0);
 
-      await session.prevPage(); // lands on page 0's last sub-screen
-      expect(session.currentPage, 0);
-      expect(
-        (session.position as PdfReadingPosition).withinPage,
-        greaterThan(0.0),
-      );
-    },
-  );
+    await session.prevPage(); // lands on page 0's last sub-screen
+    expect(session.currentPage, 0);
+    expect(
+      (session.position as PdfReadingPosition).withinPage,
+      greaterThan(0.0),
+    );
+  });
 
   test(
     'suspend keeps position and page count; resume restores readiness',
@@ -197,41 +198,118 @@ void main() {
     expect(saved?.settingsOverride?.fitMode, PdfFitMode.fitWidth);
   });
 
+  test('renderCurrentView caches identical requests and re-renders on viewport change', () async {
+    final fakeDoc = _FakePdfDocument(
+      pageCount: 2,
+      pageWidth: 200,
+      pageHeight: 300,
+    );
+    final session = makeSession(fakeDoc: fakeDoc);
+    await session.open();
+
+    final first = await session.renderCurrentView(const Size(200, 300));
+    // One render for auto-crop detection, one for the actual page image.
+    expect(fakeDoc.renderCallCount, 2);
+    expect(first.width, 200);
+    expect(first.height, 300);
+
+    final second = await session.renderCurrentView(const Size(200, 300));
+    expect(
+      fakeDoc.renderCallCount,
+      2,
+      reason: 'crop is cached and geometry is unchanged: no new render',
+    );
+    expect(identical(first, second), isTrue);
+
+    final third = await session.renderCurrentView(const Size(100, 150));
+    expect(
+      fakeDoc.renderCallCount,
+      3,
+      reason: 'new viewport size means new geometry, crop stays cached',
+    );
+    expect(third.width, 100);
+    expect(third.height, 150);
+  });
+
   test(
-    'renderCurrentView caches identical requests and re-renders on viewport change',
+    'continuous scroll maps offsets, dominant pages, and tap jumps',
     () async {
-      final fakeDoc = _FakePdfDocument(
-        pageCount: 2,
-        pageWidth: 200,
-        pageHeight: 300,
+      final session = makeSession(
+        fakeDoc: _FakePdfDocument(
+          pageCount: 4,
+          pageWidth: 200,
+          pageHeight: 300,
+        ),
       );
-      final session = makeSession(fakeDoc: fakeDoc);
       await session.open();
-
-      final first = await session.renderCurrentView(const Size(200, 300));
-      // One render for auto-crop detection, one for the actual page image.
-      expect(fakeDoc.renderCallCount, 2);
-      expect(first.width, 200);
-      expect(first.height, 300);
-
-      final second = await session.renderCurrentView(const Size(200, 300));
-      expect(
-        fakeDoc.renderCallCount,
-        2,
-        reason: 'crop is cached and geometry is unchanged: no new render',
+      await session.applySettings(
+        session.settings.copyWith(fitMode: PdfFitMode.continuousScroll),
       );
-      expect(identical(first, second), isTrue);
+      const viewport = Size(200, 300);
+      final layout = await session.continuousLayoutForViewport(viewport);
 
-      final third = await session.renderCurrentView(const Size(100, 150));
-      expect(
-        fakeDoc.renderCallCount,
-        3,
-        reason: 'new viewport size means new geometry, crop stays cached',
+      expect(layout.pageHeights, [300, 300, 300, 300]);
+      session.updateContinuousScrollOffset(350, layout, viewport.height);
+      final dragged = session.position as PdfReadingPosition;
+      expect(dragged.pageIndex, 1);
+      expect(dragged.withinPage, closeTo(1 / 6, 0.0001));
+      expect(session.currentPage, 1);
+
+      await session.nextPage();
+      final afterNext = session.continuousOffsetForPosition(
+        layout,
+        viewport.height,
       );
-      expect(third.width, 100);
-      expect(third.height, 150);
+      expect(afterNext, closeTo(632, 0.0001));
+      expect(session.currentPage, 2);
+
+      await session.prevPage();
+      expect(
+        session.continuousOffsetForPosition(layout, viewport.height),
+        closeTo(350, 0.0001),
+      );
+      expect(
+        BookStoreService.instance.getBookState('doc-1')?.uniformPdfCrop,
+        PdfCropRect.fullPage.toList(),
+      );
     },
   );
+
+  testWidgets('PDF presenter builds an exact no-momentum continuous list', (
+    tester,
+  ) async {
+    final session = makeSession(
+      fakeDoc: _FakePdfDocument(pageCount: 0, pageWidth: 200, pageHeight: 300),
+    );
+    await session.open();
+    await session.applySettings(
+      session.settings.copyWith(fitMode: PdfFitMode.continuousScroll),
+    );
+    await session.continuousLayoutForViewport(const Size(200, 300));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 200,
+            height: 300,
+            child: reader.PdfPageView(session: session),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+
+    final list = tester.widget<ListView>(
+      find.byKey(const Key('continuous-pdf-list')),
+    );
+    expect(list.itemExtentBuilder, isNotNull);
+    expect(list.physics, isA<NoMomentumScrollPhysics>());
+    await tester.pumpWidget(const SizedBox.shrink());
+    session.dispose();
+    BookStoreService.instance.dispose();
+  });
 }
 
 class _FakePdfDocument implements PdfDocument {

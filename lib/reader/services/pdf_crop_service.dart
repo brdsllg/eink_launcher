@@ -43,6 +43,13 @@ class PdfCropRect {
   }
 }
 
+class PdfCropDetection {
+  final PdfCropRect rect;
+  final bool hasInk;
+
+  const PdfCropDetection({required this.rect, required this.hasInk});
+}
+
 /// Detects PDF content bounds from low-resolution BGRA page renders.
 class PdfCropService {
   static const int defaultSampleWidth = 200;
@@ -51,6 +58,24 @@ class PdfCropService {
 
   /// Renders a small page preview and scans it outside the UI isolate.
   Future<PdfCropRect> detectPageCrop(
+    PdfPage page, {
+    int sampleWidth = defaultSampleWidth,
+    int luminanceThreshold = kPdfInkLuminanceThreshold,
+    int minimumInkRun = defaultMinimumInkRun,
+    double paddingFraction = defaultPaddingFraction,
+  }) async {
+    return (await detectPageCropResult(
+      page,
+      sampleWidth: sampleWidth,
+      luminanceThreshold: luminanceThreshold,
+      minimumInkRun: minimumInkRun,
+      paddingFraction: paddingFraction,
+    )).rect;
+  }
+
+  /// Like [detectPageCrop], but preserves whether qualifying ink was found so
+  /// blank sampled pages do not expand a document-uniform crop to full-page.
+  Future<PdfCropDetection> detectPageCropResult(
     PdfPage page, {
     int sampleWidth = defaultSampleWidth,
     int luminanceThreshold = kPdfInkLuminanceThreshold,
@@ -72,12 +97,14 @@ class PdfCropService {
       flags:
           PdfPageRenderFlags.grayscale | PdfPageRenderFlags.limitedImageCache,
     );
-    if (rendered == null) return PdfCropRect.fullPage;
+    if (rendered == null) {
+      return const PdfCropDetection(rect: PdfCropRect.fullPage, hasInk: false);
+    }
 
     try {
       // Copy before disposing the native PdfImage backing store.
       final pixels = Uint8List.fromList(rendered.pixels);
-      return await detectBgraCrop(
+      return await detectBgraCropResult(
         pixels,
         width: rendered.width,
         height: rendered.height,
@@ -92,6 +119,24 @@ class PdfCropService {
 
   /// Scans a BGRA8888 image for ink and returns its padded normalized bounds.
   Future<PdfCropRect> detectBgraCrop(
+    Uint8List pixels, {
+    required int width,
+    required int height,
+    int luminanceThreshold = kPdfInkLuminanceThreshold,
+    int minimumInkRun = defaultMinimumInkRun,
+    double paddingFraction = defaultPaddingFraction,
+  }) async {
+    return (await detectBgraCropResult(
+      pixels,
+      width: width,
+      height: height,
+      luminanceThreshold: luminanceThreshold,
+      minimumInkRun: minimumInkRun,
+      paddingFraction: paddingFraction,
+    )).rect;
+  }
+
+  Future<PdfCropDetection> detectBgraCropResult(
     Uint8List pixels, {
     required int width,
     required int height,
@@ -128,7 +173,7 @@ class PdfCropService {
     }
 
     final transferable = TransferableTypedData.fromList([pixels]);
-    final edges = await Isolate.run<List<double>>(
+    final result = await Isolate.run<List<double>>(
       () => _scanBgraCrop(
         transferable.materialize().asUint8List(),
         width,
@@ -138,7 +183,58 @@ class PdfCropService {
         paddingFraction,
       ),
     );
-    return PdfCropRect.fromList(edges);
+    return PdfCropDetection(
+      rect: PdfCropRect.fromList(result.take(4).toList(growable: false)),
+      hasInk: result[4] != 0,
+    );
+  }
+
+  /// Samples pages spread across a document and unions their detected ink
+  /// bounds. Page dimensions remain stable throughout continuous scrolling.
+  Future<PdfCropRect> detectDocumentCrop({
+    required int pageCount,
+    required PdfPage Function(int pageIndex) pageAt,
+    int maxSamples = 10,
+  }) async {
+    if (pageCount <= 0) return PdfCropRect.fullPage;
+    final crops = <PdfCropRect>[];
+    for (final pageIndex in samplePageIndices(
+      pageCount,
+      maxSamples: maxSamples,
+    )) {
+      try {
+        final detection = await detectPageCropResult(pageAt(pageIndex));
+        if (detection.hasInk) crops.add(detection.rect);
+      } catch (_) {
+        // One malformed page should not disable continuous mode for the book.
+      }
+    }
+    return unionCropRects(crops);
+  }
+
+  static List<int> samplePageIndices(int pageCount, {int maxSamples = 10}) {
+    if (pageCount <= 0) return const [];
+    if (maxSamples <= 0) {
+      throw ArgumentError.value(maxSamples, 'maxSamples', 'Must be positive');
+    }
+    final count = math.min(pageCount, maxSamples);
+    if (count == 1) return const [0];
+    return List<int>.generate(
+      count,
+      (index) => (index * (pageCount - 1) / (count - 1)).round(),
+      growable: false,
+    );
+  }
+
+  static PdfCropRect unionCropRects(Iterable<PdfCropRect> crops) {
+    final values = crops.toList(growable: false);
+    if (values.isEmpty) return PdfCropRect.fullPage;
+    return PdfCropRect(
+      left: values.map((crop) => crop.left).reduce(math.min),
+      top: values.map((crop) => crop.top).reduce(math.min),
+      right: values.map((crop) => crop.right).reduce(math.max),
+      bottom: values.map((crop) => crop.bottom).reduce(math.max),
+    );
   }
 }
 
@@ -204,7 +300,7 @@ List<double> _scanBgraCrop(
     }
   }
 
-  if (maxX < minX || maxY < minY) return [0, 0, 1, 1];
+  if (maxX < minX || maxY < minY) return [0, 0, 1, 1, 0];
 
   final paddingX = (width * paddingFraction).ceil();
   final paddingY = (height * paddingFraction).ceil();
@@ -213,5 +309,11 @@ List<double> _scanBgraCrop(
   maxX = math.min(width - 1, maxX + paddingX);
   maxY = math.min(height - 1, maxY + paddingY);
 
-  return [minX / width, minY / height, (maxX + 1) / width, (maxY + 1) / height];
+  return [
+    minX / width,
+    minY / height,
+    (maxX + 1) / width,
+    (maxY + 1) / height,
+    1,
+  ];
 }

@@ -2,4 +2,4 @@ aider --model openrouter/google/gemini-3.7-flash --no-show-model-warnings READER
 
 
 
-git add .; git commit -m "gui update"; git push
+git add .; git commit -m "reader afvancement"; git push

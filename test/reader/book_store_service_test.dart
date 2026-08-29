@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eink_launcher/reader/models/book_state.dart';
 import 'package:eink_launcher/reader/models/doc_ref.dart';
@@ -32,6 +33,7 @@ void main() {
       position: const PdfReadingPosition(pageIndex: 5, withinPage: 0.5),
       percent: 0.25,
       settingsOverride: const ReaderSettings(fontSizeStep: 5),
+      uniformPdfCrop: const [0.1, 0.2, 0.9, 0.8],
     );
 
     BookStoreService.instance.saveBookState(state);
@@ -50,13 +52,16 @@ void main() {
     expect((restored.position as PdfReadingPosition).pageIndex, equals(5));
     expect((restored.position as PdfReadingPosition).withinPage, equals(0.5));
     expect(restored.settingsOverride?.fontSizeStep, equals(5));
+    expect(restored.uniformPdfCrop, equals([0.1, 0.2, 0.9, 0.8]));
   });
 
   test('falls back to global settings when no override exists', () {
     const customGlobal = ReaderSettings(lineHeight: 1.8);
     BookStoreService.instance.saveGlobalSettings(customGlobal);
 
-    final resolved = BookStoreService.instance.getSettingsForDoc('non-existent');
+    final resolved = BookStoreService.instance.getSettingsForDoc(
+      'non-existent',
+    );
     expect(resolved.lineHeight, equals(1.8));
   });
 }
