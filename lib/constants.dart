@@ -59,9 +59,7 @@ const double kPdfMinZoomScale = 1.0;
 const double kPdfZoomOutPageSpan = 2.0;
 
 /// Absolute hard floor for the Zoom / Scroll pinch, regardless of what
-/// [kPdfZoomOutPageSpan] works out to. Reaching any floor below 1.0 also
-/// requires a matching `boundaryMargin`, because InteractiveViewer
-/// independently refuses to shrink a child below its own boundary rect.
+/// [kPdfZoomOutPageSpan] works out to.
 const double kPdfMinZoomScaleBeyondFit = 0.2;
 
 /// Discrete zoom rungs at which Zoom / Scroll re-rasterises pages through
@@ -90,16 +88,18 @@ const double kPdfTileSidePixels = 1536.0;
 /// output would be silently downscaled and zoom would look blurry.
 const double kPdfMaxTileDimension = 2048.0;
 
-/// Friction for a Zoom / Scroll fling.
+/// Friction for a Zoom / Scroll fling, fed to Flutter's
+/// `ClampingScrollSimulation` — the same AOSP `OverScroller` curve that every
+/// Android list scroll uses.
 ///
-/// Counter-intuitively, **larger** means less friction: InteractiveViewer
-/// hands this to `FrictionSimulation`, where the glide distance is
-/// `velocity / ln(1 / coefficient)` and the duration is
-/// `log(10 / velocity) / log(coefficient / 100)`. Both grow as the value
-/// rises. Flutter's default of 0.0000135 gives roughly a third of a second,
-/// which on a ~21 fps e-ink panel is about seven frames — indistinguishable
-/// from no momentum at all. This value roughly triples the distance.
-const double kPdfFlingFrictionCoefficient = 0.02;
+/// **Lower means a longer glide.** Flutter's default is 0.015; this is
+/// deliberately lower because a ~30 fps e-ink panel shows so few frames that a
+/// stock-length fling is over before it registers as motion.
+const double kPdfFlingFriction = 0.006;
+
+/// Below this focal-point speed (logical px/s) a release is treated as a stop
+/// rather than a fling, so resting a finger doesn't drift the page.
+const double kPdfMinFlingVelocity = 60.0;
 
 /// Memory budget for rendered PDF bitmaps. Zoom / Scroll keeps a grid of
 /// zoomed tiles plus look-ahead resident at once.

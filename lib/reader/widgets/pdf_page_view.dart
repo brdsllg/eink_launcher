@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../constants.dart';
 import '../controllers/pdf_reader_session.dart';
@@ -89,23 +91,27 @@ class _PdfPageViewState extends State<PdfPageView> {
   }
 }
 
-/// One continuous, always-zoomable document canvas.
+/// One continuous, always-zoomable document canvas with real momentum.
 ///
-/// Four rules keep this honest:
+/// This deliberately does **not** use `InteractiveViewer`. Two of its
+/// behaviours were unfixable from outside:
 ///
-/// * The pinch scale is quantised and pushed back into PDFium, and pages are
-///   cut into a 2-D grid so only the tiles actually on screen are rendered.
-///   Full-width strips used to blow past the render dimension cap and come
-///   back silently downscaled, which is what made zoom look blurry.
-/// * Zooming out below fit-width needs a matching `boundaryMargin`.
-///   InteractiveViewer floors the scale at `viewport.width /
-///   boundaryRect.width` independently of `minScale`, so with a zero margin
-///   the floor is exactly 1.0 no matter what `minScale` says.
-/// * The floor itself is derived from real page geometry, so "fully zoomed
-///   out" means about [kPdfZoomOutPageSpan] pages tall on any document.
-/// * The transform is only snapped to the session's logical position when the
-///   session reports a *programmatic* move. Snapping on every rebuild used to
-///   cancel the user's own fling, which made the mode feel page-by-page.
+/// * It calls `onInteractionEnd` *before* starting its fling, so reacting to
+///   the gesture (new render scale, new dominant page) rebuilt and blanked
+///   every tile exactly as the glide began — movement across white, which on a
+///   ~30 fps e-ink panel is indistinguishable from no momentum at all.
+/// * Its fling uses `FrictionSimulation`, which is not the curve Android users
+///   expect and which decays within a handful of frames.
+///
+/// So the transform is owned here as a `scale` plus a scene-space `origin` (the
+/// document coordinate sitting at the viewport's top-left), and releases are
+/// animated with [ClampingScrollSimulation] — Flutter's port of the AOSP
+/// `OverScroller` fling curve that every Android list scroll uses. Driving it
+/// from a bare [Ticker] means no rebuild can interrupt it.
+///
+/// Owning the clamp also makes zooming out past the page exact: undersized
+/// content is simply centred, with none of the "pan into blank space" side
+/// effect that `boundaryMargin` slack caused.
 class _ContinuousPdfView extends StatefulWidget {
   final PdfReaderSession session;
   final Size viewport;
@@ -121,57 +127,236 @@ class _ContinuousPdfView extends StatefulWidget {
   State<_ContinuousPdfView> createState() => _ContinuousPdfViewState();
 }
 
-class _ContinuousPdfViewState extends State<_ContinuousPdfView> {
-  late final TransformationController _controller;
+class _ContinuousPdfViewState extends State<_ContinuousPdfView>
+    with SingleTickerProviderStateMixin {
   Future<PdfContinuousLayout>? _layoutFuture;
   PdfContinuousLayout? _layout;
   Object? _layoutSignature;
   PdfContinuousLayout? _syncedLayout;
   int _syncedEpoch = -1;
   bool? _syncedAllowZoomOut;
+
+  /// Current view transform: `screen = (scene - origin) * scale`.
+  double _scale = 1.0;
+  double _originX = 0.0;
+  double _originY = 0.0;
+
+  /// Zoom rung the tiles are currently rasterised at. Changes are deferred
+  /// until a gesture *and* its fling are over, so a glide never blanks tiles.
   double _renderScale = 1.0;
-  bool _interactionActive = false;
+
+  late final Ticker _flingTicker;
+  Simulation? _flingX;
+  Simulation? _flingY;
+  double _lastFlingX = 0.0;
+  double _lastFlingY = 0.0;
+
+  bool _interacting = false;
+  double _gestureStartScale = 1.0;
+  Offset _gestureStartScene = Offset.zero;
 
   @override
   void initState() {
     super.initState();
-    _controller = TransformationController()..addListener(_handleTransform);
+    _flingTicker = createTicker(_onFlingTick);
   }
 
   @override
   void dispose() {
-    _controller
-      ..removeListener(_handleTransform)
-      ..dispose();
+    _flingTicker.dispose();
     super.dispose();
   }
 
-  void _handleTransform() {
-    final layout = _layout;
-    if (layout == null) return;
-    final scale = _controller.value.getMaxScaleOnAxis();
-    if (scale <= 0) return;
-    final visibleHeight = widget.viewport.height / scale;
-    final offset = _controller
-        .toScene(Offset.zero)
-        .dy
-        .clamp(0.0, layout.maxScrollOffset(visibleHeight))
+  // ---------------------------------------------------------------------
+  // Transform limits
+  // ---------------------------------------------------------------------
+
+  /// The pinch floor for this document: enough zoom-out to show about
+  /// [kPdfZoomOutPageSpan] pages at once. A tall page needs a smaller scale
+  /// than a squarer one, so this cannot be a constant.
+  double _minScaleFor(PdfContinuousLayout layout) {
+    if (!widget.session.settings.allowZoomOutBeyondFit) return kPdfMinZoomScale;
+    if (layout.pageCount == 0) return kPdfMinZoomScale;
+    final index = widget.session.currentPage
+        .clamp(0, layout.pageHeights.length - 1)
+        .toInt();
+    var pageHeight = layout.pageHeights[index];
+    if (pageHeight <= 0) pageHeight = layout.totalHeight / layout.pageCount;
+    if (pageHeight <= 0) return kPdfMinZoomScaleBeyondFit;
+    final target = widget.viewport.height / (kPdfZoomOutPageSpan * pageHeight);
+    return target
+        .clamp(kPdfMinZoomScaleBeyondFit, kPdfMinZoomScale)
         .toDouble();
-    widget.session.updateContinuousScrollOffset(offset, layout, visibleHeight);
   }
 
-  /// Re-rasterise at the settled zoom. Doing this mid-pinch would re-render
-  /// on every gesture frame and stutter badly on e-ink, so the existing
-  /// bitmaps are scaled during the gesture and sharpened once it ends.
-  ///
-  /// A pure pan leaves the quantised scale unchanged and therefore does *not*
-  /// call setState — which matters, because a rebuild at the instant a fling
-  /// starts would replace every tile and kill the perceived momentum.
-  void _updateRenderScale() {
-    final quantized = _quantizeRenderScale(
-      _controller.value.getMaxScaleOnAxis(),
+  /// Clamps a candidate origin so the document can never be dragged off
+  /// screen, centring it on whichever axis it is smaller than the viewport.
+  ({double x, double y}) _clampOrigin(
+    double x,
+    double y,
+    PdfContinuousLayout layout,
+  ) {
+    final visibleWidth = widget.viewport.width / _scale;
+    final visibleHeight = widget.viewport.height / _scale;
+    final contentWidth = layout.viewportWidth;
+    final contentHeight = math.max(layout.totalHeight, 0.0);
+
+    final clampedX = contentWidth <= visibleWidth
+        ? (contentWidth - visibleWidth) / 2
+        : x.clamp(0.0, contentWidth - visibleWidth).toDouble();
+    final clampedY = contentHeight <= visibleHeight
+        ? (contentHeight - visibleHeight) / 2
+        : y.clamp(0.0, contentHeight - visibleHeight).toDouble();
+    return (x: clampedX, y: clampedY);
+  }
+
+  /// Applies a new origin and reports the resulting scroll offset to the
+  /// session. Returns true when the origin actually moved.
+  bool _setOrigin(double x, double y, PdfContinuousLayout layout) {
+    final clamped = _clampOrigin(x, y, layout);
+    final moved =
+        (clamped.x - _originX).abs() > 0.01 ||
+        (clamped.y - _originY).abs() > 0.01;
+    if (mounted) {
+      setState(() {
+        _originX = clamped.x;
+        _originY = clamped.y;
+      });
+    } else {
+      _originX = clamped.x;
+      _originY = clamped.y;
+    }
+    widget.session.updateContinuousScrollOffset(
+      math.max(0.0, clamped.y),
+      layout,
+      widget.viewport.height / _scale,
     );
-    if (quantized == _renderScale) return;
+    return moved;
+  }
+
+  // ---------------------------------------------------------------------
+  // Gestures
+  // ---------------------------------------------------------------------
+
+  void _onScaleStart(ScaleStartDetails details) {
+    _stopFling();
+    final layout = _layout;
+    if (layout == null) return;
+    _interacting = true;
+    _gestureStartScale = _scale;
+    // The document point currently under the user's fingers. Keeping this
+    // point pinned is what makes a pinch feel anchored rather than sliding.
+    _gestureStartScene =
+        Offset(_originX, _originY) + details.localFocalPoint / _scale;
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    final layout = _layout;
+    if (layout == null) return;
+    final minScale = _minScaleFor(layout);
+    _scale = (_gestureStartScale * details.scale)
+        .clamp(minScale, kPdfMaxZoomScale)
+        .toDouble();
+    final target = _gestureStartScene - details.localFocalPoint / _scale;
+    _setOrigin(target.dx, target.dy, layout);
+  }
+
+  void _onScaleEnd(ScaleEndDetails details) {
+    _interacting = false;
+    final layout = _layout;
+    if (layout == null) {
+      _settleRenderScale();
+      return;
+    }
+    final velocity = details.velocity.pixelsPerSecond;
+    if (velocity.distance < kPdfMinFlingVelocity) {
+      _settleRenderScale();
+      return;
+    }
+    // Screen velocity → scene velocity. Dragging the page up (negative dy)
+    // must increase the scroll offset, hence the sign flip.
+    _startFling(
+      -velocity.dx / _scale,
+      -velocity.dy / _scale,
+      layout,
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Momentum
+  // ---------------------------------------------------------------------
+
+  void _startFling(double sceneVx, double sceneVy, PdfContinuousLayout layout) {
+    _flingTicker.stop();
+    _flingX = sceneVx.abs() < 1
+        ? null
+        : ClampingScrollSimulation(
+            position: _originX,
+            velocity: sceneVx,
+            friction: kPdfFlingFriction,
+          );
+    _flingY = sceneVy.abs() < 1
+        ? null
+        : ClampingScrollSimulation(
+            position: _originY,
+            velocity: sceneVy,
+            friction: kPdfFlingFriction,
+          );
+    if (_flingX == null && _flingY == null) {
+      _settleRenderScale();
+      return;
+    }
+    _lastFlingX = _originX;
+    _lastFlingY = _originY;
+    _flingTicker.start();
+  }
+
+  void _onFlingTick(Duration elapsed) {
+    final layout = _layout;
+    if (layout == null) {
+      _stopFling();
+      _settleRenderScale();
+      return;
+    }
+    final t = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+    final simX = _flingX;
+    final simY = _flingY;
+    final targetX = simX?.x(t) ?? _originX;
+    final targetY = simY?.x(t) ?? _originY;
+    final moved = _setOrigin(targetX, targetY, layout);
+
+    final finished =
+        (simX?.isDone(t) ?? true) && (simY?.isDone(t) ?? true);
+    // Pinned against an edge with nothing left to travel: stop rather than
+    // burn e-ink refreshes on a simulation that can no longer move anything.
+    final stalled =
+        !moved &&
+        (targetX - _lastFlingX).abs() + (targetY - _lastFlingY).abs() > 0.5;
+    _lastFlingX = targetX;
+    _lastFlingY = targetY;
+    if (finished || stalled) {
+      _stopFling();
+      _settleRenderScale();
+    }
+  }
+
+  void _stopFling() {
+    if (_flingTicker.isTicking) _flingTicker.stop(canceled: true);
+    _flingX = null;
+    _flingY = null;
+  }
+
+  // ---------------------------------------------------------------------
+  // Render scale
+  // ---------------------------------------------------------------------
+
+  /// Re-rasterise at the settled zoom, once the gesture *and* any fling are
+  /// finished. Re-rendering mid-gesture would thrash PDFium; re-rendering
+  /// mid-fling would swap every tile for a blank one and destroy the illusion
+  /// of momentum, which is precisely what used to happen.
+  void _settleRenderScale() {
+    final quantized = _quantizeRenderScale(_scale);
+    if (quantized == _renderScale || !mounted) return;
     setState(() => _renderScale = quantized);
   }
 
@@ -182,24 +367,9 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView> {
     return kPdfZoomRenderScales.last;
   }
 
-  /// The pinch floor for this document: enough zoom-out to show about
-  /// [kPdfZoomOutPageSpan] pages at once. A tall page needs a smaller scale
-  /// than a squarer one, so this cannot be a constant.
-  double _minScaleFor(PdfContinuousLayout layout) {
-    if (!widget.session.settings.allowZoomOutBeyondFit) return kPdfMinZoomScale;
-    if (layout.pageHeights.isEmpty) return kPdfMinZoomScaleBeyondFit;
-    final index = widget.session.currentPage
-        .clamp(0, layout.pageHeights.length - 1)
-        .toInt();
-    var pageHeight = layout.pageHeights[index];
-    if (pageHeight <= 0) pageHeight = layout.totalHeight / layout.pageCount;
-    if (pageHeight <= 0) return kPdfMinZoomScaleBeyondFit;
-    final target =
-        widget.viewport.height / (kPdfZoomOutPageSpan * pageHeight);
-    return target
-        .clamp(kPdfMinZoomScaleBeyondFit, kPdfMinZoomScale)
-        .toDouble();
-  }
+  // ---------------------------------------------------------------------
+  // Session synchronisation
+  // ---------------------------------------------------------------------
 
   void _synchronizeTransform(PdfContinuousLayout layout) {
     final epoch = widget.session.navigationEpoch;
@@ -209,21 +379,15 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView> {
     _syncedLayout = layout;
     _syncedEpoch = epoch;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _interactionActive) return;
-      final scale = _controller.value.getMaxScaleOnAxis();
-      if (scale <= 0) return;
-      final visibleHeight = widget.viewport.height / scale;
+      if (!mounted || _interacting || _flingTicker.isTicking) return;
       final desired = widget.session.continuousOffsetForPosition(
         layout,
-        visibleHeight,
+        widget.viewport.height / _scale,
       );
-      final currentY = _controller.toScene(Offset.zero).dy;
-      if ((currentY - desired).abs() <= 0.5) return;
+      if ((desired - _originY).abs() <= 0.5) return;
       // Horizontal pan is deliberately preserved: a TOC or page jump should
       // not throw away where the reader was looking across the page.
-      final panX = _controller.value.entry(0, 3);
-      _controller.value = _controller.value.clone()
-        ..setTranslationRaw(panX, -desired * scale, 0);
+      _setOrigin(_originX, desired, layout);
     });
   }
 
@@ -234,12 +398,18 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView> {
     _syncedAllowZoomOut = allowZoomOut;
     if (allowZoomOut) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_controller.value.getMaxScaleOnAxis() >= 1.0) return;
-      _controller.value = _controller.value.clone()..setIdentity();
-      _updateRenderScale();
+      final layout = _layout;
+      if (!mounted || layout == null || _scale >= kPdfMinZoomScale) return;
+      _stopFling();
+      _scale = kPdfMinZoomScale;
+      _setOrigin(_originX, _originY, layout);
+      _settleRenderScale();
     });
   }
+
+  // ---------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -255,8 +425,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView> {
       );
     }
 
-    final allowZoomOut = widget.session.settings.allowZoomOutBeyondFit;
-    _enforceZoomOutSetting(allowZoomOut);
+    _enforceZoomOutSetting(widget.session.settings.allowZoomOutBeyondFit);
 
     return FutureBuilder<PdfContinuousLayout>(
       future: _layoutFuture,
@@ -271,159 +440,111 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView> {
         _layout = layout;
         _synchronizeTransform(layout);
 
-        final minScale = _minScaleFor(layout);
-
-        // InteractiveViewer refuses to shrink its child below its boundary
-        // rect, so the margin — not minScale alone — is what actually
-        // permits zooming out past the page.
-        final slack = minScale < 1.0 ? (1 / minScale - 1) / 2 : 0.0;
-        final boundaryMargin = slack > 0
-            ? EdgeInsets.symmetric(
-                horizontal: layout.viewportWidth * slack,
-                vertical: widget.viewport.height * slack,
-              )
-            : EdgeInsets.zero;
-
-        return InteractiveViewer.builder(
-          key: const Key('continuous-pdf-viewer'),
-          transformationController: _controller,
-          alignment: Alignment.topLeft,
-          minScale: minScale,
-          maxScale: kPdfMaxZoomScale,
-          boundaryMargin: boundaryMargin,
-          panEnabled: true,
-          scaleEnabled: true,
-          interactionEndFrictionCoefficient: kPdfFlingFrictionCoefficient,
-          onInteractionStart: (_) => _interactionActive = true,
-          onInteractionEnd: (_) {
-            _interactionActive = false;
-            _handleTransform();
-            _updateRenderScale();
-          },
-          builder: (context, visibleQuad) {
-            final childHeight = math.max(
-              layout.totalHeight,
-              widget.viewport.height,
-            );
-            if (layout.pageCount == 0) {
-              return SizedBox(width: layout.viewportWidth, height: childHeight);
-            }
-
-            final points = [
-              visibleQuad.point0,
-              visibleQuad.point1,
-              visibleQuad.point2,
-              visibleQuad.point3,
-            ];
-            final visibleTop = points
-                .map((point) => point.y)
-                .reduce(math.min)
-                .clamp(0.0, layout.totalHeight)
-                .toDouble();
-            final visibleBottom = points
-                .map((point) => point.y)
-                .reduce(math.max)
-                .clamp(0.0, layout.totalHeight)
-                .toDouble();
-            final visibleLeft = points
-                .map((point) => point.x)
-                .reduce(math.min)
-                .clamp(0.0, layout.viewportWidth)
-                .toDouble();
-            final visibleRight = points
-                .map((point) => point.x)
-                .reduce(math.max)
-                .clamp(0.0, layout.viewportWidth)
-                .toDouble();
-
-            // Generous vertical look-ahead so a fling glides over rendered
-            // content instead of running into blank tiles, which is what
-            // made momentum look absent.
-            final spanY = math.max(1.0, visibleBottom - visibleTop);
-            final spanX = math.max(1.0, visibleRight - visibleLeft);
-            final rangeTop = math.max(0.0, visibleTop - spanY * 0.75);
-            final rangeBottom = math.min(
-              layout.totalHeight,
-              visibleBottom + spanY * 0.75,
-            );
-            final rangeLeft = math.max(0.0, visibleLeft - spanX * 0.35);
-            final rangeRight = math.min(
-              layout.viewportWidth,
-              visibleRight + spanX * 0.35,
-            );
-
-            // Tile side in layout space that maps to at most
-            // kPdfTileSidePixels device pixels. Because the on-screen pixel
-            // count is constant, so is the cost, at every zoom level.
-            final density = widget.devicePixelRatio * _renderScale;
-            final maxTileSide = math.max(16.0, kPdfTileSidePixels / density);
-
-            final columns = math.max(
-              1,
-              (layout.viewportWidth / maxTileSide).ceil(),
-            );
-            final columnWidth = layout.viewportWidth / columns;
-
-            final tiles = <Widget>[];
-            final firstPage = layout.pageAtOffset(rangeTop);
-            final lastPage = layout.pageAtOffset(rangeBottom);
-            for (
-              var pageIndex = firstPage;
-              pageIndex <= lastPage;
-              pageIndex += 1
-            ) {
-              final pageTop = layout.pageTop(pageIndex);
-              final pageHeight = layout.pageHeights[pageIndex];
-              if (pageHeight <= 0) continue;
-              final rows = math.max(1, (pageHeight / maxTileSide).ceil());
-              final rowHeight = pageHeight / rows;
-
-              for (var row = 0; row < rows; row += 1) {
-                final tileTop = pageTop + row * rowHeight;
-                if (tileTop + rowHeight <= rangeTop || tileTop >= rangeBottom) {
-                  continue;
-                }
-                for (var column = 0; column < columns; column += 1) {
-                  final tileLeft = column * columnWidth;
-                  if (tileLeft + columnWidth <= rangeLeft ||
-                      tileLeft >= rangeRight) {
-                    continue;
-                  }
-                  tiles.add(
-                    Positioned(
-                      key: ValueKey('$pageIndex/$rows.$row/$columns.$column'),
-                      left: tileLeft,
-                      top: tileTop,
-                      width: columnWidth,
-                      height: rowHeight,
-                      child: _ContinuousPdfTile(
-                        session: widget.session,
-                        layout: layout,
-                        pageIndex: pageIndex,
-                        region: Rect.fromLTRB(
-                          column / columns,
-                          row / rows,
-                          (column + 1) / columns,
-                          (row + 1) / rows,
-                        ),
-                        devicePixelRatio: widget.devicePixelRatio,
-                        renderScale: _renderScale,
-                      ),
-                    ),
-                  );
-                }
-              }
-            }
-
-            return SizedBox(
-              width: layout.viewportWidth,
-              height: childHeight,
-              child: Stack(children: tiles),
-            );
-          },
+        return GestureDetector(
+          key: const Key('continuous-pdf-surface'),
+          behavior: HitTestBehavior.opaque,
+          // ScaleGestureRecognizer covers both one-finger pans and two-finger
+          // pinches, and loses the arena to a stationary tap, so the tap zones
+          // wrapping this widget keep working.
+          onScaleStart: _onScaleStart,
+          onScaleUpdate: _onScaleUpdate,
+          onScaleEnd: _onScaleEnd,
+          child: ClipRect(
+            child: Stack(
+              clipBehavior: Clip.hardEdge,
+              children: _buildTiles(layout),
+            ),
+          ),
         );
       },
     );
+  }
+
+  List<Widget> _buildTiles(PdfContinuousLayout layout) {
+    if (layout.pageCount == 0 || layout.totalHeight <= 0) {
+      return const [SizedBox.expand()];
+    }
+
+    final visibleWidth = widget.viewport.width / _scale;
+    final visibleHeight = widget.viewport.height / _scale;
+    final visibleLeft = _originX;
+    final visibleTop = _originY;
+
+    // Generous vertical look-ahead so a fling glides over rendered content
+    // instead of running into blank tiles.
+    final rangeTop = math.max(0.0, visibleTop - visibleHeight * 0.75);
+    final rangeBottom = math.min(
+      layout.totalHeight,
+      visibleTop + visibleHeight * 1.75,
+    );
+    final rangeLeft = math.max(0.0, visibleLeft - visibleWidth * 0.35);
+    final rangeRight = math.min(
+      layout.viewportWidth,
+      visibleLeft + visibleWidth * 1.35,
+    );
+    if (rangeBottom <= rangeTop || rangeRight <= rangeLeft) {
+      return const [SizedBox.expand()];
+    }
+
+    // Tile side in document space that maps to at most kPdfTileSidePixels
+    // device pixels. Because the on-screen pixel count is constant, so is the
+    // cost, at every zoom level — and no request ever hits the dimension cap
+    // that used to silently downscale zoomed pages into blurriness.
+    final density = widget.devicePixelRatio * _renderScale;
+    final maxTileSide = math.max(16.0, kPdfTileSidePixels / density);
+
+    final columns = math.max(1, (layout.viewportWidth / maxTileSide).ceil());
+    final columnWidth = layout.viewportWidth / columns;
+
+    final tiles = <Widget>[const SizedBox.expand()];
+    final firstPage = layout.pageAtOffset(rangeTop);
+    final lastPage = layout.pageAtOffset(
+      math.min(rangeBottom, layout.totalHeight - 0.01),
+    );
+
+    for (var pageIndex = firstPage; pageIndex <= lastPage; pageIndex += 1) {
+      final pageTop = layout.pageTop(pageIndex);
+      final pageHeight = layout.pageHeights[pageIndex];
+      if (pageHeight <= 0) continue;
+      final rows = math.max(1, (pageHeight / maxTileSide).ceil());
+      final rowHeight = pageHeight / rows;
+
+      for (var row = 0; row < rows; row += 1) {
+        final tileTop = pageTop + row * rowHeight;
+        if (tileTop + rowHeight <= rangeTop || tileTop >= rangeBottom) continue;
+        for (var column = 0; column < columns; column += 1) {
+          final tileLeft = column * columnWidth;
+          if (tileLeft + columnWidth <= rangeLeft || tileLeft >= rangeRight) {
+            continue;
+          }
+          tiles.add(
+            Positioned(
+              key: ValueKey('$pageIndex/$rows.$row/$columns.$column'),
+              left: (tileLeft - _originX) * _scale,
+              top: (tileTop - _originY) * _scale,
+              // Half a pixel of overdraw hides hairline seams between
+              // adjacent tiles after fractional rounding.
+              width: columnWidth * _scale + 0.5,
+              height: rowHeight * _scale + 0.5,
+              child: _ContinuousPdfTile(
+                session: widget.session,
+                layout: layout,
+                pageIndex: pageIndex,
+                region: Rect.fromLTRB(
+                  column / columns,
+                  row / rows,
+                  (column + 1) / columns,
+                  (row + 1) / rows,
+                ),
+                devicePixelRatio: widget.devicePixelRatio,
+                renderScale: _renderScale,
+              ),
+            ),
+          );
+        }
+      }
+    }
+    return tiles;
   }
 }
 

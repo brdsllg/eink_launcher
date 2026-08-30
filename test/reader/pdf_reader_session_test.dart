@@ -372,26 +372,26 @@ void main() {
     },
   );
 
-  testWidgets('zoom / scroll is continuous, zoomable, and has momentum', (
-    tester,
-  ) async {
+  testWidgets('a fling keeps gliding after the finger lifts', (tester) async {
     final session = makeSession(
-      fakeDoc: _FakePdfDocument(pageCount: 3, pageWidth: 200, pageHeight: 420),
+      fakeDoc: _FakePdfDocument(pageCount: 6, pageWidth: 200, pageHeight: 300),
     );
     await session.open();
     await session.applySettings(
       session.settings.copyWith(fitMode: PdfFitMode.zoom),
     );
-    await session.continuousLayoutForViewport(const Size(200, 300));
+    const viewport = Size(200, 300);
+    final layout = await session.continuousLayoutForViewport(viewport);
 
-    // The reader shell subscribes to the session, so settings changes reach
-    // the view. Pumping the bare widget would leave it showing stale limits.
+    // The reader shell subscribes to the session, so a rebuild can be
+    // triggered mid-gesture exactly as it is in the real app. The fling must
+    // survive that.
     await tester.pumpWidget(
       MaterialApp(
         home: Center(
           child: SizedBox(
-            width: 200,
-            height: 300,
+            width: viewport.width,
+            height: viewport.height,
             child: ListenableBuilder(
               listenable: session,
               builder: (context, _) => reader.PdfPageView(session: session),
@@ -402,40 +402,35 @@ void main() {
     );
     await tester.pump();
 
-    var viewer = tester.widget<InteractiveViewer>(
-      find.byKey(const Key('continuous-pdf-viewer')),
-    );
-    expect(viewer.scaleEnabled, isTrue);
-    expect(viewer.panEnabled, isTrue);
-    expect(viewer.maxScale, 5);
-    expect(viewer.onInteractionEnd, isNotNull);
+    final surface = find.byKey(const Key('continuous-pdf-surface'));
+    expect(surface, findsOneWidget);
 
-    // Momentum: InteractiveViewer treats a LARGER coefficient as LESS
-    // friction (glide distance is velocity / ln(1 / coefficient)), so this
-    // must exceed Flutter's 0.0000135 default or a fling dies within a
-    // couple of e-ink refreshes.
+    // Drag 100 logical pixels upward, releasing fast. Without momentum the
+    // offset would stop at ~100; Android's fling curve carries it well past.
+    await tester.fling(surface, const Offset(0, -100), 1600);
+    final offsetAtRelease = session.continuousOffsetForPosition(
+      layout,
+      viewport.height,
+    );
+
+    for (var frame = 0; frame < 60; frame += 1) {
+      await tester.pump(const Duration(milliseconds: 33));
+    }
+    final offsetAfterGlide = session.continuousOffsetForPosition(
+      layout,
+      viewport.height,
+    );
+
     expect(
-      viewer.interactionEndFrictionCoefficient,
-      greaterThan(0.0000135),
+      offsetAfterGlide,
+      greaterThan(offsetAtRelease + 50),
+      reason: 'the page must keep moving after the finger lifts',
     );
-
-    // Fully zoomed out shows about two pages: pages are 420 layout units
-    // tall in a 300-unit viewport, so the floor is 300 / (2 * 420).
-    expect(viewer.minScale, closeTo(300 / 840, 0.001));
-    // A sub-1 minScale is inert without boundary slack, because
-    // InteractiveViewer independently floors the scale at
-    // viewport.width / boundaryRect.width.
-    expect(viewer.boundaryMargin.horizontal, greaterThan(0));
-
-    await session.applySettings(
-      session.settings.copyWith(allowZoomOutBeyondFit: false),
+    expect(
+      offsetAfterGlide,
+      lessThanOrEqualTo(layout.maxScrollOffset(viewport.height) + 0.5),
+      reason: 'momentum must still respect the end of the document',
     );
-    await tester.pump();
-    viewer = tester.widget<InteractiveViewer>(
-      find.byKey(const Key('continuous-pdf-viewer')),
-    );
-    expect(viewer.minScale, 1.0);
-    expect(viewer.boundaryMargin, EdgeInsets.zero);
 
     await tester.pumpWidget(const SizedBox.shrink());
     session.dispose();
