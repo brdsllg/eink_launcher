@@ -1,20 +1,11 @@
-import java.io.FileInputStream
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val keystorePropertiesFile = rootProject.file("key.properties")
-val keystoreProperties = Properties()
-if (keystorePropertiesFile.exists()) {
-    FileInputStream(keystorePropertiesFile).use(keystoreProperties::load)
-}
-
 android {
-    namespace = "dev.levig.einklauncher"
+    namespace = "com.example.eink_launcher"
     compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +15,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "dev.levig.einklauncher"
+        // Kept stable so sideloaded updates retain the existing app and data.
+        applicationId = "com.example.eink_launcher"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -37,28 +29,11 @@ android {
         versionName = flutter.versionName
     }
 
-    signingConfigs {
-        if (keystorePropertiesFile.exists()) {
-            create("release") {
-                keyAlias = requireNotNull(keystoreProperties.getProperty("keyAlias"))
-                keyPassword = requireNotNull(keystoreProperties.getProperty("keyPassword"))
-                storeFile = file(
-                    requireNotNull(keystoreProperties.getProperty("storeFile")),
-                )
-                storePassword = requireNotNull(
-                    keystoreProperties.getProperty("storePassword"),
-                )
-            }
-        }
-    }
-
     buildTypes {
         release {
-            // A release is unsigned until local, ignored key.properties
-            // credentials are supplied. It never falls back to debug keys.
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            // This project is sideloaded onto one personally owned device.
+            // Debug signing keeps release-mode APKs directly installable.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 }

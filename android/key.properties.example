@@ -1,5 +1,0 @@
-# Copy this file to key.properties and keep the real values out of Git.
-storeFile=/absolute/path/to/eink-launcher-release.jks
-storePassword=replace-me
-keyAlias=eink-launcher
-keyPassword=replace-me

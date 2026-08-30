@@ -1,4 +1,4 @@
-package dev.levig.einklauncher
+package com.example.eink_launcher
 
 import android.app.Activity
 import android.content.Intent

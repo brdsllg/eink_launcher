@@ -374,9 +374,9 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 
 - **[`android/app/src/main/AndroidManifest.xml`](android/app/src/main/AndroidManifest.xml)**:
   - Declares `MANAGE_EXTERNAL_STORAGE` and `QUERY_ALL_PACKAGES` permissions and registers Home Launcher intent.
-- **[`android/app/src/main/kotlin/dev/levig/einklauncher/MainActivity.kt`](android/app/src/main/kotlin/dev/levig/einklauncher/MainActivity.kt)**:
+- **[`android/app/src/main/kotlin/com/example/eink_launcher/MainActivity.kt`](android/app/src/main/kotlin/com/example/eink_launcher/MainActivity.kt)**:
   - Provides the native Android `Open with` chooser and event-driven battery-status channels.
-- **[`android/app/src/main/kotlin/dev/levig/einklauncher/InstalledAppsHandler.kt`](android/app/src/main/kotlin/dev/levig/einklauncher/InstalledAppsHandler.kt)**:
+- **[`android/app/src/main/kotlin/com/example/eink_launcher/InstalledAppsHandler.kt`](android/app/src/main/kotlin/com/example/eink_launcher/InstalledAppsHandler.kt)**:
   - Queries launcher activities and starts selected packages directly through Android `PackageManager`.
 - **[`android/app/src/main/res/values/styles.xml`](android/app/src/main/res/values/styles.xml)**:
   - Window theme definitions configuring white background and fullscreen flags.

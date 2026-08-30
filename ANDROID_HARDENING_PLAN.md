@@ -10,7 +10,7 @@ This plan keeps the Flutter UI and improves the parts that matter for an Android
 | P1 | Defer PDF runtime initialization | Faster launcher cold start |
 | P1 | Replace `open_filex` with the existing native Android bridge | Correct MIME handling, fewer plugin dependencies, one file-opening path |
 | Done | Native `PackageManager` app discovery and launching | Removed the Kotlin plugin warning and gives direct launcher control |
-| P1 | Configure a real Android release build | Smaller, reproducible, upgrade-safe APKs |
+| Done | Preserve simple personal-sideload signing | Directly installable APKs that upgrade on the owned device |
 | P2 | Compare Impeller with the legacy renderer on the Bigme | Select the renderer with the least ghosting and best response |
 | P2 | Reduce rebuild/repaint scope only where profiling proves useful | Less unnecessary rendering work |
 | P3 | Add Bigme refresh controls only if a supported API is available | Direct partial/full e-ink refresh control |
@@ -36,14 +36,14 @@ Use a release or profile build on the actual Bigme device. Debug APK size and ti
 3. Measure five cold starts:
 
    ```sh
-   adb shell am force-stop dev.levig.einklauncher
-   adb shell am start -W -n dev.levig.einklauncher/.MainActivity
+   adb shell am force-stop com.example.eink_launcher
+   adb shell am start -W -n com.example.eink_launcher/.MainActivity
    ```
 
 4. Record idle memory after leaving the launcher untouched for one minute:
 
    ```sh
-   adb shell dumpsys meminfo dev.levig.einklauncher
+   adb shell dumpsys meminfo com.example.eink_launcher
    ```
 
 5. Manually record these e-ink-specific observations:
@@ -155,7 +155,7 @@ The app-query channel is kept in its own handler. Battery and file-intent code
 can move out of `MainActivity.kt` when those hardening steps are undertaken:
 
 ```text
-android/app/src/main/kotlin/dev/levig/einklauncher/
+android/app/src/main/kotlin/com/example/eink_launcher/
 ├── MainActivity.kt
 └── InstalledAppsHandler.kt
 ```
@@ -167,18 +167,21 @@ Acceptance criteria:
 - App launching and refresh work after repeated use.
 - The Kotlin Gradle warning from `installed_apps` is gone.
 
-## 5. Produce a Proper Android Release
+## 5. Personal Sideloading and Optional Distribution
 
-The build no longer falls back to the debug signing key. Release signing reads
-local credentials from ignored `android/key.properties`; without that file the
-release artifact remains unsigned until durable credentials are configured.
+This app is currently intended for personal sideloading onto one owned device,
+so both debug and release-mode APKs use Flutter's generated debug key. That is
+installable and upgrade-safe as long as the same local key is retained. A
+private release keystore is only needed if the app will be distributed or must
+survive moving builds to another development machine.
 
-Implementation:
+Current workflow:
 
-1. Create a private release keystore and keep its passwords outside Git.
-2. Copy `android/key.properties.example` to the ignored
-   `android/key.properties` and fill in the real keystore path and credentials.
-3. Verify the Bigme ABI. If it is `arm64-v8a` and this APK is only for that device, build only that target:
+1. For personal sideloading, build the already signed debug APK with
+   `flutter build apk --debug`.
+2. Only before distribution, create a private release keystore, keep its
+   passwords outside Git, and replace the debug signing configuration.
+3. If release-mode performance testing is needed, verify the Bigme ABI and build only that target:
 
    ```sh
    flutter build apk --release --target-platform android-arm64
@@ -199,11 +202,11 @@ Implementation:
 
 6. Consider R8/resource shrinking only after the native plugin replacements are complete. Enable it in a branch, build, and exercise every native feature before keeping it.
 
-Acceptance criteria:
+Acceptance criteria for the current personal workflow:
 
-- A release APK installs and upgrades over the previous release signed with the same key.
-- The release key and passwords are not committed.
-- The chosen artifact contains only the architectures actually needed.
+- A debug APK installs and upgrades over the previous debug-key build.
+- The package ID stays stable so Android retains app data across sideloaded updates.
+- Distribution signing remains explicitly out of scope until distribution is planned.
 
 ## 6. Compare Flutter Renderers on the E-Ink Device
 
