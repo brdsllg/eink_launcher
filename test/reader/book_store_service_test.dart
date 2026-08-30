@@ -64,4 +64,29 @@ void main() {
     );
     expect(resolved.lineHeight, equals(1.8));
   });
+
+  test('overlapping lifecycle flushes persist the latest state without temp-file races', () async {
+    final store = BookStoreService.instance;
+    final writes = <Future<void>>[];
+    for (var page = 0; page < 20; page++) {
+      store.saveBookState(
+        BookState(
+          docId: 'concurrent',
+          lastPath: '/book.pdf',
+          format: DocFormat.pdf,
+          lastRead: DateTime(2026),
+          position: PdfReadingPosition(pageIndex: page),
+        ),
+      );
+      writes.add(store.flush());
+    }
+    await Future.wait(writes);
+    expect(await File('${libraryFile.path}.tmp').exists(), isFalse);
+    store.dispose();
+    await BookStoreService.instance.init(customFile: libraryFile);
+    expect(
+      BookStoreService.instance.getBookState('concurrent')?.position,
+      const PdfReadingPosition(pageIndex: 19),
+    );
+  });
 }

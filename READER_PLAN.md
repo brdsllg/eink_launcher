@@ -103,6 +103,7 @@ lib/
       reader_settings.dart                typography + view settings, JSON round-trip
       bookmark.dart                       user bookmark model
       book_state.dart                     one document's persisted record
+      reader_exception.dart               ReaderException + EncryptedEpubException
       toc_entry.dart                      table of contents entry item
       content_block.dart                  THE layout primitive (blocks + inline runs)
       laid_out_page.dart                  a page = ordered list of BlockSlice
@@ -121,7 +122,8 @@ lib/
       bidi_service.dart                   per-block direction detection
       hyphenation_service.dart            hyphenatorx wrapper, Latin only
       epub_paginator_service.dart         blocks + geometry → pages (UI isolate)
-      text_search_service.dart            PLANNED: EPUB search, nikud-insensitive
+      text_search_service.dart            isolate-backed text search, nikud-insensitive
+      reader_error_service.dart           maps IO/OOM/parser failures to safe fallback text
     controllers/
       reader_session.dart                 abstract base
       pdf_reader_session.dart             PDF-specific session controller
@@ -132,7 +134,7 @@ lib/
       reader_settings_screen.dart         mode-scoped display + typography settings
       reader_toc_screen.dart              table of contents navigation screen
       reader_bookmarks_screen.dart        add/list/navigate/delete bookmarks
-      reader_search_screen.dart           PLANNED: text search (EPUB/TXT/Markdown)
+      reader_search_screen.dart           paginated text search (EPUB/TXT/Markdown)
     widgets/
       tap_zone_layer.dart                 invisible equal-thirds zones + swipe
       reader_menu_overlay.dart            in-book floating control overlay
@@ -613,25 +615,33 @@ Orientation lives in the menu overlay for every format.
   - Wired a "Bookmarks" entry point into `reader_menu_overlay.dart`'s top bar (next to Back) and `reader_screen.dart`.
   - Covered by `pdf_reader_session_test.dart` and `text_reader_session_test.dart` (add/remove and cross-session persistence round-trips) and the new `reader_bookmarks_screen_test.dart` (add/list/navigate/delete); `reader_menu_overlay_test.dart` and `reader_session_registry_test.dart` were updated for the new contract member.
 
-- [ ] **Step 4.4: In-Book Text Search (EPUB, TXT, Markdown)**
-  - Create `lib/reader/services/text_search_service.dart` (nikud-insensitive Hebrew normalisation, isolate-backed).
-  - Create `lib/reader/screens/reader_search_screen.dart` with paginated search results.
-  - Search operates on `ContentBlock` lists, which all text formats already produce, so TXT and Markdown get search for free alongside EPUB. PDF search is out of scope (requires text extraction from PDFium).
+- [x] **Step 4.4: In-Book Text Search (EPUB, TXT, Markdown)**
+  - Implemented `lib/reader/services/text_search_service.dart`: isolate-backed search across spine `ContentBlock` lists, case-insensitive matching, Hebrew vowel/cantillation-mark and soft-hyphen removal, whitespace normalization, and exact mapping back to original UTF-16 character offsets. Hebrew punctuation is preserved; phrases cross inline runs but not blocks.
+  - Implemented `lib/reader/screens/reader_search_screen.dart`: explicit submission, discrete result pagination, chapter labels and original-text RTL snippets, static loading/empty/error states, and stale-query suppression. One worker runs at a time and only the newest queued query is kept. Results are capped at 1,000 with an explicit refinement notice when truncated.
+  - Added a text-only Search menu action. Selecting a result reuses logical TOC navigation and hides the reader overlay. Text navigation now retains exact target offsets rather than snapping to the page start, keeping matches visible through typography changes.
+  - Search operates on the shared text blocks for EPUB/TXT/Markdown. PDF search remains out of scope (requires text extraction from PDFium).
 
 - [ ] **Step 4.5: Phase 4 Verification**
-  - Test chapter jumping, bookmark round-trips across font size changes, and Hebrew search queries with/without vowel points.
+  - [x] Automated coverage for chapter navigation, search before pagination, exact match retention through typography/viewport changes, bookmark disk reloads, and Hebrew search queries with/without vowel points.
+  - [x] Search service/screen, text session, reader menu, and shared pagination controls: 26 focused tests passed; all 98 reader tests passed (one opt-in native test skipped). `flutter analyze --no-pub` reported no issues on 2026-08-30. The full suite reported 117 passed, one opt-in native test skipped, and two unrelated Windows folder-copy failures in `file_operations_service_test.dart` (unchanged by this feature).
+  - [ ] Verify search, chapter jumping, and bookmark/font-size round-trips visually on the Bigme B751C.
 
 ---
 
 ### Phase 5 — Polish, E-Ink Optimisations & Edge Cases
 **Objective:** Final hardening, memory management, and display tuning.
-- [ ] **Step 5.1: Error Boundaries & Fallback UI**
-  - Handle corrupt PDFs, malformed EPUBs, missing files, and memory warnings gracefully.
-- [ ] **Step 5.2: DRM-Protected EPUB Detection**
-  - During EPUB parsing, inspect `META-INF/encryption.xml` when it exists.
-  - Do not reject a book merely because that file exists: EPUB font obfuscation also uses `encryption.xml` and is not the same as DRM. Distinguish supported font-obfuscation entries from encryption of spine documents or other reading content.
-  - If reading content is encrypted with an unsupported scheme, throw a typed error and show a clear message such as "This book contains DRM-protected or encrypted content that this reader cannot open" instead of failing opaquely or displaying garbled content.
-  - Add fixtures for an unencrypted EPUB, a font-obfuscated EPUB, and an EPUB with encrypted spine content.
+- [x] **Step 5.1: Error Boundaries & Fallback UI**
+  - `reader_exception.dart` defines `ReaderException` (a message that's always safe to show) and `EncryptedEpubException`. `reader_error_service.dart`'s `readerErrorMessage()` turns any raised error into one of: the exception's own message, a specific missing-file / access-denied message from `FileSystemException`'s OS error code, an out-of-memory message, or a generic per-format "could not read this document" fallback — never a raw stack trace or parser-internal string.
+  - Both `PdfReaderSession.open()`/`resume()` and `TextReaderSession.open()`/`applySettings()`/`_repaginate()` catch failures and surface safe messages via `ReaderSession.error`. The shared `ReaderErrorView` offers Retry and Back to files, including PDF page/layout/tile failures. Failed sessions can be retried without leaving the reader; a failed open never overwrites a previously saved position or bookmarks.
+  - `ReaderSession.handleMemoryPressure()` (default `suspend()`, overridden by `TextReaderSession` to additionally drop the parsed book and laid-out pages while retaining `percent`/`pageCount` so the UI doesn't flicker) is wired to the OS: `ReaderMemoryPressureObserver` in `lib/main.dart` is registered for the app's whole lifetime and forwards `WidgetsBindingObserver.didHaveMemoryPressure()` to `ReaderSessionRegistry.instance.handleMemoryPressure()`, reaching every open session regardless of which screen is on top. Covered by `test/reader/reader_memory_pressure_observer_test.dart`.
+  - The reader screen handles the visible memory-warning fallback without duplicating the app-wide session release. It clears Flutter image caches and waits for Continue reading before reopening. Generation checks discard late loads, pagination, outlines, crop detection, and PDF renders after suspension/disposal; discarded renders cannot repopulate the bitmap cache. Fit-mode images now hold their own cloned image handles, just like continuous tiles.
+  - Serialized `BookStoreService.flush()` requests prevent overlapping pause/disposal/memory-warning writes from racing on `library.json.tmp`.
+  - Added direct message-mapping tests (`reader_error_service_test.dart`), actual reader-shell Retry/Back/memory-continuation tests (`reader_error_screen_test.dart`), and session/cache/persistence tests for recovery, late completion, cleared image handles, and concurrent saves. Device-level memory-warning and visual recovery checks remain pending; adaptive memory budgets are still Step 5.3.
+- [x] **Step 5.2: DRM-Protected EPUB Detection**
+  - `epub_parser_service.dart`'s `_checkEncryption()` inspects `META-INF/encryption.xml` when it exists, before any spine document is read. For each `EncryptedData` entry it resolves the container-rooted `CipherReference` path (not relative to `META-INF` or the OPF — see the code comment citing the EPUB 3.3 spec section) and checks whether the algorithm is one of the two font-obfuscation schemes (idpf / Adobe) *and* every manifest item at that path is a font media type *and* the path is not itself a spine document.
+  - A match is treated as ordinary font obfuscation, not DRM: the path is added to an `ignoredFonts` set that's threaded back out to the resource-collection loop, which skips it — obfuscated publisher fonts are never used or decoded, since the reader always renders with its own bundled fonts. Anything else (a real encryption algorithm, or *any* algorithm applied to a spine document or non-font resource) throws `EncryptedEpubException(resourcePath:, algorithm:)`, whose fixed message ("This book contains DRM-protected or encrypted content that this reader cannot open.") is what `ReaderScreen`'s error view shows, via `reader_error_service.dart` (Step 5.1).
+  - Fixtures for all three cases — no `encryption.xml`, an idpf-obfuscated font excluded from `book.resources` without error, and an encrypted spine document throwing `EncryptedEpubException` with the right path and algorithm — are in `test/reader/epub_parser_service_test.dart`'s `META-INF/encryption.xml` group.
+  - Additional fixtures cover Adobe obfuscation, percent-encoded container-root paths, encryption of image/font resources, a font-obfuscation algorithm incorrectly applied to spine content, and malformed encryption metadata.
 - [ ] **Step 5.3: Adaptive PDF Bitmap Cache Size**
   - Query Android's `ActivityManager.getMemoryClass()` through a platform channel when the PDF runtime is first needed, rather than adding work to launcher startup.
   - Size the PDF bitmap cache from the reported per-app heap class instead of always using the current hard-coded 96 MB. Start with a conservative fraction (for example 20–25%) and clamp it to measured minimum and maximum limits so unusually small or large reports cannot produce a harmful cache size.
@@ -641,6 +651,7 @@ Orientation lives in the menu overlay for every format.
 - [x] **Step 5.4: Update Documentation & Tests**
   - Update `README.md` with new file listings and architectural details.
   - Run full test suite (`flutter test`, `flutter analyze`).
+  - 2026-08-31 hardening verification: all 122 reader tests pass (one opt-in native test skipped), and `flutter analyze --no-pub` is clean. Full suite: 141 passed, one opt-in native test skipped, and the same two unrelated Windows folder-copy failures in `file_operations_service_test.dart`.
 
 ---
 
@@ -654,6 +665,8 @@ Orientation lives in the menu overlay for every format.
 - `hyphenation_service_test.dart` — Latin soft-hyphen insertion without modifying Hebrew or inline styling.
 - `epub_paginator_service_test.dart` — block packing, line splits, widow/orphan protection.
 - `phase2_verification_test.dart` — bundled fonts, bilingual directions, exact portrait/landscape slice coverage, and re-pagination timing.
+- `text_search_service_test.dart` — shared EPUB/TXT/Markdown search, Hebrew marks, original UTF-16 offsets, whitespace and inline boundaries, literal punctuation, bounded results, and previews.
+- `reader_search_screen_test.dart` — submission, paginated selection, queued/stale queries, clear/retry/dispose handling, and RTL/narrow-screen layout.
 - `pdf_crop_service_test.dart` — bbox bounding math, noise filtering, uniform crop sampling.
 - `pdf_continuous_layout_test.dart` — offset-to-page and page-to-offset mapping, dominant page, boundary clamping.
 - `pdf_reader_session_test.dart` — fit-mode navigation and sub-screens, whole-page cache reuse, refusal to render whole pages in Zoom / Scroll, per-density tile re-rasterisation, navigation-epoch semantics, and a widget test proving a fling keeps gliding after release.

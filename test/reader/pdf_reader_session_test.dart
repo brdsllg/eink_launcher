@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -6,6 +7,7 @@ import 'package:eink_launcher/reader/models/doc_ref.dart';
 import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:eink_launcher/reader/models/reading_position.dart';
 import 'package:eink_launcher/reader/services/book_store_service.dart';
+import 'package:eink_launcher/reader/services/page_bitmap_cache.dart';
 import 'package:eink_launcher/reader/services/pdf_crop_service.dart';
 import 'package:eink_launcher/reader/services/pdf_document_service.dart';
 import 'package:eink_launcher/reader/widgets/pdf_page_view.dart' as reader;
@@ -77,8 +79,126 @@ void main() {
     await session.open();
 
     expect(session.isReady, isFalse);
-    expect(session.error, contains('boom'));
+    expect(session.error, contains('Could not read this PDF'));
+    expect(session.error, isNot(contains('boom')));
   });
+
+  test('rejects PDFs with no pages and closes the invalid document', () async {
+    final empty = _FakePdfDocument(
+      pageCount: 0,
+      pageWidth: 200,
+      pageHeight: 300,
+    );
+    final session = makeSession(fakeDoc: empty);
+    await session.open();
+    expect(session.isReady, isFalse);
+    expect(empty.wasDisposed, isTrue);
+    session.suspend();
+    expect(BookStoreService.instance.getBookState(doc.id), isNull);
+    session.dispose();
+  });
+
+  test(
+    'failed resume is contained and preserves the saved PDF position',
+    () async {
+      var fail = false;
+      final session = PdfReaderSession(
+        doc: doc,
+        documentServiceFactory: (path) => PdfDocumentService(
+          path,
+          documentOpener: (_, _) async {
+            if (fail) {
+              throw const FileSystemException(
+                'missing',
+                '/books/doc-1.pdf',
+                OSError('missing', 2),
+              );
+            }
+            return _FakePdfDocument(
+              pageCount: 3,
+              pageWidth: 200,
+              pageHeight: 300,
+            );
+          },
+        ),
+      );
+      await session.open();
+      await session.goToPage(2);
+      session.suspend();
+      fail = true;
+      await session.resume();
+      expect(session.error, contains('no longer available'));
+      expect(session.isReady, isFalse);
+      expect(session.currentPage, 2);
+      fail = false;
+      await session.resume();
+      expect(session.error, isNull);
+      expect(session.currentPage, 2);
+      session.dispose();
+    },
+  );
+
+  test(
+    'memory pressure prevents a late PDF render from refilling the cache',
+    () async {
+      final gate = Completer<void>();
+      final fake = _FakePdfDocument(
+        pageCount: 1,
+        pageWidth: 200,
+        pageHeight: 300,
+        renderGate: gate.future,
+      );
+      final cache = PageBitmapCache(maxBytes: 1024 * 1024);
+      final session = PdfReaderSession(
+        doc: doc,
+        bitmapCache: cache,
+        documentServiceFactory: (path) =>
+            PdfDocumentService(path, documentOpener: (_, _) async => fake),
+      );
+      await session.open();
+      await session.applySettings(session.settings.copyWith(autoCrop: false));
+      final rendering = session.renderCurrentView(const Size(200, 300));
+      final rejected = expectLater(rendering, throwsStateError);
+      await Future<void>.delayed(Duration.zero);
+      session.handleMemoryPressure();
+      gate.complete();
+      await rejected;
+      expect(cache.isEmpty, isTrue);
+      expect(session.isReady, isFalse);
+      expect(fake.wasDisposed, isTrue);
+      session.dispose();
+    },
+  );
+
+  test(
+    'a document finishing open after disposal is closed without publishing',
+    () async {
+      final gate = Completer<PdfDocument>();
+      final started = Completer<void>();
+      final session = PdfReaderSession(
+        doc: doc,
+        documentServiceFactory: (path) => PdfDocumentService(
+          path,
+          documentOpener: (_, _) {
+            started.complete();
+            return gate.future;
+          },
+        ),
+      );
+      final opening = session.open();
+      await started.future;
+      session.dispose();
+      final fake = _FakePdfDocument(
+        pageCount: 1,
+        pageWidth: 200,
+        pageHeight: 300,
+      );
+      gate.complete(fake);
+      await opening;
+      expect(fake.wasDisposed, isTrue);
+      expect(session.isReady, isFalse);
+    },
+  );
 
   test(
     'goToPage clamps to the valid range and persists the position',
@@ -197,51 +317,37 @@ void main() {
     expect(saved?.settingsOverride?.fitMode, PdfFitMode.fitWidth);
   });
 
-  test(
-    'bookmarks are added, persisted across sessions, and removed',
-    () async {
-      final session = makeSession(
-        fakeDoc: _FakePdfDocument(
-          pageCount: 3,
-          pageWidth: 200,
-          pageHeight: 300,
-        ),
-      );
-      await session.open();
-      await session.goToPage(1);
+  test('bookmarks are added, persisted across sessions, and removed', () async {
+    final session = makeSession(
+      fakeDoc: _FakePdfDocument(pageCount: 3, pageWidth: 200, pageHeight: 300),
+    );
+    await session.open();
+    await session.goToPage(1);
 
-      await session.addBookmark('Chapter 2');
-      expect(session.bookmarks, hasLength(1));
-      expect(session.bookmarks.single.label, 'Chapter 2');
-      expect(
-        session.bookmarks.single.position,
-        const PdfReadingPosition(pageIndex: 1),
-      );
+    await session.addBookmark('Chapter 2');
+    expect(session.bookmarks, hasLength(1));
+    expect(session.bookmarks.single.label, 'Chapter 2');
+    expect(
+      session.bookmarks.single.position,
+      const PdfReadingPosition(pageIndex: 1),
+    );
 
-      final saved = BookStoreService.instance.getBookState('doc-1');
-      expect(saved?.bookmarks, hasLength(1));
+    final saved = BookStoreService.instance.getBookState('doc-1');
+    expect(saved?.bookmarks, hasLength(1));
 
-      // A freshly created session for the same doc (simulating an app
-      // restart) restores the bookmark from library.json.
-      final reopened = makeSession(
-        fakeDoc: _FakePdfDocument(
-          pageCount: 3,
-          pageWidth: 200,
-          pageHeight: 300,
-        ),
-      );
-      await reopened.open();
-      expect(reopened.bookmarks, hasLength(1));
-      expect(reopened.bookmarks.single.label, 'Chapter 2');
+    // A freshly created session for the same doc (simulating an app
+    // restart) restores the bookmark from library.json.
+    final reopened = makeSession(
+      fakeDoc: _FakePdfDocument(pageCount: 3, pageWidth: 200, pageHeight: 300),
+    );
+    await reopened.open();
+    expect(reopened.bookmarks, hasLength(1));
+    expect(reopened.bookmarks.single.label, 'Chapter 2');
 
-      await reopened.removeBookmark(reopened.bookmarks.single.id);
-      expect(reopened.bookmarks, isEmpty);
-      expect(
-        BookStoreService.instance.getBookState('doc-1')?.bookmarks,
-        isEmpty,
-      );
-    },
-  );
+    await reopened.removeBookmark(reopened.bookmarks.single.id);
+    expect(reopened.bookmarks, isEmpty);
+    expect(BookStoreService.instance.getBookState('doc-1')?.bookmarks, isEmpty);
+  });
 
   test('renderCurrentView caches identical requests and re-renders on viewport change', () async {
     final fakeDoc = _FakePdfDocument(
@@ -425,6 +531,51 @@ void main() {
     },
   );
 
+  testWidgets('fit-mode image remains valid when the cache is cleared', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final cache = PageBitmapCache(maxBytes: 1024 * 1024);
+    final fake = _FakePdfDocument(
+      pageCount: 1,
+      pageWidth: 200,
+      pageHeight: 300,
+    );
+    final session = PdfReaderSession(
+      doc: doc,
+      bitmapCache: cache,
+      documentServiceFactory: (path) =>
+          PdfDocumentService(path, documentOpener: (_, _) async => fake),
+    );
+    await tester.runAsync(() async {
+      await session.open();
+      await session.applySettings(session.settings.copyWith(autoCrop: false));
+      await session.renderCurrentView(const Size(200, 300));
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 200,
+            height: 300,
+            child: reader.PdfPageView(session: session),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final image = tester.widget<RawImage>(find.byType(RawImage)).image!;
+    cache.clear();
+    // Cloning a disposed image throws; this proves the on-screen handle is
+    // independent of the one released by the cache.
+    image.clone().dispose();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    session.dispose();
+  });
+
   testWidgets('a fling keeps gliding after the finger lifts', (tester) async {
     final session = makeSession(
       fakeDoc: _FakePdfDocument(pageCount: 6, pageWidth: 200, pageHeight: 300),
@@ -500,6 +651,7 @@ class _FakePdfDocument implements PdfDocument {
     required int pageCount,
     required double pageWidth,
     required double pageHeight,
+    Future<void>? renderGate,
   }) {
     _pages = List.generate(
       pageCount,
@@ -508,6 +660,7 @@ class _FakePdfDocument implements PdfDocument {
         width: pageWidth,
         height: pageHeight,
         onRender: () => renderCallCount++,
+        renderGate: renderGate,
       ),
     );
   }
@@ -543,6 +696,7 @@ class _FakePdfPage implements PdfPage {
     required this.width,
     required this.height,
     required this.onRender,
+    this.renderGate,
   });
 
   @override
@@ -552,6 +706,7 @@ class _FakePdfPage implements PdfPage {
   @override
   final double height;
   final void Function() onRender;
+  final Future<void>? renderGate;
 
   @override
   int get pageNumber => 1;
@@ -577,6 +732,7 @@ class _FakePdfPage implements PdfPage {
     int flags = PdfPageRenderFlags.none,
     PdfPageRenderCancellationToken? cancellationToken,
   }) async {
+    await renderGate;
     onRender();
     final outputWidth = width ?? fullWidth?.round() ?? this.width.round();
     final outputHeight = height ?? fullHeight?.round() ?? this.height.round();

@@ -11,6 +11,7 @@ import 'package:xml/xml.dart';
 import '../models/content_block.dart';
 import '../models/parsed_book.dart';
 import '../models/reading_position.dart';
+import '../models/reader_exception.dart';
 import '../models/toc_entry.dart';
 import 'html_block_parser.dart';
 
@@ -90,6 +91,8 @@ class EpubParserService {
       throw const FormatException('EPUB reading spine is empty.');
     }
 
+    final obfuscatedFonts = _checkEncryption(archive, manifest, spineRefs);
+
     final spine = <ParsedSpineItem>[];
     for (final idref in spineRefs) {
       final item = manifest[idref];
@@ -127,6 +130,7 @@ class EpubParserService {
     final spinePaths = spine.map((item) => item.href).toSet();
     for (final item in manifest.values) {
       if (spinePaths.contains(item.resolvedPath) ||
+          obfuscatedFonts.contains(item.resolvedPath) ||
           item.properties.contains('nav') ||
           item.mediaType == 'application/x-dtbncx+xml') {
         continue;
@@ -165,6 +169,81 @@ class EpubParserService {
     );
   }
 }
+
+// See https://www.w3.org/TR/epub-33/#sec-container-metainf-encryption.xml
+// CipherReference paths are rooted at the container, not META-INF or the OPF.
+Set<String> _checkEncryption(
+  Archive archive,
+  Map<String, _ManifestItem> manifest,
+  List<String> spineRefs,
+) {
+  if (archive.findFile('META-INF/encryption.xml') == null) return const {};
+  final encryption = _parseXml(
+    _readText(
+      archive,
+      'META-INF/encryption.xml',
+      description: 'EPUB encryption metadata',
+    ),
+    'EPUB encryption metadata',
+  );
+  if (encryption.rootElement.name.local != 'encryption') {
+    throw const FormatException('Invalid EPUB encryption metadata.');
+  }
+  final spinePaths = {
+    for (final id in spineRefs)
+      if (manifest[id] != null) manifest[id]!.resolvedPath,
+  };
+  final ignoredFonts = <String>{};
+  for (final entry in _elements(encryption, 'EncryptedData')) {
+    final methods = _childElements(entry, 'EncryptionMethod').toList();
+    final references = _elements(entry, 'CipherReference').toList();
+    if (methods.length != 1 || references.length != 1) {
+      throw const FormatException('Incomplete EPUB encryption metadata.');
+    }
+    final algorithm = _attribute(methods.single, 'Algorithm')?.trim();
+    final reference = _attribute(references.single, 'URI')?.trim();
+    if (algorithm == null ||
+        algorithm.isEmpty ||
+        reference == null ||
+        reference.isEmpty) {
+      throw const FormatException('Incomplete EPUB encryption metadata.');
+    }
+    final uri = Uri.parse(reference);
+    if (uri.hasScheme || uri.hasAuthority || uri.hasQuery || uri.hasFragment) {
+      throw const FormatException('Invalid encrypted EPUB resource path.');
+    }
+    final path = _resolveArchivePath('', reference);
+    final items = manifest.values
+        .where((item) => item.resolvedPath == path)
+        .toList();
+    final isFont =
+        items.isNotEmpty &&
+        items.every((item) => _fontMediaTypes.contains(item.mediaType));
+    final isObfuscation =
+        algorithm == 'http://www.idpf.org/2008/embedding' ||
+        algorithm == 'http://ns.adobe.com/pdf/enc#RC';
+    if (isObfuscation && isFont && !spinePaths.contains(path)) {
+      // Publisher fonts are never used by this reader. Keep using bundled
+      // fonts and do not retain or attempt to decode their obfuscated bytes.
+      ignoredFonts.add(path);
+      continue;
+    }
+    throw EncryptedEpubException(resourcePath: path, algorithm: algorithm);
+  }
+  return ignoredFonts;
+}
+
+const _fontMediaTypes = {
+  'font/otf',
+  'font/ttf',
+  'font/woff',
+  'font/woff2',
+  'application/font-sfnt',
+  'application/font-woff',
+  'application/vnd.ms-opentype',
+  'application/x-font-ttf',
+  'application/x-font-opentype',
+};
 
 Archive _decodeArchive(Uint8List bytes) {
   try {

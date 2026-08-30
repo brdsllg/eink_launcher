@@ -16,6 +16,7 @@ class ReaderMenuOverlay extends StatelessWidget {
   final VoidCallback onOpenSettings;
   final bool showPdfControls;
   final VoidCallback? onOpenToc;
+  final VoidCallback? onOpenSearch;
   final VoidCallback? onJumpToPercent;
   final double? percent;
 
@@ -34,12 +35,52 @@ class ReaderMenuOverlay extends StatelessWidget {
     required this.onOpenSettings,
     this.showPdfControls = true,
     this.onOpenToc,
+    this.onOpenSearch,
     this.onJumpToPercent,
     this.percent,
   });
 
   @override
   Widget build(BuildContext context) {
+    final pageButton = TextButton(
+      key: const Key('reader-page-jump-button'),
+      onPressed: pageCount == 0 ? null : onJumpToPage,
+      child: Text(
+        pageCount == 0 ? 'Page —' : 'Page ${currentPage + 1} of $pageCount',
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+    final navigationButtons = <Widget>[
+      if (!showPdfControls && onOpenSearch != null)
+        _MenuButton(
+          key: const Key('reader-search-button'),
+          icon: Icons.search,
+          label: 'Search',
+          onPressed: onOpenSearch!,
+        ),
+      if (onOpenToc != null)
+        _MenuButton(
+          key: const Key('reader-toc-button'),
+          icon: Icons.list_alt,
+          label: 'Contents',
+          onPressed: onOpenToc!,
+        ),
+      if (showPdfControls) Expanded(child: pageButton) else pageButton,
+      if (onJumpToPercent != null)
+        _MenuButton(
+          key: const Key('reader-percent-jump-button'),
+          icon: Icons.percent,
+          label: percent == null ? 'Jump' : '${(percent! * 100).round()}%',
+          onPressed: onJumpToPercent!,
+        ),
+      _MenuButton(
+        icon: Icons.tune,
+        label: 'Settings',
+        onPressed: onOpenSettings,
+      ),
+    ];
     return Stack(
       children: [
         Positioned.fill(
@@ -102,44 +143,14 @@ class ReaderMenuOverlay extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    if (onOpenToc != null)
-                      _MenuButton(
-                        key: const Key('reader-toc-button'),
-                        icon: Icons.list_alt,
-                        label: 'Contents',
-                        onPressed: onOpenToc!,
-                      ),
-                    Expanded(
-                      child: TextButton(
-                        key: const Key('reader-page-jump-button'),
-                        onPressed: pageCount == 0 ? null : onJumpToPage,
-                        child: Text(
-                          pageCount == 0
-                              ? 'Page —'
-                              : 'Page ${currentPage + 1} of $pageCount',
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                        ),
-                      ),
-                    ),
-                    if (onJumpToPercent != null)
-                      _MenuButton(
-                        key: const Key('reader-percent-jump-button'),
-                        icon: Icons.percent,
-                        label: percent == null
-                            ? 'Jump'
-                            : '${(percent! * 100).round()}%',
-                        onPressed: onJumpToPercent!,
-                      ),
-                    _MenuButton(
-                      icon: Icons.tune,
-                      label: 'Settings',
-                      onPressed: onOpenSettings,
-                    ),
-                  ],
-                ),
+                if (showPdfControls)
+                  Row(children: navigationButtons)
+                else
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: navigationButtons,
+                  ),
                 if (showPdfControls) ...[
                   const Divider(height: 1, thickness: 1),
                   Row(

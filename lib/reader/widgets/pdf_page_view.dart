@@ -9,13 +9,16 @@ import '../../constants.dart';
 import '../controllers/pdf_reader_session.dart';
 import '../models/pdf_continuous_layout.dart';
 import '../models/reader_settings.dart';
+import '../services/reader_error_service.dart';
+import 'reader_error_view.dart';
 
 /// Thin PDF presenter. Rendering geometry, crop detection, and bitmap caching
 /// remain owned by [PdfReaderSession].
 class PdfPageView extends StatefulWidget {
   final PdfReaderSession session;
+  final VoidCallback? onRetry;
 
-  const PdfPageView({super.key, required this.session});
+  const PdfPageView({super.key, required this.session, this.onRetry});
 
   @override
   State<PdfPageView> createState() => _PdfPageViewState();
@@ -41,6 +44,7 @@ class _PdfPageViewState extends State<PdfPageView> {
               session: widget.session,
               viewport: viewport,
               devicePixelRatio: devicePixelRatio,
+              onRetry: widget.onRetry,
             );
           }
 
@@ -66,8 +70,14 @@ class _PdfPageViewState extends State<PdfPageView> {
             future: _renderFuture,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
-                return _Message(
-                  text: 'Could not render this page.\n${snapshot.error}',
+                return ReaderErrorView(
+                  message: readerErrorMessage(
+                    snapshot.error!,
+                    widget.session.doc.format,
+                  ),
+                  onRetry:
+                      widget.onRetry ??
+                      () => setState(() => _renderSignature = null),
                 );
               }
               final image = snapshot.data;
@@ -76,19 +86,56 @@ class _PdfPageViewState extends State<PdfPageView> {
                 // generate needless refreshes and ghosting on e-ink.
                 return const ColoredBox(color: Colors.white);
               }
-              return Center(
-                child: RawImage(
-                  image: image,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.none,
-                ),
-              );
+              return Center(child: _OwnedPdfImage(image: image));
             },
           );
         },
       ),
     );
   }
+}
+
+/// A fit-mode page also needs its own image handle: suspension or cache
+/// eviction must not dispose the handle currently being painted by RawImage.
+class _OwnedPdfImage extends StatefulWidget {
+  final ui.Image image;
+
+  const _OwnedPdfImage({required this.image});
+
+  @override
+  State<_OwnedPdfImage> createState() => _OwnedPdfImageState();
+}
+
+class _OwnedPdfImageState extends State<_OwnedPdfImage> {
+  late ui.Image _image;
+
+  @override
+  void initState() {
+    super.initState();
+    _image = widget.image.clone();
+  }
+
+  @override
+  void didUpdateWidget(covariant _OwnedPdfImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (identical(oldWidget.image, widget.image)) return;
+    final previous = _image;
+    _image = widget.image.clone();
+    WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+  }
+
+  @override
+  void dispose() {
+    _image.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => RawImage(
+    image: _image,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.none,
+  );
 }
 
 /// One continuous, always-zoomable document canvas with real momentum.
@@ -116,11 +163,13 @@ class _ContinuousPdfView extends StatefulWidget {
   final PdfReaderSession session;
   final Size viewport;
   final double devicePixelRatio;
+  final VoidCallback? onRetry;
 
   const _ContinuousPdfView({
     required this.session,
     required this.viewport,
     required this.devicePixelRatio,
+    this.onRetry,
   });
 
   @override
@@ -154,6 +203,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   double _lastFlingY = 0.0;
 
   bool _interacting = false;
+  bool _renderFailed = false;
   double _gestureStartScale = 1.0;
   Offset _gestureStartScene = Offset.zero;
 
@@ -423,6 +473,13 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
 
   @override
   Widget build(BuildContext context) {
+    if (_renderFailed) {
+      return ReaderErrorView(
+        message:
+            'Could not render this PDF page. Try again or choose another file.',
+        onRetry: widget.onRetry ?? () => setState(() => _renderFailed = false),
+      );
+    }
     final signature = Object.hash(
       widget.viewport.width,
       widget.viewport.height,
@@ -441,8 +498,13 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
       future: _layoutFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _Message(
-            text: 'Could not prepare continuous view.\n${snapshot.error}',
+          return ReaderErrorView(
+            message: readerErrorMessage(
+              snapshot.error!,
+              widget.session.doc.format,
+            ),
+            onRetry:
+                widget.onRetry ?? () => setState(() => _layoutSignature = null),
           );
         }
         final layout = snapshot.data;
@@ -474,7 +536,10 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     );
   }
 
-  List<Widget> _buildTiles(PdfContinuousLayout layout, double targetRenderScale) {
+  List<Widget> _buildTiles(
+    PdfContinuousLayout layout,
+    double targetRenderScale,
+  ) {
     if (layout.pageCount == 0 || layout.totalHeight <= 0) {
       return const [SizedBox.expand()];
     }
@@ -533,7 +598,9 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
           }
           tiles.add(
             Positioned(
-              key: ValueKey('${targetRenderScale.toStringAsFixed(2)}/$pageIndex/$rows.$row/$columns.$column'),
+              key: ValueKey(
+                '${targetRenderScale.toStringAsFixed(2)}/$pageIndex/$rows.$row/$columns.$column',
+              ),
               left: (tileLeft - _originX) * _scale,
               top: (tileTop - _originY) * _scale,
               // Half a pixel of overdraw hides hairline seams between
@@ -552,6 +619,11 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
                 ),
                 devicePixelRatio: widget.devicePixelRatio,
                 renderScale: targetRenderScale,
+                onError: () {
+                  if (mounted && !_renderFailed) {
+                    setState(() => _renderFailed = true);
+                  }
+                },
               ),
             ),
           );
@@ -575,6 +647,7 @@ class _ContinuousPdfTile extends StatefulWidget {
   final Rect region;
   final double devicePixelRatio;
   final double renderScale;
+  final VoidCallback onError;
 
   const _ContinuousPdfTile({
     required this.session,
@@ -583,6 +656,7 @@ class _ContinuousPdfTile extends StatefulWidget {
     required this.region,
     required this.devicePixelRatio,
     required this.renderScale,
+    required this.onError,
   });
 
   @override
@@ -639,6 +713,7 @@ class _ContinuousPdfTileState extends State<_ContinuousPdfTile> {
           onError: (Object _) {
             if (!mounted || token != _requestToken) return;
             _adopt(null, failed: true);
+            widget.onError();
           },
         );
   }
@@ -673,22 +748,6 @@ class _ContinuousPdfTileState extends State<_ContinuousPdfTile> {
       // Bilinear only matters mid-pinch, before the tile is re-rasterised at
       // the settled zoom; nearest-neighbour looks blocky in that window.
       filterQuality: FilterQuality.low,
-    );
-  }
-}
-
-class _Message extends StatelessWidget {
-  final String text;
-
-  const _Message({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(text, textAlign: TextAlign.center),
-      ),
     );
   }
 }

@@ -55,6 +55,8 @@ class ReaderSessionRegistry {
       await session.open();
     } else if (session.isSuspended) {
       await session.resume();
+    } else if (!session.isReady) {
+      await session.open();
     }
     _touch(doc.id);
     _enforceCap();
@@ -66,6 +68,12 @@ class ReaderSessionRegistry {
   void suspendAll() {
     for (final session in _sessions.values) {
       session.suspend();
+    }
+  }
+
+  void handleMemoryPressure() {
+    for (final session in _sessions.values) {
+      session.handleMemoryPressure();
     }
   }
 

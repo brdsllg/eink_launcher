@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:pdfrx/pdfrx.dart';
@@ -32,6 +33,7 @@ class PdfDocumentService {
   final String filePath;
   final PdfDocumentOpener _documentOpener;
   PdfDocument? _document;
+  int _generation = 0;
 
   PdfDocumentService(this.filePath, {PdfDocumentOpener? documentOpener})
     : _documentOpener = documentOpener ?? _openPdfDocument;
@@ -42,7 +44,24 @@ class PdfDocumentService {
 
   Future<void> open({PdfPasswordProvider? passwordProvider}) async {
     if (_document != null) return;
-    _document = await _documentOpener(filePath, passwordProvider);
+    final generation = _generation;
+    final document = await _documentOpener(filePath, passwordProvider);
+    if (generation != _generation) {
+      await document.dispose();
+      throw StateError('PDF opening was cancelled.');
+    }
+    if (document.pages.isEmpty ||
+        document.pages.any(
+          (page) =>
+              !page.width.isFinite ||
+              !page.height.isFinite ||
+              page.width <= 0 ||
+              page.height <= 0,
+        )) {
+      await document.dispose();
+      throw const FormatException('PDF contains no valid page geometry.');
+    }
+    _document = document;
   }
 
   PdfPageInfo pageInfo(int pageIndex) {
@@ -112,6 +131,7 @@ class PdfDocumentService {
   }
 
   Future<void> close() async {
+    _generation++;
     final document = _document;
     _document = null;
     await document?.dispose();
@@ -174,7 +194,13 @@ class PdfDocumentService {
   static Future<PdfDocument> _openPdfDocument(
     String filePath,
     PdfPasswordProvider? passwordProvider,
-  ) {
+  ) async {
+    if (!await File(filePath).exists()) {
+      throw PathNotFoundException(
+        filePath,
+        const OSError('PDF file is missing.', 2),
+      );
+    }
     return PdfDocument.openFile(filePath, passwordProvider: passwordProvider);
   }
 }

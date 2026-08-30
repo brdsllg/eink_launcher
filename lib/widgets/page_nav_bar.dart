@@ -54,11 +54,15 @@ class PageNavBar extends StatelessWidget {
             tooltip: 'Previous page',
             onPressed: onPrevious,
           ),
-          Text(
-            'Page ${currentPage + 1} of $totalPages',
-            style: TextStyle(
-              fontSize: (height * 0.32).clamp(14.0, 20.0).toDouble(),
-              height: 1,
+          Flexible(
+            child: Text(
+              'Page ${currentPage + 1} of $totalPages',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: (height * 0.32).clamp(14.0, 20.0).toDouble(),
+                height: 1,
+              ),
             ),
           ),
           IconButton(

@@ -13,11 +13,15 @@ import '../models/doc_ref.dart';
 import '../models/reader_settings.dart';
 import '../models/toc_entry.dart';
 import '../services/book_store_service.dart';
+import '../services/reader_error_service.dart';
+import '../services/text_search_service.dart';
 import '../widgets/pdf_page_view.dart';
 import '../widgets/reader_menu_overlay.dart';
+import '../widgets/reader_error_view.dart';
 import '../widgets/tap_zone_layer.dart';
 import '../widgets/text_page_view.dart';
 import 'reader_bookmarks_screen.dart';
+import 'reader_search_screen.dart';
 import 'reader_settings_screen.dart';
 import 'reader_toc_screen.dart';
 
@@ -41,6 +45,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   bool _menuVisible = false;
   bool _navigating = false;
   bool _loadingSession = false;
+  bool _memoryPaused = false;
 
   @override
   void initState() {
@@ -51,41 +56,51 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   Future<void> _loadSession() async {
     if (_loadingSession) return;
-    _loadingSession = true;
+    setState(() {
+      _loadingSession = true;
+      _loadError = null;
+    });
     try {
       await BookStoreService.instance.init();
       final session = await widget.registry.obtain(widget.doc);
       if (!mounted) return;
       setState(() {
         _session = session;
-        _loadError = session.error;
+        _loadError = null;
       });
       await _applyOrientation(session.settings.landscape);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _loadError = 'Could not open ${widget.doc.title}: $error');
+      setState(() => _loadError = readerErrorMessage(error, widget.doc.format));
     } finally {
-      _loadingSession = false;
+      if (mounted) setState(() => _loadingSession = false);
     }
   }
 
   Future<void> _resumeSession() async {
+    if (!_memoryPaused) await _loadSession();
+  }
+
+  Future<void> _retry() async {
     if (_loadingSession) return;
-    _loadingSession = true;
-    try {
-      final session = await widget.registry.obtain(widget.doc);
-      if (!mounted) return;
-      setState(() {
-        _session = session;
-        _loadError = session.error;
-      });
-    } catch (error) {
-      if (mounted) {
-        setState(() => _loadError = 'Could not resume reader: $error');
-      }
-    } finally {
-      _loadingSession = false;
-    }
+    _memoryPaused = false;
+    _menuVisible = false;
+    _session?.suspend();
+    await _loadSession();
+  }
+
+  @override
+  void didHaveMemoryPressure() {
+    if (!mounted) return;
+    setState(() {
+      _memoryPaused = true;
+      _menuVisible = false;
+    });
+    // The app-lifetime ReaderMemoryPressureObserver releases all sessions,
+    // including hidden ones. This observer only manages the visible fallback.
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+    unawaited(BookStoreService.instance.flush());
   }
 
   @override
@@ -116,6 +131,13 @@ class _ReaderScreenState extends State<ReaderScreen>
     _navigating = true;
     try {
       await operation();
+      if (mounted) setState(() => _loadError = null);
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _loadError = readerErrorMessage(error, widget.doc.format),
+        );
+      }
     } finally {
       _navigating = false;
     }
@@ -132,8 +154,10 @@ class _ReaderScreenState extends State<ReaderScreen>
   Future<void> _applySettings(ReaderSettings settings) async {
     final session = _session;
     if (session == null) return;
-    await session.applySettings(settings);
-    await _applyOrientation(settings.landscape);
+    await _navigate(() async {
+      await session.applySettings(settings);
+      await _applyOrientation(settings.landscape);
+    });
   }
 
   Future<void> _openSettings() async {
@@ -260,19 +284,43 @@ class _ReaderScreenState extends State<ReaderScreen>
     );
   }
 
+  Future<void> _openSearch() async {
+    final session = _session;
+    if (session is! TextReaderSession || session.book == null) return;
+    final match = await Navigator.of(context).push<TextSearchMatch>(
+      noTransitionRoute(ReaderSearchScreen(spine: session.book!.spine)),
+    );
+    if (match == null || !mounted) return;
+    await _navigate(
+      () => session.goToToc(
+        TocEntry(title: match.chapterTitle, position: match.position),
+      ),
+    );
+    if (mounted) setState(() => _menuVisible = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = _session;
+    if (_memoryPaused) {
+      return Scaffold(
+        body: ReaderErrorView(
+          message: 'Reading was paused to free memory. Your position has been saved.',
+          onRetry: _retry,
+          retryLabel: 'Continue reading',
+        ),
+      );
+    }
+    if (_loadingSession) {
+      return Scaffold(
+        body: ReaderErrorView(message: 'Opening ${widget.doc.title}…'),
+      );
+    }
     if (session == null) {
       return Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              _loadError ?? 'Opening ${widget.doc.title}…',
-              textAlign: TextAlign.center,
-            ),
-          ),
+        body: ReaderErrorView(
+          message: _loadError ?? 'Could not open this document.',
+          onRetry: _retry,
         ),
       );
     }
@@ -283,7 +331,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         final error = session.error ?? _loadError;
         return Scaffold(
           body: error != null
-              ? _ErrorView(message: error)
+              ? ReaderErrorView(message: error, onRetry: _retry)
               : _buildReader(session),
         );
       },
@@ -292,10 +340,14 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   Widget _buildReader(ReaderSession session) {
     if (!session.isReady) {
-      return const Center(child: Text('Reader is paused'));
+      return ReaderErrorView(
+        message: 'Reader is paused',
+        onRetry: _retry,
+        retryLabel: 'Continue reading',
+      );
     }
     if (session is! PdfReaderSession && session is! TextReaderSession) {
-      return const _ErrorView(
+      return const ReaderErrorView(
         message: 'This document format is not implemented yet.',
       );
     }
@@ -311,7 +363,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           onMenu: () => setState(() => _menuVisible = !_menuVisible),
           onNext: () => _navigate(session.nextPage),
           child: isPdf
-              ? PdfPageView(session: session)
+              ? PdfPageView(session: session, onRetry: _retry)
               : TextPageView(session: session as TextReaderSession),
         ),
         if (_menuVisible)
@@ -332,36 +384,11 @@ class _ReaderScreenState extends State<ReaderScreen>
             onOpenSettings: _openSettings,
             showPdfControls: isPdf,
             onOpenToc: session.toc.isEmpty ? null : _openToc,
+            onOpenSearch: isPdf ? null : _openSearch,
             onJumpToPercent: _showPercentJump,
             percent: session.percent,
           ),
       ],
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  final String message;
-
-  const _ErrorView({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-            OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Back to files'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

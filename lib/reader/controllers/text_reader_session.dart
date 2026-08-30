@@ -14,6 +14,7 @@ import '../services/book_store_service.dart';
 import '../services/epub_paginator_service.dart';
 import '../services/epub_parser_service.dart';
 import '../services/pagination_cache_service.dart';
+import '../services/reader_error_service.dart';
 import '../services/text_block_parser.dart';
 import 'reader_session.dart';
 
@@ -44,6 +45,12 @@ class TextReaderSession extends ReaderSession {
   Size? _contentSize;
   int _currentPage = 0;
   int _paginationGeneration = 0;
+  int _lifecycleGeneration = 0;
+  bool _disposed = false;
+  bool _hasLoadedBook = false;
+  double _savedPercent = 0;
+  int _retainedPageCount = 0;
+  List<TocEntry> _retainedToc = const [];
   List<Bookmark> _bookmarks = const [];
   bool _isReady = false;
   bool _isSuspended = false;
@@ -89,7 +96,7 @@ class TextReaderSession extends ReaderSession {
   String? get error => _error;
 
   @override
-  int get pageCount => _pages.length;
+  int get pageCount => _book == null ? _retainedPageCount : _pages.length;
 
   @override
   int get currentPage => _currentPage;
@@ -97,7 +104,8 @@ class TextReaderSession extends ReaderSession {
   @override
   double get percent {
     final book = _book;
-    if (book == null || book.characterCount == 0) return 0;
+    if (book == null) return _savedPercent;
+    if (book.characterCount == 0) return 0;
     var read = 0;
     if (_position.spineIndex > 0) {
       read = book.cumulativeCharacterCounts[_position.spineIndex - 1];
@@ -114,7 +122,7 @@ class TextReaderSession extends ReaderSession {
   ReadingPosition get position => _position;
 
   @override
-  List<TocEntry> get toc => _book?.tableOfContents ?? const [];
+  List<TocEntry> get toc => _book?.tableOfContents ?? _retainedToc;
 
   @override
   ReaderSettings get settings => _settings;
@@ -132,10 +140,21 @@ class TextReaderSession extends ReaderSession {
 
   @override
   Future<void> open() async {
+    if (_disposed) return;
+    final generation = ++_lifecycleGeneration;
+    _isReady = false;
+    _paginationGeneration++;
     try {
       _restorePersistedState();
-      _book = await _bookLoader(doc, _settings.honorPublisherCss);
+      final book = await _bookLoader(doc, _settings.honorPublisherCss);
+      if (_disposed || generation != _lifecycleGeneration) return;
+      if (book.spine.isEmpty) {
+        throw const FormatException('The document contains no reading spine.');
+      }
+      _book = book;
       _clampPositionToBook();
+      _hasLoadedBook = true;
+      _retainedToc = book.tableOfContents;
       _isReady = true;
       _isSuspended = false;
       _error = null;
@@ -143,15 +162,18 @@ class TextReaderSession extends ReaderSession {
       final contentSize = _contentSize;
       if (contentSize != null) unawaited(_repaginate(contentSize));
     } catch (error) {
-      _error = 'Failed to open ${doc.title}: $error';
+      if (_disposed || generation != _lifecycleGeneration) return;
+      _error = readerErrorMessage(error, doc.format);
       _isReady = false;
+      _isPaginating = false;
       notifyListeners();
     }
   }
 
   @override
   void suspend() {
-    if (_isSuspended) return;
+    if (_isSuspended || _disposed) return;
+    _lifecycleGeneration++;
     _isSuspended = true;
     _isReady = false;
     _paginationGeneration++;
@@ -161,9 +183,32 @@ class TextReaderSession extends ReaderSession {
   }
 
   @override
+  void handleMemoryPressure() {
+    if (_disposed) return;
+    suspend();
+    _savedPercent = percent;
+    _retainedPageCount = pageCount;
+    _book = null;
+    _pages = const [];
+    _chapterPages.clear();
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _lifecycleGeneration++;
+    _paginationGeneration++;
+    _book = null;
+    _pages = const [];
+    _chapterPages.clear();
+    super.dispose();
+  }
+
+  @override
   Future<void> resume() async {
-    if (!_isSuspended) return;
-    if (_book == null) {
+    if (!_isSuspended || _disposed) return;
+    if (_book == null || _error != null) {
       await open();
       return;
     }
@@ -281,30 +326,41 @@ class TextReaderSession extends ReaderSession {
 
   @override
   Future<void> applySettings(ReaderSettings settings) async {
+    final generation = _lifecycleGeneration;
     final mustReparse =
         settings.honorPublisherCss != _settings.honorPublisherCss;
     _settings = settings;
     _persistState(settingsOverride: settings);
     if (mustReparse) {
       try {
-        _book = await _bookLoader(doc, settings.honorPublisherCss);
+        final book = await _bookLoader(doc, settings.honorPublisherCss);
+        if (_disposed || generation != _lifecycleGeneration) return;
+        if (book.spine.isEmpty) {
+          throw const FormatException('Empty reading spine.');
+        }
+        _book = book;
+        _clampPositionToBook();
+        _retainedToc = book.tableOfContents;
       } catch (error) {
-        _error = 'Failed to apply settings: $error';
+        if (_disposed || generation != _lifecycleGeneration) return;
+        _error = readerErrorMessage(error, doc.format);
+        _isReady = false;
         notifyListeners();
         return;
       }
     }
+    _error = null;
     final viewport = _viewport;
     if (viewport != null) {
       _contentSize = null;
       await prepareViewport(viewport);
     }
-    notifyListeners();
+    if (!_disposed && generation == _lifecycleGeneration) notifyListeners();
   }
 
   Future<void> _repaginate(Size contentSize) async {
     final book = _book;
-    if (book == null || _isSuspended) return;
+    if (book == null || _isSuspended || _disposed) return;
     final generation = ++_paginationGeneration;
     _isPaginating = true;
     _chapterPages.clear();
@@ -312,39 +368,64 @@ class TextReaderSession extends ReaderSession {
     _currentPage = 0;
     notifyListeners();
 
-    final priority = _position.spineIndex.clamp(0, book.spine.length - 1);
-    final order = <int>[
-      priority,
-      for (var i = 0; i < book.spine.length; i++)
-        if (i != priority) i,
-    ];
-    for (final spineIndex in order) {
-      if (generation != _paginationGeneration || _isSuspended) return;
-      final cacheKey = _paginationCache.keyFor(
-        docId: doc.id,
-        spineIndex: spineIndex,
-        width: contentSize.width,
-        height: contentSize.height,
-        settings: _settings,
-      );
-      var pages = await _paginationCache.load(cacheKey);
-      if (pages == null) {
-        pages = _paginator.paginateSpine(
+    try {
+      final priority = _position.spineIndex.clamp(0, book.spine.length - 1);
+      final order = <int>[
+        priority,
+        for (var i = 0; i < book.spine.length; i++)
+          if (i != priority) i,
+      ];
+      for (final spineIndex in order) {
+        if (generation != _paginationGeneration || _isSuspended) return;
+        final cacheKey = _paginationCache.keyFor(
+          docId: doc.id,
           spineIndex: spineIndex,
-          blocks: book.spine[spineIndex].blocks,
-          contentSize: contentSize,
+          width: contentSize.width,
+          height: contentSize.height,
           settings: _settings,
         );
-        unawaited(_paginationCache.save(cacheKey, pages));
+        var pages = await _paginationCache.load(cacheKey);
+        if (generation != _paginationGeneration || _isSuspended || _disposed) {
+          return;
+        }
+        if (pages == null) {
+          pages = _paginator.paginateSpine(
+            spineIndex: spineIndex,
+            blocks: book.spine[spineIndex].blocks,
+            contentSize: contentSize,
+            settings: _settings,
+          );
+          unawaited(_savePages(cacheKey, pages));
+        }
+        if (generation != _paginationGeneration || _isSuspended) return;
+        _chapterPages[spineIndex] = pages;
+        _rebuildPages();
+        notifyListeners();
+        await Future<void>.delayed(Duration.zero);
       }
-      if (generation != _paginationGeneration || _isSuspended) return;
-      _chapterPages[spineIndex] = pages;
-      _rebuildPages();
+      if (_disposed || generation != _paginationGeneration || _isSuspended) {
+        return;
+      }
+      _isPaginating = false;
+      _error = null;
       notifyListeners();
-      await Future<void>.delayed(Duration.zero);
+    } catch (error) {
+      if (_disposed || generation != _paginationGeneration || _isSuspended) {
+        return;
+      }
+      _isPaginating = false;
+      _isReady = false;
+      _error = readerErrorMessage(error, doc.format);
+      notifyListeners();
     }
-    _isPaginating = false;
-    notifyListeners();
+  }
+
+  Future<void> _savePages(String key, List<LaidOutPage> pages) async {
+    try {
+      await _paginationCache.save(key, pages);
+    } catch (_) {
+      // A cache write is optional; a full disk must not interrupt reading.
+    }
   }
 
   void _rebuildPages() {
@@ -385,7 +466,8 @@ class TextReaderSession extends ReaderSession {
       return;
     }
     _currentPage = _pageIndexForPosition(_position);
-    if (_pages.isNotEmpty) _position = _pages[_currentPage].start;
+    // Keep the logical target (including a search match's character offset).
+    // Snapping to the page start can hide it after a typography/viewport change.
     _persistState();
     notifyListeners();
   }
@@ -413,6 +495,7 @@ class TextReaderSession extends ReaderSession {
   void _restorePersistedState() {
     _settings = _bookStore.getSettingsForDoc(doc.id);
     final stored = _bookStore.getBookState(doc.id);
+    _savedPercent = stored?.percent ?? 0;
     if (stored?.position case final TextReadingPosition value) {
       _position = value;
     }
@@ -449,6 +532,8 @@ class TextReaderSession extends ReaderSession {
   }
 
   void _persistState({ReaderSettings? settingsOverride}) {
+    // A failed open must never overwrite a previously saved position/bookmarks.
+    if (!_hasLoadedBook) return;
     final previous = _bookStore.getBookState(doc.id);
     _bookStore.saveBookState(
       BookState(

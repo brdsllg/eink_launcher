@@ -19,6 +19,7 @@ import '../services/book_store_service.dart';
 import '../services/page_bitmap_cache.dart';
 import '../services/pdf_crop_service.dart';
 import '../services/pdf_document_service.dart';
+import '../services/reader_error_service.dart';
 import 'reader_session.dart';
 
 typedef PdfDocumentServiceFactory = PdfDocumentService Function(String path);
@@ -45,6 +46,10 @@ class PdfReaderSession extends ReaderSession {
   bool _isReady = false;
   bool _isSuspended = false;
   String? _error;
+  bool _disposed = false;
+  bool _hasOpened = false;
+  int _generation = 0;
+  Future<void> _closing = Future<void>.value();
 
   int _pageCount = 0;
   int _pageIndex = 0;
@@ -127,58 +132,89 @@ class PdfReaderSession extends ReaderSession {
 
   @override
   Future<void> open() async {
-    _documentService ??= _serviceFactory(doc.path);
+    if (_disposed) return;
+    final generation = ++_generation;
+    _isReady = false;
     try {
+      await _closing;
+      if (_disposed || generation != _generation) return;
+      _documentService ??= _serviceFactory(doc.path);
       await _documentService!.open();
+      if (_disposed || generation != _generation) return;
       _pageCount = _documentService!.pageCount;
       _restorePersistedState();
+      _hasOpened = true;
       _isReady = true;
       _isSuspended = false;
       _error = null;
-      unawaited(_loadToc());
+      unawaited(_loadToc(generation));
     } catch (e) {
-      _error = 'Failed to open ${doc.title}: $e';
+      if (_disposed || generation != _generation) return;
+      _error = readerErrorMessage(e, doc.format);
       _isReady = false;
+      _closing = _closeDocument();
     }
     notifyListeners();
   }
 
   @override
   void suspend() {
-    if (_isSuspended) return;
+    if (_isSuspended || _disposed) return;
+    _generation++;
     _isSuspended = true;
     _isReady = false;
     // Continuous scrolling only persists on page changes, so capture the
     // exact sub-page offset before the bitmaps and handles go away.
     _persistState();
     _bitmapCache.clear();
-    unawaited(_documentService?.close());
+    _closing = _closeDocument();
     notifyListeners();
   }
 
   @override
   Future<void> resume() async {
-    if (!_isSuspended) return;
+    if (!_isSuspended || _disposed) return;
+    final generation = ++_generation;
     try {
+      await _closing;
+      if (_disposed || generation != _generation) return;
       _documentService ??= _serviceFactory(doc.path);
       await _documentService!.open();
+      if (_disposed || generation != _generation) return;
+      _pageCount = _documentService!.pageCount;
+      if (!_hasOpened) _restorePersistedState();
+      _pageIndex = _pageIndex.clamp(0, _pageCount - 1);
+      _hasOpened = true;
       _isSuspended = false;
       _isReady = true;
       _error = null;
       _navigationEpoch++;
+      unawaited(_loadToc(generation));
       notifyListeners();
     } catch (e) {
-      _error = 'Failed to resume ${doc.title}: $e';
+      if (_disposed || generation != _generation) return;
+      _error = readerErrorMessage(e, doc.format);
+      _isReady = false;
+      _closing = _closeDocument();
       notifyListeners();
-      rethrow;
     }
   }
 
   @override
   void dispose() {
+    _disposed = true;
+    _generation++;
     _bitmapCache.clear();
-    unawaited(_documentService?.close());
+    _closing = _closeDocument();
     super.dispose();
+  }
+
+  Future<void> _closeDocument() async {
+    try {
+      await _documentService?.close();
+    } catch (_) {
+      // Cleanup must not produce an unhandled async error during suspension.
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -467,10 +503,12 @@ class PdfReaderSession extends ReaderSession {
     if (!_isReady || !_isContinuous) {
       throw StateError('Continuous PDF rendering is not active');
     }
+    final generation = _generation;
     if (pageIndex < 0 || pageIndex >= layout.pageHeights.length) {
       throw RangeError.index(pageIndex, layout.pageHeights, 'pageIndex');
     }
     final crop = await _resolveUniformCropRect();
+    _checkGeneration(generation);
 
     final left = clampDouble(region.left, 0.0, 0.9999);
     final right = clampDouble(region.right, left + 0.0001, 1.0);
@@ -511,6 +549,10 @@ class PdfReaderSession extends ReaderSession {
       crop: tileCrop,
       maxDimension: kPdfMaxTileDimension,
     );
+    if (_disposed || generation != _generation) {
+      image.dispose();
+      throw StateError('PDF rendering was cancelled.');
+    }
     _bitmapCache.put(key, image);
     return image;
   }
@@ -521,7 +563,9 @@ class PdfReaderSession extends ReaderSession {
     Size viewport, {
     double devicePixelRatio = 1.0,
   }) async {
+    final generation = _generation;
     final crop = await _resolveCropRect(pageIndex);
+    _checkGeneration(generation);
     final info = _documentService!.pageInfo(pageIndex);
     final geometry = _geometryFor(
       info,
@@ -549,6 +593,10 @@ class PdfReaderSession extends ReaderSession {
       pixelHeight: geometry.pixelHeight,
       crop: geometry.crop,
     );
+    if (_disposed || generation != _generation) {
+      image.dispose();
+      throw StateError('PDF rendering was cancelled.');
+    }
     _bitmapCache.put(key, image);
     return image;
   }
@@ -660,23 +708,27 @@ class PdfReaderSession extends ReaderSession {
   }
 
   Future<PdfCropRect> _resolveCropRect(int pageIndex) async {
+    final generation = _generation;
     if (!_settings.autoCrop) return PdfCropRect.fullPage;
     final cached = _cropRectCache[pageIndex];
     if (cached != null) return cached;
     final page = _documentService!.pageAt(pageIndex);
     final detected = await _cropService.detectPageCrop(page);
+    _checkGeneration(generation);
     _cropRectCache[pageIndex] = detected;
     _persistState();
     return detected;
   }
 
   Future<PdfCropRect> _resolveUniformCropRect() async {
+    final generation = _generation;
     final cached = _uniformCropRect;
     if (cached != null) return cached;
     final detected = await _cropService.detectDocumentCrop(
       pageCount: _pageCount,
       pageAt: _documentService!.pageAt,
     );
+    _checkGeneration(generation);
     _uniformCropRect = detected;
     _persistState();
     return detected;
@@ -712,10 +764,13 @@ class PdfReaderSession extends ReaderSession {
   // Persistence
   // ---------------------------------------------------------------------
 
-  Future<void> _loadToc() async {
+  Future<void> _loadToc(int generation) async {
     try {
-      _toc = await _documentService!.loadOutline();
+      final toc = await _documentService!.loadOutline();
+      if (_disposed || generation != _generation) return;
+      _toc = toc;
     } catch (_) {
+      if (_disposed || generation != _generation) return;
       _toc = const [];
     }
     notifyListeners();
@@ -756,6 +811,7 @@ class PdfReaderSession extends ReaderSession {
   }
 
   void _persistState({ReaderSettings? settingsOverride}) {
+    if (!_hasOpened) return;
     final existing = _bookStore.getBookState(doc.id);
     _bookStore.saveBookState(
       BookState(
@@ -774,5 +830,11 @@ class PdfReaderSession extends ReaderSession {
         uniformPdfCrop: _uniformCropRect?.toList(),
       ),
     );
+  }
+
+  void _checkGeneration(int generation) {
+    if (_disposed || generation != _generation || !_isReady) {
+      throw StateError('PDF operation was cancelled.');
+    }
   }
 }

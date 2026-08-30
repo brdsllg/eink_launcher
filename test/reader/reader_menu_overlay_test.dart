@@ -33,6 +33,7 @@ void main() {
     expect(find.text('Previous'), findsNothing);
     expect(find.text('Next'), findsNothing);
     expect(find.byKey(const Key('reader-crop-button')), findsNothing);
+    expect(find.byKey(const Key('reader-search-button')), findsNothing);
     expect(find.byKey(const Key('reader-fit-height-button')), findsOneWidget);
     expect(find.byKey(const Key('reader-fit-width-button')), findsOneWidget);
     expect(find.byKey(const Key('reader-zoom-scroll-button')), findsOneWidget);
@@ -44,5 +45,42 @@ void main() {
 
     await tester.tap(find.byKey(const Key('reader-bookmarks-button')));
     expect(bookmarksOpened, isTrue);
+  });
+
+  testWidgets('text reader menu exposes search on a narrow screen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var searched = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReaderMenuOverlay(
+            title: 'Text book',
+            currentPage: 1,
+            pageCount: 10,
+            settings: const ReaderSettings(),
+            showPdfControls: false,
+            onCloseReader: () {},
+            onDismiss: () {},
+            onOpenBookmarks: () {},
+            onJumpToPage: () {},
+            onSelectFitMode: (_) {},
+            onToggleOrientation: () {},
+            onOpenSettings: () {},
+            onOpenToc: () {},
+            onJumpToPercent: () {},
+            onOpenSearch: () => searched = true,
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('reader-search-button')));
+    expect(searched, isTrue);
+    expect(find.byKey(const Key('reader-fit-height-button')), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }

@@ -74,6 +74,10 @@ abstract class ReaderSession extends ChangeNotifier {
   /// Safe to call when already suspended.
   void suspend();
 
+  /// Releases document data under OS memory pressure while retaining the
+  /// logical position. Reading resumes explicitly when the user is ready.
+  void handleMemoryPressure() => suspend();
+
   /// Reopens native handles at the position left by [suspend]. Safe to call
   /// when not suspended.
   Future<void> resume();

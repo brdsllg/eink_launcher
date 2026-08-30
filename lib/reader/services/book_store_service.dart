@@ -20,6 +20,7 @@ class BookStoreService {
   ReaderSettings _globalSettings = const ReaderSettings();
   final Map<String, BookState> _books = {};
   Timer? _debounceTimer;
+  Future<void> _pendingFlush = Future<void>.value();
   File? _storageFile;
 
   ReaderSettings get globalSettings => _globalSettings;
@@ -84,10 +85,17 @@ class BookStoreService {
     _debounceTimer = Timer(_debounceDuration, () => flush());
   }
 
-  Future<void> flush() async {
+  Future<void> flush() {
     _debounceTimer?.cancel();
     _debounceTimer = null;
 
+    // Pause, route disposal and memory warnings can flush together. Serializing
+    // writes prevents them from renaming/deleting each other's temporary file.
+    _pendingFlush = _pendingFlush.then((_) => _writeLatestState());
+    return _pendingFlush;
+  }
+
+  Future<void> _writeLatestState() async {
     if (_storageFile == null) return;
 
     final data = {
@@ -103,11 +111,11 @@ class BookStoreService {
       await tmpFile.writeAsString(content, flush: true);
       await tmpFile.rename(_storageFile!.path);
     } catch (_) {
-      if (await tmpFile.exists()) {
-        try {
+      try {
+        if (await tmpFile.exists()) {
           await tmpFile.delete();
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
     }
   }
 

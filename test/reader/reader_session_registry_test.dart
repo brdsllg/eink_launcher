@@ -52,6 +52,19 @@ void main() {
     expect(session.isSuspended, isFalse);
   });
 
+  test('retries a cached session whose first open was not ready', () async {
+    final registry = ReaderSessionRegistry.forTesting(
+      sessionFactory: (doc) => _FakeSession(doc),
+    );
+    addTearDown(registry.dispose);
+    final session = await registry.obtain(docFor('retry')) as _FakeSession;
+    session._isReady = false;
+    final retried = await registry.obtain(docFor('retry'));
+    expect(retried, same(session));
+    expect(session.openCalls, 2);
+    expect(session.isReady, isTrue);
+  });
+
   test(
     'suspends the least-recently-used session past the active cap',
     () async {
