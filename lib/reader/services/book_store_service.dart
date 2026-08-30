@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:path_provider/path_provider.dart';
+
 import '../models/book_state.dart';
 import '../models/reader_settings.dart';
 
@@ -40,7 +42,8 @@ class BookStoreService {
 
         if (jsonMap.containsKey('globalSettings')) {
           _globalSettings = ReaderSettings.fromJson(
-              jsonMap['globalSettings'] as Map<String, dynamic>);
+            jsonMap['globalSettings'] as Map<String, dynamic>,
+          );
         }
 
         if (jsonMap.containsKey('books')) {

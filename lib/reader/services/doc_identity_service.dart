@@ -1,5 +1,7 @@
 import 'dart:io';
+
 import 'package:crypto/crypto.dart';
+
 import '../models/doc_ref.dart';
 
 class DocIdentityService {
@@ -11,7 +13,10 @@ class DocIdentityService {
     final stat = await file.stat();
     final fileSize = stat.size;
 
-    final stream = file.openRead(0, fileSize < _sampleBytes ? fileSize : _sampleBytes);
+    final stream = file.openRead(
+      0,
+      fileSize < _sampleBytes ? fileSize : _sampleBytes,
+    );
     final bytes = <int>[];
     await for (final chunk in stream) {
       bytes.addAll(chunk);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdfrx/pdfrx.dart';
+
 import 'screens/file_browser_screen.dart';
 
 void main() async {
@@ -49,7 +50,9 @@ class MyApp extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             foregroundColor: Colors.black,
             side: const BorderSide(color: Colors.black, width: 1.5),
-            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
+            ),
           ),
         ),
         textButtonTheme: TextButtonThemeData(

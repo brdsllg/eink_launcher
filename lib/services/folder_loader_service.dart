@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:io';
+
 import '../models/file_entry.dart';
 
 /// Persistent background isolate for folder listing and lazy stat loading.

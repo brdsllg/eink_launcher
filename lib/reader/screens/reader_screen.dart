@@ -155,6 +155,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     );
     final page = await showDialog<int>(
       context: context,
+      animationStyle: AnimationStyle.noAnimation,
       builder: (context) => AlertDialog(
         title: Text('Go to page (1–${session.pageCount})'),
         content: TextField(
@@ -199,6 +200,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     );
     final percent = await showDialog<int>(
       context: context,
+      animationStyle: AnimationStyle.noAnimation,
       builder: (context) => AlertDialog(
         title: const Text('Go to percent'),
         content: TextField(

@@ -46,18 +46,18 @@ class DocRef {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'path': path,
-        'format': format.name,
-        'title': title,
-        'fileSize': fileSize,
-      };
+    'id': id,
+    'path': path,
+    'format': format.name,
+    'title': title,
+    'fileSize': fileSize,
+  };
 
   factory DocRef.fromJson(Map<String, dynamic> json) => DocRef(
-        id: json['id'] as String,
-        path: json['path'] as String,
-        format: DocFormat.values.byName(json['format'] as String),
-        title: json['title'] as String,
-        fileSize: json['fileSize'] as int,
-      );
+    id: json['id'] as String,
+    path: json['path'] as String,
+    format: DocFormat.values.byName(json['format'] as String),
+    title: json['title'] as String,
+    fileSize: json['fileSize'] as int,
+  );
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:installed_apps/app_info.dart';
 
 import '../constants.dart';
+import '../models/launcher_app.dart';
 import '../services/app_list_service.dart';
 import '../widgets/clock_text.dart';
 import '../widgets/paginated_list.dart';
@@ -14,8 +14,8 @@ class AppDrawerScreen extends StatefulWidget {
 }
 
 class _AppDrawerScreenState extends State<AppDrawerScreen> {
-  List<AppInfo>? _apps;
-  List<AppInfo>? _filteredApps;
+  List<LauncherApp>? _apps;
+  List<LauncherApp>? _filteredApps;
   int _currentPage = 0;
   bool _includeSystemApps = false;
   bool _searchOpen = false;
@@ -95,9 +95,9 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
     });
   }
 
-  List<AppInfo> get _displayedApps => _filteredApps ?? _apps ?? const [];
+  List<LauncherApp> get _displayedApps => _filteredApps ?? _apps ?? const [];
 
-  Widget _buildAppRow(AppInfo app, double barHeight) {
+  Widget _buildAppRow(LauncherApp app, double barHeight) {
     return Container(
       height: barHeight,
       decoration: const BoxDecoration(
@@ -140,7 +140,7 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
   }) {
     return Stack(
       children: [
-        PaginatedList<AppInfo>(
+        PaginatedList<LauncherApp>(
           items: _displayedApps,
           currentPage: _currentPage,
           onPageChanged: (page) => setState(() => _currentPage = page),
@@ -242,6 +242,7 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
               tooltip: 'More options',
+              popUpAnimationStyle: AnimationStyle.noAnimation,
               onSelected: (value) {
                 if (value == 'toggleSystem') _toggleSystemApps();
               },

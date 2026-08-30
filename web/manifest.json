@@ -1,11 +1,11 @@
 {
-    "name": "eink_launcher",
-    "short_name": "eink_launcher",
+    "name": "E-Ink Launcher",
+    "short_name": "E-Ink Launcher",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFFFFF",
+    "theme_color": "#000000",
+    "description": "A high-contrast launcher and document reader for E-Ink devices.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

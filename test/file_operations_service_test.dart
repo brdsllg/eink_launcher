@@ -24,7 +24,8 @@ void main() {
     File(p2(rel)).writeAsStringSync(content);
   }
 
-  bool exists(String rel) => FileSystemEntity.typeSync(p2(rel), followLinks: false) !=
+  bool exists(String rel) =>
+      FileSystemEntity.typeSync(p2(rel), followLinks: false) !=
       FileSystemEntityType.notFound;
 
   test('createFolder makes an empty directory', () async {
@@ -52,30 +53,34 @@ void main() {
     expect(exists('f.txt'), isFalse);
   });
 
-  test('deleteEntries reports per-item errors without aborting the rest',
-      () async {
-    writeFile('keep.txt');
-    final errors = await ops.deleteEntries([p2('missing'), p2('keep.txt')]);
-    expect(errors, hasLength(1));
-    expect(exists('keep.txt'), isFalse);
-  });
+  test(
+    'deleteEntries reports per-item errors without aborting the rest',
+    () async {
+      writeFile('keep.txt');
+      final errors = await ops.deleteEntries([p2('missing'), p2('keep.txt')]);
+      expect(errors, hasLength(1));
+      expect(exists('keep.txt'), isFalse);
+    },
+  );
 
-  test('copy + paste duplicates, keeps originals, then clears the clipboard',
-      () async {
-    writeFile('a.txt', 'content');
-    ops.copy([p2('a.txt')]);
-    final errors = await ops.paste(temp.path);
-    expect(errors, isEmpty);
-    expect(exists('a.txt'), isTrue);
-    expect(File(p2('a.txt')).readAsStringSync(), 'content');
-    // Auto-renamed copy is " (1)" before the extension.
-    expect(File(p2('a (1).txt')).readAsStringSync(), 'content');
-    // Single-use clipboard: cleared after a successful paste, so a second
-    // paste pastes nothing.
-    expect(ops.hasClipboard, isFalse);
-    await ops.paste(temp.path);
-    expect(exists('a (2).txt'), isFalse);
-  });
+  test(
+    'copy + paste duplicates, keeps originals, then clears the clipboard',
+    () async {
+      writeFile('a.txt', 'content');
+      ops.copy([p2('a.txt')]);
+      final errors = await ops.paste(temp.path);
+      expect(errors, isEmpty);
+      expect(exists('a.txt'), isTrue);
+      expect(File(p2('a.txt')).readAsStringSync(), 'content');
+      // Auto-renamed copy is " (1)" before the extension.
+      expect(File(p2('a (1).txt')).readAsStringSync(), 'content');
+      // Single-use clipboard: cleared after a successful paste, so a second
+      // paste pastes nothing.
+      expect(ops.hasClipboard, isFalse);
+      await ops.paste(temp.path);
+      expect(exists('a (2).txt'), isFalse);
+    },
+  );
 
   test('cut + paste moves, removes originals, clears the clipboard', () async {
     // Source lives in a subfolder so the move is a true relocation.
@@ -102,27 +107,32 @@ void main() {
     expect(exists('src'), isTrue); // original untouched by copy
   });
 
-  test('pasting a folder into itself is refused, not recursed forever', () async {
-    Directory(p2('folder')).createSync();
-    writeFile('folder/f.txt');
-    ops.copy([p2('folder')]);
-    // Paste into the folder's own path (a descendant of itself guard).
-    final errors = await ops.paste(p2('folder'));
-    expect(errors, isNotEmpty);
-    expect(exists('folder/f.txt'), isTrue);
-  });
+  test(
+    'pasting a folder into itself is refused, not recursed forever',
+    () async {
+      Directory(p2('folder')).createSync();
+      writeFile('folder/f.txt');
+      ops.copy([p2('folder')]);
+      // Paste into the folder's own path (a descendant of itself guard).
+      final errors = await ops.paste(p2('folder'));
+      expect(errors, isNotEmpty);
+      expect(exists('folder/f.txt'), isTrue);
+    },
+  );
 
-  test('conflicting paste auto-renames before the extension for files',
-      () async {
-    writeFile('report.txt');
-    Directory(p2('copy')).createSync();
-    writeFile('copy/report.txt');
-    ops.copy([p2('copy/report.txt')]);
-    final errors = await ops.paste(temp.path);
-    expect(errors, isEmpty);
-    expect(File(p2('report.txt')).readAsStringSync(), 'hello');
-    expect(File(p2('report (1).txt')).readAsStringSync(), 'hello');
-  });
+  test(
+    'conflicting paste auto-renames before the extension for files',
+    () async {
+      writeFile('report.txt');
+      Directory(p2('copy')).createSync();
+      writeFile('copy/report.txt');
+      ops.copy([p2('copy/report.txt')]);
+      final errors = await ops.paste(temp.path);
+      expect(errors, isEmpty);
+      expect(File(p2('report.txt')).readAsStringSync(), 'hello');
+      expect(File(p2('report (1).txt')).readAsStringSync(), 'hello');
+    },
+  );
 
   test('conflicting paste auto-renames folders after the name', () async {
     Directory(p2('photos')).createSync();

@@ -266,51 +266,58 @@ void main() {
     );
   });
 
-  test('zoom re-rasterises tiles through PDFium at the requested density', () async {
-    final session = makeSession(
-      fakeDoc: _FakePdfDocument(pageCount: 2, pageWidth: 200, pageHeight: 300),
-    );
-    await session.open();
-    await session.applySettings(
-      session.settings.copyWith(fitMode: PdfFitMode.zoom),
-    );
-    final layout = await session.continuousLayoutForViewport(
-      const Size(200, 300),
-    );
+  test(
+    'zoom re-rasterises tiles through PDFium at the requested density',
+    () async {
+      final session = makeSession(
+        fakeDoc: _FakePdfDocument(
+          pageCount: 2,
+          pageWidth: 200,
+          pageHeight: 300,
+        ),
+      );
+      await session.open();
+      await session.applySettings(
+        session.settings.copyWith(fitMode: PdfFitMode.zoom),
+      );
+      final layout = await session.continuousLayoutForViewport(
+        const Size(200, 300),
+      );
 
-    // Unzoomed: one tile covers the whole page at device resolution.
-    final base = await session.renderContinuousTile(
-      0,
-      layout,
-      devicePixelRatio: 2,
-    );
-    expect(base.width, 400);
-    expect(base.height, 600);
+      // Unzoomed: one tile covers the whole page at device resolution.
+      final base = await session.renderContinuousTile(
+        0,
+        layout,
+        devicePixelRatio: 2,
+      );
+      expect(base.width, 400);
+      expect(base.height, 600);
 
-    // Zoomed 2x: the top half of the page occupies the same screen area but
-    // is rendered with twice the pixels, rather than being magnified.
-    final zoomed = await session.renderContinuousTile(
-      0,
-      layout,
-      devicePixelRatio: 2,
-      renderScale: 2,
-      region: const Rect.fromLTRB(0, 0, 1, 0.5),
-    );
-    expect(zoomed.width, 800);
-    expect(zoomed.height, 600);
+      // Zoomed 2x: the top half of the page occupies the same screen area but
+      // is rendered with twice the pixels, rather than being magnified.
+      final zoomed = await session.renderContinuousTile(
+        0,
+        layout,
+        devicePixelRatio: 2,
+        renderScale: 2,
+        region: const Rect.fromLTRB(0, 0, 1, 0.5),
+      );
+      expect(zoomed.width, 800);
+      expect(zoomed.height, 600);
 
-    // Tiles also subdivide horizontally, so a deep zoom never asks for a
-    // full-width strip that the dimension cap would silently shrink.
-    final quadrant = await session.renderContinuousTile(
-      0,
-      layout,
-      devicePixelRatio: 2,
-      renderScale: 4,
-      region: const Rect.fromLTRB(0.5, 0.5, 1.0, 0.75),
-    );
-    expect(quadrant.width, 800);
-    expect(quadrant.height, 600);
-  });
+      // Tiles also subdivide horizontally, so a deep zoom never asks for a
+      // full-width strip that the dimension cap would silently shrink.
+      final quadrant = await session.renderContinuousTile(
+        0,
+        layout,
+        devicePixelRatio: 2,
+        renderScale: 4,
+        region: const Rect.fromLTRB(0.5, 0.5, 1.0, 0.75),
+      );
+      expect(quadrant.width, 800);
+      expect(quadrant.height, 600);
+    },
+  );
 
   test(
     'continuous scroll maps offsets, dominant pages, and tap jumps',
@@ -381,7 +388,11 @@ void main() {
       session.settings.copyWith(fitMode: PdfFitMode.zoom),
     );
     const viewport = Size(200, 300);
-    final layout = await session.continuousLayoutForViewport(viewport);
+    // Uniform crop detection uses Isolate.run, which must escape the widget
+    // test's fake-async zone or its completion message is never delivered.
+    final layout = (await tester.runAsync(
+      () => session.continuousLayoutForViewport(viewport),
+    ))!;
 
     // The reader shell subscribes to the session, so a rebuild can be
     // triggered mid-gesture exactly as it is in the real app. The fling must

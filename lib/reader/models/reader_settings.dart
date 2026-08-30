@@ -27,7 +27,6 @@ class ReaderSettings {
 
   // Shared
   final bool landscape;
-  final int flashEveryNTurns; // 0 = disabled
 
   const ReaderSettings({
     this.latinFontFamily = 'Literata',
@@ -44,7 +43,6 @@ class ReaderSettings {
     this.splitOverlap = kPdfDefaultSplitOverlap,
     this.allowZoomOutBeyondFit = true,
     this.landscape = false,
-    this.flashEveryNTurns = 0,
   });
 
   double get fontSize =>
@@ -77,7 +75,6 @@ class ReaderSettings {
     double? splitOverlap,
     bool? allowZoomOutBeyondFit,
     bool? landscape,
-    int? flashEveryNTurns,
   }) {
     return ReaderSettings(
       latinFontFamily: latinFontFamily ?? this.latinFontFamily,
@@ -95,7 +92,6 @@ class ReaderSettings {
       allowZoomOutBeyondFit:
           allowZoomOutBeyondFit ?? this.allowZoomOutBeyondFit,
       landscape: landscape ?? this.landscape,
-      flashEveryNTurns: flashEveryNTurns ?? this.flashEveryNTurns,
     );
   }
 
@@ -114,7 +110,6 @@ class ReaderSettings {
     'splitOverlap': splitOverlap,
     'allowZoomOutBeyondFit': allowZoomOutBeyondFit,
     'landscape': landscape,
-    'flashEveryNTurns': flashEveryNTurns,
   };
 
   factory ReaderSettings.fromJson(Map<String, dynamic> json) {
@@ -143,7 +138,6 @@ class ReaderSettings {
           (json['splitOverlap'] as num?)?.toDouble() ?? kPdfDefaultSplitOverlap,
       allowZoomOutBeyondFit: json['allowZoomOutBeyondFit'] as bool? ?? true,
       landscape: json['landscape'] as bool? ?? false,
-      flashEveryNTurns: json['flashEveryNTurns'] as int? ?? 0,
     );
   }
 }

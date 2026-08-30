@@ -52,4 +52,3 @@ class FileEntry {
     return '${(mb / 1024).toStringAsFixed(1)} GB';
   }
 }
-

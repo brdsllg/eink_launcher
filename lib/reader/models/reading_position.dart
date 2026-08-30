@@ -18,17 +18,15 @@ class PdfReadingPosition extends ReadingPosition {
   final int pageIndex; // 0-based
   final double withinPage; // 0.0 to 1.0 vertical fraction
 
-  const PdfReadingPosition({
-    required this.pageIndex,
-    this.withinPage = 0.0,
-  }) : assert(withinPage >= 0.0 && withinPage <= 1.0);
+  const PdfReadingPosition({required this.pageIndex, this.withinPage = 0.0})
+    : assert(withinPage >= 0.0 && withinPage <= 1.0);
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': 'pdf',
-        'pageIndex': pageIndex,
-        'withinPage': withinPage,
-      };
+    'type': 'pdf',
+    'pageIndex': pageIndex,
+    'withinPage': withinPage,
+  };
 
   factory PdfReadingPosition.fromJson(Map<String, dynamic> json) =>
       PdfReadingPosition(
@@ -61,11 +59,11 @@ class TextReadingPosition extends ReadingPosition {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': 'text',
-        'spineIndex': spineIndex,
-        'blockIndex': blockIndex,
-        'charOffset': charOffset,
-      };
+    'type': 'text',
+    'spineIndex': spineIndex,
+    'blockIndex': blockIndex,
+    'charOffset': charOffset,
+  };
 
   factory TextReadingPosition.fromJson(Map<String, dynamic> json) =>
       TextReadingPosition(

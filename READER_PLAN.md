@@ -121,7 +121,7 @@ lib/
       bidi_service.dart                   per-block direction detection
       hyphenation_service.dart            hyphenatorx wrapper, Latin only
       epub_paginator_service.dart         blocks + geometry → pages (UI isolate)
-      text_search_service.dart            EPUB search, nikud-insensitive
+      text_search_service.dart            PLANNED: EPUB search, nikud-insensitive
     controllers/
       reader_session.dart                 abstract base
       pdf_reader_session.dart             PDF-specific session controller
@@ -131,8 +131,8 @@ lib/
       reader_screen.dart                  format-agnostic shell
       reader_settings_screen.dart         mode-scoped display + typography settings
       reader_toc_screen.dart              table of contents navigation screen
-      reader_bookmarks_screen.dart        saved bookmarks screen
-      reader_search_screen.dart           in-book text search screen (EPUB)
+      reader_bookmarks_screen.dart        PLANNED: saved bookmarks screen
+      reader_search_screen.dart           PLANNED: in-book text search screen (EPUB)
     widgets/
       tap_zone_layer.dart                 invisible equal-thirds zones + swipe
       reader_menu_overlay.dart            in-book floating control overlay
@@ -392,7 +392,6 @@ class ReaderSettings {
 
   // shared
   bool   landscape;            // manual toggle only
-  int    flashEveryNTurns;     // 0 = off
 }
 ```
 
@@ -625,7 +624,6 @@ Orientation lives in the menu overlay for every format.
 - `epub_paginator_service_test.dart` — block packing, line splits, widow/orphan protection.
 - `phase2_verification_test.dart` — bundled fonts, bilingual directions, exact portrait/landscape slice coverage, and re-pagination timing.
 - `pdf_crop_service_test.dart` — bbox bounding math, noise filtering, uniform crop sampling.
-- `reading_position_test.dart` — JSON round-trips, cross-view-mode conversion consistency.
 - `pdf_continuous_layout_test.dart` — offset-to-page and page-to-offset mapping, dominant page, boundary clamping.
 - `pdf_reader_session_test.dart` — fit-mode navigation and sub-screens, whole-page cache reuse, refusal to render whole pages in Zoom / Scroll, per-density tile re-rasterisation, navigation-epoch semantics, and a widget test proving a fling keeps gliding after release.
 - `reader_settings_screen_test.dart` — mode-scoped control visibility, no duplicated fit-mode selector, zoom-out default and JSON round-trip.

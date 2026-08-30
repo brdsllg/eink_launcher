@@ -9,7 +9,7 @@ This plan keeps the Flutter UI and improves the parts that matter for an Android
 | P0 | Establish device baselines and fix startup ordering | Reliable measurements and deterministic home-folder startup |
 | P1 | Defer PDF runtime initialization | Faster launcher cold start |
 | P1 | Replace `open_filex` with the existing native Android bridge | Correct MIME handling, fewer plugin dependencies, one file-opening path |
-| P1 | Replace `installed_apps` with `PackageManager` integration | Removes the current Kotlin plugin warning and gives direct launcher control |
+| Done | Native `PackageManager` app discovery and launching | Removed the Kotlin plugin warning and gives direct launcher control |
 | P1 | Configure a real Android release build | Smaller, reproducible, upgrade-safe APKs |
 | P2 | Compare Impeller with the legacy renderer on the Bigme | Select the renderer with the least ghosting and best response |
 | P2 | Reduce rebuild/repaint scope only where profiling proves useful | Less unnecessary rendering work |
@@ -36,14 +36,14 @@ Use a release or profile build on the actual Bigme device. Debug APK size and ti
 3. Measure five cold starts:
 
    ```sh
-   adb shell am force-stop com.example.eink_launcher
-   adb shell am start -W -n com.example.eink_launcher/.MainActivity
+   adb shell am force-stop dev.levig.einklauncher
+   adb shell am start -W -n dev.levig.einklauncher/.MainActivity
    ```
 
 4. Record idle memory after leaving the launcher untouched for one minute:
 
    ```sh
-   adb shell dumpsys meminfo com.example.eink_launcher
+   adb shell dumpsys meminfo dev.levig.einklauncher
    ```
 
 5. Manually record these e-ink-specific observations:
@@ -129,9 +129,13 @@ Acceptance criteria:
 - A missing file and a file with no compatible app show useful launcher feedback.
 - `open_filex` is absent from `pubspec.yaml` and the generated plugin registrant.
 
-## 4. Replace `installed_apps` with Android `PackageManager`
+## 4. Replace `installed_apps` with Android `PackageManager` — Implemented
 
-The current Android build warns that `installed_apps` applies an older Kotlin Gradle configuration. This plugin is small enough to replace directly.
+The launcher now owns this integration. `LauncherApp`, `AppListService`, and
+`InstalledAppsHandler` replace the plugin, preserve separate caches, and remove
+its Kotlin Gradle warning. Automated channel tests cover mapping, sorting,
+caching, query flags, and launch payloads; repeated launch behaviour still
+needs the normal on-device smoke test.
 
 Implementation:
 
@@ -147,13 +151,12 @@ Implementation:
 6. Update `AppDrawerScreen` to use `LauncherApp` instead of the plugin's `AppInfo`.
 7. Remove `installed_apps` from `pubspec.yaml` and rebuild the APK.
 
-Structure the Android code as small handlers rather than continuing to grow `MainActivity.kt`:
+The app-query channel is kept in its own handler. Battery and file-intent code
+can move out of `MainActivity.kt` when those hardening steps are undertaken:
 
 ```text
-android/app/src/main/kotlin/com/example/eink_launcher/
+android/app/src/main/kotlin/dev/levig/einklauncher/
 ├── MainActivity.kt
-├── BatteryStreamHandler.kt
-├── FileIntentHandler.kt
 └── InstalledAppsHandler.kt
 ```
 
@@ -166,12 +169,15 @@ Acceptance criteria:
 
 ## 5. Produce a Proper Android Release
 
-The current release build uses the debug signing key. That is acceptable for local experiments but not for durable device updates or distribution.
+The build no longer falls back to the debug signing key. Release signing reads
+local credentials from ignored `android/key.properties`; without that file the
+release artifact remains unsigned until durable credentials are configured.
 
 Implementation:
 
 1. Create a private release keystore and keep its passwords outside Git.
-2. Add a non-committed `key.properties` file and configure `signingConfigs.release` in `android/app/build.gradle.kts`.
+2. Copy `android/key.properties.example` to the ignored
+   `android/key.properties` and fill in the real keystore path and credentials.
 3. Verify the Bigme ABI. If it is `arm64-v8a` and this APK is only for that device, build only that target:
 
    ```sh
@@ -296,7 +302,7 @@ Also perform a short on-device smoke test for battery events, MIME resolution, A
 1. Capture the baseline and fix startup sequencing.
 2. Defer PDF initialization.
 3. Consolidate native file opening and remove `open_filex`.
-4. Replace `installed_apps` and split native handlers out of `MainActivity`.
+4. Continue splitting battery and file-intent handlers out of `MainActivity`.
 5. Configure signed, architecture-appropriate release builds.
 6. Compare Impeller on/off.
 7. Optimize rebuild boundaries only if profiling identifies them.

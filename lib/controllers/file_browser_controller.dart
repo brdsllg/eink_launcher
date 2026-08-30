@@ -1,6 +1,8 @@
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../constants.dart';
 import '../models/file_entry.dart';
 import '../services/file_operations_service.dart';
@@ -87,8 +89,10 @@ class FileBrowserController extends ChangeNotifier {
       } else if (_itemsPerPage > 0) {
         // Keep the user's place, but clamp in case the item count shrank
         // enough to remove pages entirely (e.g. deleting most of a page).
-        final totalPages =
-            (_entries.length / _itemsPerPage).ceil().clamp(1, 1000000);
+        final totalPages = (_entries.length / _itemsPerPage).ceil().clamp(
+          1,
+          1000000,
+        );
         _currentPage = _currentPage.clamp(0, totalPages - 1);
       }
       _status = entries.isEmpty ? 'Empty folder' : '';
@@ -133,8 +137,9 @@ class FileBrowserController extends ChangeNotifier {
         .toList();
     if (toStat.isEmpty) return;
 
-    final stats = await FolderLoaderService.instance
-        .loadStats(toStat.map((e) => e.path).toList());
+    final stats = await FolderLoaderService.instance.loadStats(
+      toStat.map((e) => e.path).toList(),
+    );
     if (token != _loadToken) return;
 
     for (final entry in _entries) {
@@ -208,7 +213,7 @@ class FileBrowserController extends ChangeNotifier {
     }
     notifyListeners();
   }
-// ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // File-management operations (return a snack message, '' for none)
   // ---------------------------------------------------------------------------
 
@@ -256,8 +261,10 @@ class FileBrowserController extends ChangeNotifier {
   }
 
   /// Deletes [paths]. See [paste] for how [onErrors] is used.
-  Future<String> deleteSelectedPaths(List<String> paths,
-      {void Function(List<String> errors)? onErrors}) async {
+  Future<String> deleteSelectedPaths(
+    List<String> paths, {
+    void Function(List<String> errors)? onErrors,
+  }) async {
     final errors = await _ops.deleteEntries(paths);
     reloadAfterMutation();
     exitSelection();

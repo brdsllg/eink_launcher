@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import '../models/clipboard_state.dart';
 
 // All filesystem mutation for the file browser lives here so the screen stays
@@ -26,10 +27,7 @@ class FileOperationsService {
   }
 
   void cut(List<String> paths) {
-    _clipboard = ClipboardState(
-      paths: List.of(paths),
-      mode: ClipboardMode.cut,
-    );
+    _clipboard = ClipboardState(paths: List.of(paths), mode: ClipboardMode.cut);
   }
 
   void clearClipboard() {
@@ -123,8 +121,9 @@ class FileOperationsService {
     // recurse forever — detect that up front and refuse.
     if (srcType == FileSystemEntityType.directory) {
       final srcNorm = src.endsWith('/') ? src : '$src/';
-      final destNorm =
-          destinationDir.endsWith('/') ? destinationDir : '$destinationDir/';
+      final destNorm = destinationDir.endsWith('/')
+          ? destinationDir
+          : '$destinationDir/';
       if (destNorm == srcNorm || destNorm.startsWith(srcNorm)) {
         throw Exception('cannot paste a folder into itself');
       }
@@ -147,7 +146,10 @@ class FileOperationsService {
   /// Moves [src] to [dest]. Tries a plain rename first (fast, same volume);
   /// on any failure copies recursively and removes the original.
   Future<void> _moveForPaste(
-      String src, String dest, FileSystemEntityType srcType) async {
+    String src,
+    String dest,
+    FileSystemEntityType srcType,
+  ) async {
     try {
       if (srcType == FileSystemEntityType.directory) {
         await Directory(src).rename(dest);
@@ -236,16 +238,17 @@ class FileOperationsService {
   // ---------------------------------------------------------------------------
 
   String _basename(String path) {
-    final trimmed =
-        path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+    final trimmed = path.endsWith('/')
+        ? path.substring(0, path.length - 1)
+        : path;
     return trimmed.split('/').last;
   }
 
   String _parentOf(String path) {
-    final trimmed =
-        path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+    final trimmed = path.endsWith('/')
+        ? path.substring(0, path.length - 1)
+        : path;
     final idx = trimmed.lastIndexOf('/');
     return idx <= 0 ? '/' : trimmed.substring(0, idx);
   }
 }
-

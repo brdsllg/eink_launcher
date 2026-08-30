@@ -69,6 +69,7 @@ Future<bool> showDeleteConfirmDialog(BuildContext context, int count) {
   final noun = count == 1 ? 'item' : 'items';
   return showDialog<bool>(
     context: context,
+    animationStyle: AnimationStyle.noAnimation,
     builder: (context) => AlertDialog(
       title: const Text('Delete'),
       content: Text('Delete $count $noun?\n\nThis can\'t be undone.'),
@@ -96,6 +97,7 @@ Future<String?> _showNameDialog({
 }) {
   return showDialog<String>(
     context: context,
+    animationStyle: AnimationStyle.noAnimation,
     barrierDismissible: false,
     builder: (_) => _NameDialog(
       title: title,
@@ -109,7 +111,7 @@ Future<String?> _showNameDialog({
 
 // A StatefulWidget owns the TextEditingController so it can be disposed in
 // State.dispose(), which runs only after the dialog route has fully unmounted
-// its element (post exit-animation). Disposing the controller via
+// its element. Disposing the controller via
 // showDialog(...).whenComplete(...) trips Flutter's
 // InheritedElement.debugDeactivated() assert because the TextField is still
 // deactivating at the moment the route future resolves.
@@ -148,9 +150,11 @@ class _NameDialogState extends State<_NameDialog> {
     super.dispose();
   }
 
-  String? _validate() =>
-      validateEntryName(_controller.text, widget.existingNames,
-          currentName: widget.currentName);
+  String? _validate() => validateEntryName(
+    _controller.text,
+    widget.existingNames,
+    currentName: widget.currentName,
+  );
 
   void _submit() {
     final error = _validate();
@@ -179,12 +183,8 @@ class _NameDialogState extends State<_NameDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        TextButton(
-          onPressed: _submit,
-          child: Text(widget.confirmLabel),
-        ),
+        TextButton(onPressed: _submit, child: Text(widget.confirmLabel)),
       ],
     );
   }
 }
-

@@ -1,4 +1,4 @@
-package com.example.eink_launcher
+package dev.levig.einklauncher
 
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
@@ -21,6 +21,8 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        InstalledAppsHandler(this, flutterEngine.dartExecutor.binaryMessenger)
 
         EventChannel(
             flutterEngine.dartExecutor.binaryMessenger,

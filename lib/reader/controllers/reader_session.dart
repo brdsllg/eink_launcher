@@ -12,8 +12,8 @@ import '../models/toc_entry.dart';
 /// [ReaderSessionRegistry] owns creation, suspension, and disposal; screens
 /// are pure views over whatever session they are handed.
 ///
-/// [PdfReaderSession] is the only implementation so far (Phase 1). A
-/// `TextReaderSession` covering EPUB/TXT/MD arrives in Phase 2.
+/// Implemented by `PdfReaderSession` for PDFs and `TextReaderSession` for
+/// EPUB, TXT, and Markdown documents.
 abstract class ReaderSession extends ChangeNotifier {
   DocRef get doc;
 

@@ -16,18 +16,20 @@ class Bookmark {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'docId': docId,
-        'createdAt': createdAt.toIso8601String(),
-        'label': label,
-        'position': position.toJson(),
-      };
+    'id': id,
+    'docId': docId,
+    'createdAt': createdAt.toIso8601String(),
+    'label': label,
+    'position': position.toJson(),
+  };
 
   factory Bookmark.fromJson(Map<String, dynamic> json) => Bookmark(
-        id: json['id'] as String,
-        docId: json['docId'] as String,
-        createdAt: DateTime.parse(json['createdAt'] as String),
-        label: json['label'] as String,
-        position: ReadingPosition.fromJson(json['position'] as Map<String, dynamic>),
-      );
+    id: json['id'] as String,
+    docId: json['docId'] as String,
+    createdAt: DateTime.parse(json['createdAt'] as String),
+    label: json['label'] as String,
+    position: ReadingPosition.fromJson(
+      json['position'] as Map<String, dynamic>,
+    ),
+  );
 }

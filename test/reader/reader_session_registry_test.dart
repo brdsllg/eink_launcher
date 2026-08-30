@@ -51,57 +51,57 @@ void main() {
     expect(session.isSuspended, isFalse);
   });
 
-  test('suspends the least-recently-used session past the active cap', () async {
-    final sessions = <String, _FakeSession>{};
-    final registry = ReaderSessionRegistry.forTesting(
-      sessionFactory: (doc) {
-        final s = _FakeSession(doc);
-        sessions[doc.id] = s;
-        return s;
-      },
-    );
-
-    for (final id in ['a', 'b', 'c', 'd']) {
-      await registry.obtain(docFor(id));
-    }
-    expect(registry.activeSessionCount, 4);
-    expect(sessions.values.every((s) => !s.isSuspended), isTrue);
-
-    await registry.obtain(docFor('e'));
-
-    expect(registry.activeSessionCount, 4);
-    expect(
-      sessions['a']!.isSuspended,
-      isTrue,
-      reason: 'a was least recently used',
-    );
-    expect(sessions['b']!.isSuspended, isFalse);
-    expect(sessions['e']!.isSuspended, isFalse);
-  });
-
   test(
-    'evict suspends, disposes, and drops a session so a fresh one is created next',
+    'suspends the least-recently-used session past the active cap',
     () async {
-      var createCount = 0;
+      final sessions = <String, _FakeSession>{};
       final registry = ReaderSessionRegistry.forTesting(
         sessionFactory: (doc) {
-          createCount++;
-          return _FakeSession(doc);
+          final s = _FakeSession(doc);
+          sessions[doc.id] = s;
+          return s;
         },
       );
-      final doc = docFor('a');
 
-      final first = await registry.obtain(doc) as _FakeSession;
-      registry.evict(doc.id);
+      for (final id in ['a', 'b', 'c', 'd']) {
+        await registry.obtain(docFor(id));
+      }
+      expect(registry.activeSessionCount, 4);
+      expect(sessions.values.every((s) => !s.isSuspended), isTrue);
 
-      expect(first.suspendCalls, 1);
-      expect(first.disposeCalls, 1);
+      await registry.obtain(docFor('e'));
 
-      final second = await registry.obtain(doc) as _FakeSession;
-      expect(identical(first, second), isFalse);
-      expect(createCount, 2);
+      expect(registry.activeSessionCount, 4);
+      expect(
+        sessions['a']!.isSuspended,
+        isTrue,
+        reason: 'a was least recently used',
+      );
+      expect(sessions['b']!.isSuspended, isFalse);
+      expect(sessions['e']!.isSuspended, isFalse);
     },
   );
+
+  test('evict suspends, disposes, and drops a session so a fresh one is created next', () async {
+    var createCount = 0;
+    final registry = ReaderSessionRegistry.forTesting(
+      sessionFactory: (doc) {
+        createCount++;
+        return _FakeSession(doc);
+      },
+    );
+    final doc = docFor('a');
+
+    final first = await registry.obtain(doc) as _FakeSession;
+    registry.evict(doc.id);
+
+    expect(first.suspendCalls, 1);
+    expect(first.disposeCalls, 1);
+
+    final second = await registry.obtain(doc) as _FakeSession;
+    expect(identical(first, second), isFalse);
+    expect(createCount, 2);
+  });
 
   test('dispose suspends and disposes every session', () async {
     final registry = ReaderSessionRegistry.forTesting(

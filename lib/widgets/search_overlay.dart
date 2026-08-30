@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../constants.dart';
 import '../models/file_entry.dart';
 import '../services/search_service.dart';
@@ -64,7 +65,8 @@ class _SearchOverlayState extends State<SearchOverlay> {
         if (!mounted || token != _searchToken) return;
         setState(() {
           _results.add(entry);
-          _status = '${_results.length} match${_results.length == 1 ? '' : 'es'} so far…';
+          _status =
+              '${_results.length} match${_results.length == 1 ? '' : 'es'} so far…';
         });
       },
       onDone: () {
@@ -76,7 +78,8 @@ class _SearchOverlayState extends State<SearchOverlay> {
           } else if (_results.length >= 200) {
             _status = '200+ matches (showing first 200)';
           } else {
-            _status = '${_results.length} match${_results.length == 1 ? '' : 'es'}';
+            _status =
+                '${_results.length} match${_results.length == 1 ? '' : 'es'}';
           }
         });
       },
@@ -151,7 +154,9 @@ class _SearchOverlayState extends State<SearchOverlay> {
                     final entry = _results[index];
                     return ListTile(
                       dense: true,
-                      title: Text(entry.isDirectory ? '${entry.name}/' : entry.name),
+                      title: Text(
+                        entry.isDirectory ? '${entry.name}/' : entry.name,
+                      ),
                       subtitle: Text(
                         entry.path,
                         maxLines: 1,
@@ -168,4 +173,3 @@ class _SearchOverlayState extends State<SearchOverlay> {
     );
   }
 }
-

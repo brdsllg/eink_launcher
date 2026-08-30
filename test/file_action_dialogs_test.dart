@@ -6,17 +6,24 @@ import 'package:eink_launcher/widgets/file_action_dialogs.dart';
 void main() {
   Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
-  testWidgets('New Folder dialog opens, validates, and dismisses cleanly',
-      (WidgetTester tester) async {
+  testWidgets('New Folder dialog opens, validates, and dismisses cleanly', (
+    WidgetTester tester,
+  ) async {
     String? result;
-    await tester.pumpWidget(wrap(Builder(
-      builder: (context) => TextButton(
-        onPressed: () async {
-          result = await showNewFolderDialog(context, const ['existing.txt']);
-        },
-        child: const Text('open'),
+    await tester.pumpWidget(
+      wrap(
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              result = await showNewFolderDialog(context, const [
+                'existing.txt',
+              ]);
+            },
+            child: const Text('open'),
+          ),
+        ),
       ),
-    )));
+    );
     await tester.pump();
 
     await tester.tap(find.text('open'));
@@ -45,17 +52,22 @@ void main() {
     expect(result, 'My Folder');
   });
 
-  testWidgets('Rename dialog pre-fills and pops with the trimmed name',
-      (WidgetTester tester) async {
+  testWidgets('Rename dialog pre-fills and pops with the trimmed name', (
+    WidgetTester tester,
+  ) async {
     String? result;
-    await tester.pumpWidget(wrap(Builder(
-      builder: (context) => TextButton(
-        onPressed: () async {
-          result = await showRenameDialog(context, 'old.txt', ['old.txt']);
-        },
-        child: const Text('open'),
+    await tester.pumpWidget(
+      wrap(
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              result = await showRenameDialog(context, 'old.txt', ['old.txt']);
+            },
+            child: const Text('open'),
+          ),
+        ),
       ),
-    )));
+    );
     await tester.pump();
 
     await tester.tap(find.text('open'));

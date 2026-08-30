@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:io';
+
 import '../models/file_entry.dart';
 
 class SearchParams {
@@ -112,11 +113,9 @@ class StreamingSearchService {
           final isDir = child is Directory;
 
           if (name.toLowerCase().contains(queryLower)) {
-            replyPort.send(FileEntry(
-              path: child.path,
-              name: name,
-              isDirectory: isDir,
-            ));
+            replyPort.send(
+              FileEntry(path: child.path, name: name, isDirectory: isDir),
+            );
             found++;
           }
           if (isDir) {
@@ -138,4 +137,3 @@ class StreamingSearchService {
     _commandPort = null;
   }
 }
-

@@ -17,8 +17,8 @@ const double kNavBarHeight = 56.0;
 const int kPortraitBarCount = 15;
 const int kLandscapeBarCount = 12;
 
-// Phase 8: no page-transition animations (e-ink ghosting/jank risk). Wrap
-// any pushed route in this instead of using MaterialPageRoute directly.
+// No page-transition animations (e-ink ghosting/jank risk). Wrap any pushed
+// route in this instead of using MaterialPageRoute directly.
 Route<T> noTransitionRoute<T>(Widget page) {
   return PageRouteBuilder<T>(
     pageBuilder: (context, animation, secondaryAnimation) => page,

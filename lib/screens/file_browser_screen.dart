@@ -95,6 +95,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
     if (!mounted) return;
     showDialog<void>(
       context: context,
+      animationStyle: AnimationStyle.noAnimation,
       builder: (context) => AlertDialog(
         title: Text(title),
         content: SingleChildScrollView(child: Text(errors.join('\n'))),
@@ -196,6 +197,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
   Future<void> _confirmSetHome() async {
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: AnimationStyle.noAnimation,
       builder: (context) => AlertDialog(
         title: const Text('Set Home Folder'),
         content: Text(
@@ -649,6 +651,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.add),
                         tooltip: 'More options',
+                        popUpAnimationStyle: AnimationStyle.noAnimation,
                         onSelected: (value) {
                           switch (value) {
                             case 'search':

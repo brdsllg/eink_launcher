@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../../constants.dart';
@@ -184,9 +183,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     if (pageHeight <= 0) pageHeight = layout.totalHeight / layout.pageCount;
     if (pageHeight <= 0) return kPdfMinZoomScaleBeyondFit;
     final target = widget.viewport.height / (kPdfZoomOutPageSpan * pageHeight);
-    return target
-        .clamp(kPdfMinZoomScaleBeyondFit, kPdfMinZoomScale)
-        .toDouble();
+    return target.clamp(kPdfMinZoomScaleBeyondFit, kPdfMinZoomScale).toDouble();
   }
 
   /// Clamps a candidate origin so the document can never be dragged off
@@ -275,11 +272,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     }
     // Screen velocity → scene velocity. Dragging the page up (negative dy)
     // must increase the scroll offset, hence the sign flip.
-    _startFling(
-      -velocity.dx / _scale,
-      -velocity.dy / _scale,
-      layout,
-    );
+    _startFling(-velocity.dx / _scale, -velocity.dy / _scale, layout);
   }
 
   // ---------------------------------------------------------------------
@@ -325,8 +318,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     final targetY = simY?.x(t) ?? _originY;
     final moved = _setOrigin(targetX, targetY, layout);
 
-    final finished =
-        (simX?.isDone(t) ?? true) && (simY?.isDone(t) ?? true);
+    final finished = (simX?.isDone(t) ?? true) && (simY?.isDone(t) ?? true);
     // Pinned against an edge with nothing left to travel: stop rather than
     // burn e-ink refreshes on a simulation that can no longer move anything.
     final stalled =

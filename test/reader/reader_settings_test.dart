@@ -8,6 +8,7 @@ void main() {
     expect(settings.fitMode, PdfFitMode.fitHeight);
     expect(settings.toJson(), isNot(contains('pdfPageFlow')));
     expect(settings.toJson(), isNot(contains('scrollMomentum')));
+    expect(settings.toJson(), isNot(contains('flashEveryNTurns')));
   });
 
   test('zoom / scroll mode survives JSON round-trip', () {
@@ -34,4 +35,10 @@ void main() {
       expect(oldScroll.toJson(), isNot(contains('scrollMomentum')));
     },
   );
+
+  test('legacy flash interval is discarded', () {
+    final restored = ReaderSettings.fromJson(const {'flashEveryNTurns': 5});
+
+    expect(restored.toJson(), isNot(contains('flashEveryNTurns')));
+  });
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 /// A small, e-ink-friendly clock readout.
@@ -29,9 +30,13 @@ class _ClockTextState extends State<ClockText> {
 
   void _scheduleNextTick() {
     final now = DateTime.now();
-    final nextMinute =
-        DateTime(now.year, now.month, now.day, now.hour, now.minute)
-            .add(const Duration(minutes: 1));
+    final nextMinute = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      now.hour,
+      now.minute,
+    ).add(const Duration(minutes: 1));
     _timer = Timer(nextMinute.difference(now), () {
       if (!mounted) return;
       setState(() => _now = DateTime.now());

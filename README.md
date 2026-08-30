@@ -40,7 +40,8 @@ eink_launcher/
 │   │   └── file_browser_controller.dart  # Business logic & state management for file browser
 │   ├── models/
 │   │   ├── clipboard_state.dart          # In-memory clipboard state (copy/cut operations)
-│   │   └── file_entry.dart               # File/directory entity model with lazy stats
+│   │   ├── file_entry.dart               # File/directory entity model with lazy stats
+│   │   └── launcher_app.dart             # Minimal native launcher-app record
 │   ├── reader/
 │   │   ├── controllers/
 │   │   │   ├── pdf_reader_session.dart   # PDF reader lifecycle, navigation, tiling & rendering
@@ -77,7 +78,6 @@ eink_launcher/
 │   │   │   └── reader_toc_screen.dart    # Paginated PDF/text table of contents
 │   │   └── widgets/
 │   │       ├── block_slice_view.dart      # Clip-and-translate semantic block slice renderer
-│   │       ├── no_momentum_scroll_physics.dart # Unused legacy drag-without-fling physics
 │   │       ├── pdf_page_view.dart        # Fit-mode bitmaps & the continuous zoom surface
 │   │       ├── reader_menu_overlay.dart  # E-ink reader controls and page status
 │   │       ├── tap_zone_layer.dart       # Invisible equal-thirds tap zones and swipes
@@ -101,6 +101,7 @@ eink_launcher/
 │       ├── paginated_list.dart           # Generic height-calculated paginated list container
 │       └── search_overlay.dart           # Floating filename search bar with streaming matches
 ├── test/
+│   ├── app_list_service_test.dart        # Native app-channel mapping and cache tests
 │   ├── file_action_dialogs_test.dart     # Widget tests for input dialog validation
 │   ├── file_mime_type_service_test.dart  # Common and fallback MIME mapping tests
 │   ├── file_operations_service_test.dart # Unit tests for filesystem mutations & edge cases
@@ -115,15 +116,16 @@ eink_launcher/
 │       ├── html_block_parser_test.dart   # XHTML blocks, styling, lists & images
 │       ├── hyphenation_service_test.dart # Latin/Hebrew soft-hyphen tests
 │       ├── page_bitmap_cache_test.dart   # Unit tests for PDF bitmap LRU eviction
-│       ├── no_momentum_scroll_physics_test.dart # No-fling physics unit test (legacy utility)
 │       ├── pdf_continuous_layout_test.dart # Exact scroll geometry mapping tests
 │       ├── pdf_crop_service_test.dart    # Unit tests for crop bounds & noise filtering
 │       ├── pdf_document_service_test.dart# PDF service unit tests & opt-in native smoke test
 │       ├── pdf_reader_session_test.dart  # PDF navigation, tiling, momentum & lifecycle tests
 │       ├── pagination_cache_service_test.dart # Text page cache round-trip tests
 │       ├── phase2_verification_test.dart # Bilingual font/layout/resize verification
+│       ├── reader_menu_overlay_test.dart # Reader menu controls widget tests
 │       ├── reader_toc_screen_test.dart   # Nested TOC selection widget test
 │       ├── reader_session_registry_test.dart # Reader session registry lifecycle tests
+│       ├── reader_settings_test.dart     # Settings persistence and migration tests
 │       ├── reader_settings_screen_test.dart # Mode-scoped settings widget tests
 │       ├── text_block_parser_test.dart   # TXT encoding and Markdown parser tests
 │       ├── text_page_view_test.dart      # Clip-and-offset text page widget test
@@ -230,7 +232,7 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 - **[`lib/reader/models/pdf_continuous_layout.dart`](lib/reader/models/pdf_continuous_layout.dart)**:
   - Calculates exact fit-width page heights, cumulative offsets, logical-position conversions, maximum scroll offset, and the page occupying most of the viewport.
 - **[`lib/reader/models/reader_settings.dart`](lib/reader/models/reader_settings.dart)**:
-  - Reader configuration model encompassing fonts, font size steps, margins, line height, hyphenation, justification, `ParagraphMode`, `PdfFitMode`, auto-crop, Fit Width overlap, `allowZoomOutBeyondFit` (with the derived `minZoomScale` floor), orientation, and flash interval.
+  - Reader configuration model encompassing fonts, font size steps, margins, line height, hyphenation, justification, `ParagraphMode`, `PdfFitMode`, auto-crop, Fit Width overlap, `allowZoomOutBeyondFit` (with the derived `minZoomScale` floor), and orientation.
   - Tolerates legacy `library.json` values: older `continuousScroll` / `freeZoom` fit modes map onto `zoom`, and documents saved before `allowZoomOutBeyondFit` existed default it to on.
 - **[`lib/reader/models/bookmark.dart`](lib/reader/models/bookmark.dart)**:
   - Document bookmark entity mapping creation time and label to a logical `ReadingPosition`.
@@ -271,8 +273,6 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
   - Shows only the controls the current mode honours, and never repeats the fit-mode selector that already lives in the menu overlay: crop for Fit Height, crop plus overlap for Fit Width, and the zoom-out toggle for Zoom / Scroll. Text formats get the full typography panel instead.
 - **[`lib/reader/screens/reader_toc_screen.dart`](lib/reader/screens/reader_toc_screen.dart)**:
   - Flattens nested document outlines into an indentation-preserving, discretely paginated navigation screen.
-- **[`lib/reader/widgets/no_momentum_scroll_physics.dart`](lib/reader/widgets/no_momentum_scroll_physics.dart)**:
-  - Legacy drag-without-fling `ScrollPhysics`. **Currently unused:** the paginated launcher lists never scroll, and Zoom / Scroll deliberately always has momentum. Retained only as a low-level utility and safe to delete.
 - **[`lib/reader/widgets/pdf_page_view.dart`](lib/reader/widgets/pdf_page_view.dart)**:
   - Presents tap-driven Fit Height/Width bitmaps, or the continuous Zoom / Scroll surface.
   - That surface owns its transform as a `scale` plus a scene-space `origin`, handles pans and pinches through a single scale `GestureDetector`, clamps exactly (centring content smaller than the viewport), and flings with per-axis `ClampingScrollSimulation` — Flutter's port of the AOSP `OverScroller` curve — driven from a bare `Ticker` so no rebuild can cancel momentum.
@@ -290,6 +290,8 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
   - Data model representing a file or directory with lazy stat caching.
 - **[`lib/models/clipboard_state.dart`](lib/models/clipboard_state.dart)**:
   - Value object representing the in-memory clipboard state (copy/cut mode and source paths).
+- **[`lib/models/launcher_app.dart`](lib/models/launcher_app.dart)**:
+  - Minimal launchable-app record returned by Android, containing the label, package name, and system-app flag.
 
 #### Controllers (`lib/controllers/`)
 - **[`lib/controllers/file_browser_controller.dart`](lib/controllers/file_browser_controller.dart)**:
@@ -297,7 +299,7 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 
 #### Services (`lib/services/`)
 - **[`lib/services/app_list_service.dart`](lib/services/app_list_service.dart)**:
-  - Interfaces with `installed_apps` to retrieve and launch installed applications.
+  - Queries and launches applications through the launcher-owned Android `PackageManager` channel, with separately cached user-only and system-inclusive lists.
 - **[`lib/services/file_mime_type_service.dart`](lib/services/file_mime_type_service.dart)**:
   - Maps common document, ebook, text, media, archive, font, and interchange extensions to precise MIME types so Android only offers relevant apps.
 - **[`lib/services/file_operations_service.dart`](lib/services/file_operations_service.dart)**:
@@ -335,6 +337,7 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 
 ### Test Suite (`test/`)
 
+- **[`test/app_list_service_test.dart`](test/app_list_service_test.dart)**: Unit tests for native app-channel mapping, sorting, caching, query flags, and launch payloads.
 - **[`test/file_action_dialogs_test.dart`](test/file_action_dialogs_test.dart)**: Widget tests verifying validation handling in dialogs.
 - **[`test/file_mime_type_service_test.dart`](test/file_mime_type_service_test.dart)**: Unit tests for precise common types, case-insensitive extensions, and the non-wildcard fallback.
 - **[`test/file_operations_service_test.dart`](test/file_operations_service_test.dart)**: Unit tests for filesystem mutations.
@@ -343,13 +346,15 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 - **[`test/reader/doc_identity_service_test.dart`](test/reader/doc_identity_service_test.dart)**: Unit tests for docId computation.
 - **[`test/reader/book_store_service_test.dart`](test/reader/book_store_service_test.dart)**: Unit tests for `library.json` persistence.
 - **[`test/reader/page_bitmap_cache_test.dart`](test/reader/page_bitmap_cache_test.dart)**: Unit tests for memory budgeting and LRU eviction.
-- **[`test/reader/no_momentum_scroll_physics_test.dart`](test/reader/no_momentum_scroll_physics_test.dart)**: Unit coverage for the legacy no-fling utility, which no reader surface currently uses.
 - **[`test/reader/pdf_continuous_layout_test.dart`](test/reader/pdf_continuous_layout_test.dart)**: Unit tests for exact extents, offset mapping, dominant-page selection, and boundary clamping.
 - **[`test/reader/pdf_crop_service_test.dart`](test/reader/pdf_crop_service_test.dart)**: Unit tests for ink bounds, blank pages, alpha compositing, and noise filtering.
 - **[`test/reader/pdf_document_service_test.dart`](test/reader/pdf_document_service_test.dart)**: Unit tests for PDF lifecycle/rendering and an opt-in native PDFium smoke test.
 - **[`test/reader/pdf_reader_session_test.dart`](test/reader/pdf_reader_session_test.dart)**: Unit and widget tests for fit-mode navigation and sub-screens, whole-page cache reuse and physical-pixel sizing, the refusal to render whole pages in Zoom / Scroll, per-density and per-region tile re-rasterisation, navigation-epoch semantics, persistence, suspension/resumption, and a fling that keeps gliding after release while respecting the end of the document.
+- **[`test/reader/reader_menu_overlay_test.dart`](test/reader/reader_menu_overlay_test.dart)**: Widget tests for reader-menu controls and mode-specific actions.
 - **[`test/reader/reader_session_registry_test.dart`](test/reader/reader_session_registry_test.dart)**: Unit tests for reader-session registry reuse and lifecycle management.
+- **[`test/reader/reader_settings_test.dart`](test/reader/reader_settings_test.dart)**: Unit tests for settings persistence and legacy-value migration.
 - **[`test/reader/reader_settings_screen_test.dart`](test/reader/reader_settings_screen_test.dart)**: Widget tests asserting each fit mode shows only its applicable controls, that the fit-mode selector is not duplicated, and that the zoom-out setting defaults to on and round-trips through JSON.
+- **[`test/reader/reader_toc_screen_test.dart`](test/reader/reader_toc_screen_test.dart)**: Widget tests for flattened nested TOC navigation.
 - **[`test/reader/tap_zone_layer_test.dart`](test/reader/tap_zone_layer_test.dart)**: Widget tests for equal-thirds tap boundaries, fixed navigation direction, and swipe callbacks.
 - **[`test/reader/bidi_service_test.dart`](test/reader/bidi_service_test.dart)**: Unit tests for English, Hebrew with nikud, mixed text, numbers, and punctuation.
 - **[`test/reader/hyphenation_service_test.dart`](test/reader/hyphenation_service_test.dart)**: Unit tests for Latin soft hyphens and preservation of Hebrew/inline styling.
@@ -357,7 +362,9 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 - **[`test/reader/epub_parser_service_test.dart`](test/reader/epub_parser_service_test.dart)**: In-memory EPUB fixture tests covering metadata, spine, resources, nested nav TOC, logical anchors, and malformed containers.
 - **[`test/reader/epub_paginator_service_test.dart`](test/reader/epub_paginator_service_test.dart)**: Exact line splitting, source-offset continuity, widow/orphan handling, and publisher-alignment tests.
 - **[`test/reader/pagination_cache_service_test.dart`](test/reader/pagination_cache_service_test.dart)**: Versioned atomic cache round-trips, replacement, fractional geometry keys, and stale-entry rejection.
+- **[`test/reader/text_block_parser_test.dart`](test/reader/text_block_parser_test.dart)**: Unit tests for TXT decoding and Markdown block parsing.
 - **[`test/reader/text_reader_session_test.dart`](test/reader/text_reader_session_test.dart)**: Text navigation, persistence, re-pagination, suspension, logical page ordering, and pending TOC-target tests.
+- **[`test/reader/text_reader_settings_screen_test.dart`](test/reader/text_reader_settings_screen_test.dart)**: Widget tests for text-format typography controls.
 - **[`test/reader/text_page_view_test.dart`](test/reader/text_page_view_test.dart)**: Widget coverage for rendering exact clip-and-offset block slices.
 - **[`test/reader/phase2_verification_test.dart`](test/reader/phase2_verification_test.dart)**: Automated bundled-font, bilingual direction, exact slice coverage, portrait/landscape re-pagination, and timing verification.
 
@@ -367,7 +374,9 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 
 - **[`android/app/src/main/AndroidManifest.xml`](android/app/src/main/AndroidManifest.xml)**:
   - Declares `MANAGE_EXTERNAL_STORAGE` and `QUERY_ALL_PACKAGES` permissions and registers Home Launcher intent.
-- **[`android/app/src/main/kotlin/com/example/eink_launcher/MainActivity.kt`](android/app/src/main/kotlin/com/example/eink_launcher/MainActivity.kt)**:
+- **[`android/app/src/main/kotlin/dev/levig/einklauncher/MainActivity.kt`](android/app/src/main/kotlin/dev/levig/einklauncher/MainActivity.kt)**:
   - Provides the native Android `Open with` chooser and event-driven battery-status channels.
+- **[`android/app/src/main/kotlin/dev/levig/einklauncher/InstalledAppsHandler.kt`](android/app/src/main/kotlin/dev/levig/einklauncher/InstalledAppsHandler.kt)**:
+  - Queries launcher activities and starts selected packages directly through Android `PackageManager`.
 - **[`android/app/src/main/res/values/styles.xml`](android/app/src/main/res/values/styles.xml)**:
   - Window theme definitions configuring white background and fullscreen flags.
