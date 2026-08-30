@@ -82,3 +82,49 @@
 
 # 2026-08-30 14:56:32.594069
 +ok i didnt catch your answer, it got cut off but is there something i should know? i did a push on github, and i did fltter test and flutter analyze and everything good. if all is good then i have the following: why is there no momentum in scroll mode? wy can i not zoom out past the text? i want to be able to do all these, but make the zoom out past text default on, but setting to turn off. and the rendering is still bad and not crisp when zoomed.
+
+# 2026-08-30 15:26:20.332268
++ok 1. my fps on my device is i think 21, so maybe thats imprtant, 2. the momentum still isnt working 3. i think that the minimum zoom should be 2 pages worth 4. i did flutter test and analyze and there were problems "~/eink_launcher main 1m 24s
++❯ flutter test
++00:14 +50 ~1: /home/levig/eink_launcher/test/reader/pdf_reader_session_test.dart: zoom / scroll is continuous, zoomable, and has momentum
++══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
++The following TestFailure was thrown running a test:
++Expected: <1.0>
++  Actual: <0.4>
++
++When the exception was thrown, this was the stack:
++#4      main.<anonymous closure> (file:///home/levig/eink_launcher/test/reader/pdf_reader_session_test.dart:425:5)
++<asynchronous suspension>
++#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
++<asynchronous suspension>
++#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
++<asynchronous suspension>
++<asynchronous suspension>
++(elided one frame from package:stack_trace)
++
++This was caught by the test expectation on the following line:
++  file:///home/levig/eink_launcher/test/reader/pdf_reader_session_test.dart line 425
++The test description was:
++  zoom / scroll is continuous, zoomable, and has momentum
++════════════════════════════════════════════════════════════════════════════════════════════════════
++00:14 +50 ~1 -1: /home/levig/eink_launcher/test/reader/pdf_reader_session_test.dart: zoom / scroll is continuous, zoomable, and has momentum [E]
++  Test failed. See exception logs above.
++  The test description was: zoom / scroll is continuous, zoomable, and has momentum
++
++
++To run this test again: /home/levig/.flutter-sdk/bin/cache/dart-sdk/bin/dart test /home/levig/eink_launcher/test/reader/pdf_reader_session_test.dart -p vm --plain-name 'zoom / scroll is continuous, zoomable, and has momentum'
++00:27 +99 ~1 -1: Some tests failed.
++
++~/eink_launcher main 31s
++❯ flutter analyze
++Analyzing eink_launcher...
++
++warning • A value for optional parameter 'key' isn't ever given. Try
++       removing the unused parameter •
++       lib/reader/widgets/pdf_page_view.dart:425:11 •
++       unused_element_parameter
++
++1 issue found. (ran in 10.0s)
++
++~/eink_launcher main 12s
++❯"
