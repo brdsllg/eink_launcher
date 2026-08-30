@@ -376,7 +376,7 @@ void main() {
     tester,
   ) async {
     final session = makeSession(
-      fakeDoc: _FakePdfDocument(pageCount: 0, pageWidth: 200, pageHeight: 300),
+      fakeDoc: _FakePdfDocument(pageCount: 3, pageWidth: 200, pageHeight: 420),
     );
     await session.open();
     await session.applySettings(
@@ -384,13 +384,18 @@ void main() {
     );
     await session.continuousLayoutForViewport(const Size(200, 300));
 
+    // The reader shell subscribes to the session, so settings changes reach
+    // the view. Pumping the bare widget would leave it showing stale limits.
     await tester.pumpWidget(
       MaterialApp(
         home: Center(
           child: SizedBox(
             width: 200,
             height: 300,
-            child: reader.PdfPageView(session: session),
+            child: ListenableBuilder(
+              listenable: session,
+              builder: (context, _) => reader.PdfPageView(session: session),
+            ),
           ),
         ),
       ),
@@ -405,14 +410,21 @@ void main() {
     expect(viewer.maxScale, 5);
     expect(viewer.onInteractionEnd, isNotNull);
 
-    // Momentum: friction must be lower than Flutter's 0.0000135 default,
-    // otherwise a fling decays inside a single e-ink refresh.
-    expect(viewer.interactionEndFrictionCoefficient, lessThan(0.0000135));
+    // Momentum: InteractiveViewer treats a LARGER coefficient as LESS
+    // friction (glide distance is velocity / ln(1 / coefficient)), so this
+    // must exceed Flutter's 0.0000135 default or a fling dies within a
+    // couple of e-ink refreshes.
+    expect(
+      viewer.interactionEndFrictionCoefficient,
+      greaterThan(0.0000135),
+    );
 
-    // Zooming out past the page is on by default, and needs BOTH a sub-1
-    // minScale and a boundary margin: InteractiveViewer independently floors
-    // the scale at viewport.width / boundaryRect.width.
-    expect(viewer.minScale, lessThan(1.0));
+    // Fully zoomed out shows about two pages: pages are 420 layout units
+    // tall in a 300-unit viewport, so the floor is 300 / (2 * 420).
+    expect(viewer.minScale, closeTo(300 / 840, 0.001));
+    // A sub-1 minScale is inert without boundary slack, because
+    // InteractiveViewer independently floors the scale at
+    // viewport.width / boundaryRect.width.
     expect(viewer.boundaryMargin.horizontal, greaterThan(0));
 
     await session.applySettings(

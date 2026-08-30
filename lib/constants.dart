@@ -53,16 +53,23 @@ const double kPdfMaxZoomScale = 5.0;
 /// 1.0 means "page exactly fills the screen width".
 const double kPdfMinZoomScale = 1.0;
 
-/// Zoom / Scroll pinch floor when zooming out past the page is enabled
-/// (the default). Reaching it also requires a matching `boundaryMargin`,
-/// because InteractiveViewer independently refuses to shrink a child below
-/// the size of its own boundary rect.
-const double kPdfMinZoomScaleBeyondFit = 0.4;
+/// How many pages tall the viewport becomes when Zoom / Scroll is pinched all
+/// the way out. The actual floor is derived per document from the real page
+/// height, since a squarer page needs less zoom-out to show two of them.
+const double kPdfZoomOutPageSpan = 2.0;
+
+/// Absolute hard floor for the Zoom / Scroll pinch, regardless of what
+/// [kPdfZoomOutPageSpan] works out to. Reaching any floor below 1.0 also
+/// requires a matching `boundaryMargin`, because InteractiveViewer
+/// independently refuses to shrink a child below its own boundary rect.
+const double kPdfMinZoomScaleBeyondFit = 0.2;
 
 /// Discrete zoom rungs at which Zoom / Scroll re-rasterises pages through
 /// PDFium. Without this, zooming would only magnify an existing bitmap and
 /// vector content would go soft.
 const List<double> kPdfZoomRenderScales = [
+  0.25,
+  0.35,
   0.5,
   0.75,
   1.0,
@@ -83,10 +90,16 @@ const double kPdfTileSidePixels = 1536.0;
 /// output would be silently downscaled and zoom would look blurry.
 const double kPdfMaxTileDimension = 2048.0;
 
-/// Friction applied to a Zoom / Scroll fling. Lower than Flutter's default
-/// (0.0000135) because an e-ink panel only shows a handful of frames, so a
-/// short glide is indistinguishable from no momentum at all.
-const double kPdfFlingFrictionCoefficient = 0.0000035;
+/// Friction for a Zoom / Scroll fling.
+///
+/// Counter-intuitively, **larger** means less friction: InteractiveViewer
+/// hands this to `FrictionSimulation`, where the glide distance is
+/// `velocity / ln(1 / coefficient)` and the duration is
+/// `log(10 / velocity) / log(coefficient / 100)`. Both grow as the value
+/// rises. Flutter's default of 0.0000135 gives roughly a third of a second,
+/// which on a ~21 fps e-ink panel is about seven frames — indistinguishable
+/// from no momentum at all. This value roughly triples the distance.
+const double kPdfFlingFrictionCoefficient = 0.02;
 
 /// Memory budget for rendered PDF bitmaps. Zoom / Scroll keeps a grid of
 /// zoomed tiles plus look-ahead resident at once.

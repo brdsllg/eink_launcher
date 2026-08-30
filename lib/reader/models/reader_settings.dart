@@ -22,7 +22,7 @@ class ReaderSettings {
   final double splitOverlap;
 
   /// Zoom / Scroll only: allow pinching in below the fit-width size, so pages
-  /// shrink and several can be skimmed at once. Default on.
+  /// shrink and roughly two pages fit on screen at once. Default on.
   final bool allowZoomOutBeyondFit;
 
   // Shared
@@ -55,7 +55,10 @@ class ReaderSettings {
   double get horizontalMargin =>
       kReaderMarginSteps[marginStep.clamp(0, kReaderMarginSteps.length - 1)];
 
-  /// The Zoom / Scroll pinch floor implied by [allowZoomOutBeyondFit].
+  /// The absolute Zoom / Scroll pinch floor implied by
+  /// [allowZoomOutBeyondFit]. The view narrows this further per document so
+  /// that fully zoomed out shows about [kPdfZoomOutPageSpan] pages, which
+  /// depends on the real page aspect ratio and so cannot live here.
   double get minZoomScale =>
       allowZoomOutBeyondFit ? kPdfMinZoomScaleBeyondFit : kPdfMinZoomScale;
 

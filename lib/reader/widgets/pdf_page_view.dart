@@ -91,7 +91,7 @@ class _PdfPageViewState extends State<PdfPageView> {
 
 /// One continuous, always-zoomable document canvas.
 ///
-/// Three rules keep this honest:
+/// Four rules keep this honest:
 ///
 /// * The pinch scale is quantised and pushed back into PDFium, and pages are
 ///   cut into a 2-D grid so only the tiles actually on screen are rendered.
@@ -101,6 +101,8 @@ class _PdfPageViewState extends State<PdfPageView> {
 ///   InteractiveViewer floors the scale at `viewport.width /
 ///   boundaryRect.width` independently of `minScale`, so with a zero margin
 ///   the floor is exactly 1.0 no matter what `minScale` says.
+/// * The floor itself is derived from real page geometry, so "fully zoomed
+///   out" means about [kPdfZoomOutPageSpan] pages tall on any document.
 /// * The transform is only snapped to the session's logical position when the
 ///   session reports a *programmatic* move. Snapping on every rebuild used to
 ///   cancel the user's own fling, which made the mode feel page-by-page.
@@ -180,6 +182,25 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView> {
     return kPdfZoomRenderScales.last;
   }
 
+  /// The pinch floor for this document: enough zoom-out to show about
+  /// [kPdfZoomOutPageSpan] pages at once. A tall page needs a smaller scale
+  /// than a squarer one, so this cannot be a constant.
+  double _minScaleFor(PdfContinuousLayout layout) {
+    if (!widget.session.settings.allowZoomOutBeyondFit) return kPdfMinZoomScale;
+    if (layout.pageHeights.isEmpty) return kPdfMinZoomScaleBeyondFit;
+    final index = widget.session.currentPage
+        .clamp(0, layout.pageHeights.length - 1)
+        .toInt();
+    var pageHeight = layout.pageHeights[index];
+    if (pageHeight <= 0) pageHeight = layout.totalHeight / layout.pageCount;
+    if (pageHeight <= 0) return kPdfMinZoomScaleBeyondFit;
+    final target =
+        widget.viewport.height / (kPdfZoomOutPageSpan * pageHeight);
+    return target
+        .clamp(kPdfMinZoomScaleBeyondFit, kPdfMinZoomScale)
+        .toDouble();
+  }
+
   void _synchronizeTransform(PdfContinuousLayout layout) {
     final epoch = widget.session.navigationEpoch;
     if (_syncedLayout == layout && _syncedEpoch == epoch) return;
@@ -236,7 +257,6 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView> {
 
     final allowZoomOut = widget.session.settings.allowZoomOutBeyondFit;
     _enforceZoomOutSetting(allowZoomOut);
-    final minScale = widget.session.settings.minZoomScale;
 
     return FutureBuilder<PdfContinuousLayout>(
       future: _layoutFuture,
@@ -251,11 +271,13 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView> {
         _layout = layout;
         _synchronizeTransform(layout);
 
+        final minScale = _minScaleFor(layout);
+
         // InteractiveViewer refuses to shrink its child below its boundary
         // rect, so the margin — not minScale alone — is what actually
         // permits zooming out past the page.
-        final slack = allowZoomOut ? (1 / minScale - 1) / 2 : 0.0;
-        final boundaryMargin = allowZoomOut
+        final slack = minScale < 1.0 ? (1 / minScale - 1) / 2 : 0.0;
+        final boundaryMargin = slack > 0
             ? EdgeInsets.symmetric(
                 horizontal: layout.viewportWidth * slack,
                 vertical: widget.viewport.height * slack,
@@ -369,9 +391,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView> {
                   }
                   tiles.add(
                     Positioned(
-                      key: ValueKey(
-                        '$pageIndex/$rows.$row/$columns.$column',
-                      ),
+                      key: ValueKey('$pageIndex/$rows.$row/$columns.$column'),
                       left: tileLeft,
                       top: tileTop,
                       width: columnWidth,
@@ -422,7 +442,6 @@ class _ContinuousPdfTile extends StatefulWidget {
   final double renderScale;
 
   const _ContinuousPdfTile({
-    super.key,
     required this.session,
     required this.layout,
     required this.pageIndex,
