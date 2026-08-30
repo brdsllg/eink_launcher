@@ -127,7 +127,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
           ? ''
           : entry.name.substring(dotIndex).toLowerCase();
       final format = DocFormat.tryFromExtension(extension);
-      if (kReadableExtensions.contains(extension) && format == DocFormat.pdf) {
+      if (kReadableExtensions.contains(extension) && format != null) {
         final doc = await DocIdentityService.createDocRef(path);
         if (!mounted) return;
         await Navigator.of(context)

@@ -6,6 +6,7 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.BatteryManager
 import android.os.Build
 import androidx.core.content.FileProvider
@@ -99,19 +100,48 @@ class MainActivity : FlutterActivity() {
                 )
                 val openIntent = Intent(Intent.ACTION_VIEW).apply {
                     setDataAndType(uri, mimeType)
+                    addCategory(Intent.CATEGORY_DEFAULT)
                     clipData = ClipData.newRawUri("selected file", uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                val chooser = Intent.createChooser(openIntent, "Open with").apply {
+                val launchIntent = if (wouldLaunchConcreteActivity(openIntent)) {
+                    Intent.createChooser(openIntent, "Open with")
+                } else {
+                    openIntent
+                }.apply {
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                startActivity(chooser)
+                startActivity(launchIntent)
                 result.success(null)
             } catch (_: ActivityNotFoundException) {
                 result.error("no_app", "No app can open this file.", null)
             } catch (error: Exception) {
                 result.error("open_failed", error.message, null)
             }
+        }
+    }
+
+    /**
+     * True when Android resolved the intent to an actual handler rather than
+     * its resolver UI. In that case Open with must force a chooser to avoid
+     * immediately launching the default app.
+     */
+    private fun wouldLaunchConcreteActivity(intent: Intent): Boolean {
+        @Suppress("DEPRECATION")
+        val resolved = packageManager.resolveActivity(
+            intent,
+            PackageManager.MATCH_DEFAULT_ONLY,
+        ) ?: return false
+        @Suppress("DEPRECATION")
+        val candidates = packageManager.queryIntentActivities(
+            intent,
+            PackageManager.MATCH_DEFAULT_ONLY,
+        )
+        val resolvedActivity = resolved.activityInfo ?: return false
+        return candidates.any { candidate ->
+            val activity = candidate.activityInfo
+            activity.packageName == resolvedActivity.packageName &&
+                activity.name == resolvedActivity.name
         }
     }
 

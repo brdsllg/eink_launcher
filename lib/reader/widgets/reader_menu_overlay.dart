@@ -9,13 +9,14 @@ class ReaderMenuOverlay extends StatelessWidget {
   final ReaderSettings settings;
   final VoidCallback onCloseReader;
   final VoidCallback onDismiss;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
   final VoidCallback onJumpToPage;
-  final VoidCallback onCycleFitMode;
-  final VoidCallback onToggleCrop;
+  final ValueChanged<PdfFitMode> onSelectFitMode;
   final VoidCallback onToggleOrientation;
   final VoidCallback onOpenSettings;
+  final bool showPdfControls;
+  final VoidCallback? onOpenToc;
+  final VoidCallback? onJumpToPercent;
+  final double? percent;
 
   const ReaderMenuOverlay({
     super.key,
@@ -25,13 +26,14 @@ class ReaderMenuOverlay extends StatelessWidget {
     required this.settings,
     required this.onCloseReader,
     required this.onDismiss,
-    required this.onPrevious,
-    required this.onNext,
     required this.onJumpToPage,
-    required this.onCycleFitMode,
-    required this.onToggleCrop,
+    required this.onSelectFitMode,
     required this.onToggleOrientation,
     required this.onOpenSettings,
+    this.showPdfControls = true,
+    this.onOpenToc,
+    this.onJumpToPercent,
+    this.percent,
   });
 
   @override
@@ -89,77 +91,88 @@ class ReaderMenuOverlay extends StatelessWidget {
             border: const Border(
               top: BorderSide(color: Colors.black, width: 1.5),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _MenuButton(
-                  icon: Icons.chevron_left,
-                  label: 'Previous',
-                  onPressed: onPrevious,
-                ),
-                Expanded(
-                  child: TextButton(
-                    key: const Key('reader-page-jump-button'),
-                    onPressed: pageCount == 0 ? null : onJumpToPage,
-                    child: Text(
-                      pageCount == 0
-                          ? 'Page —'
-                          : 'Page ${currentPage + 1} of $pageCount',
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
+                Row(
+                  children: [
+                    if (onOpenToc != null)
+                      _MenuButton(
+                        key: const Key('reader-toc-button'),
+                        icon: Icons.list_alt,
+                        label: 'Contents',
+                        onPressed: onOpenToc!,
+                      ),
+                    Expanded(
+                      child: TextButton(
+                        key: const Key('reader-page-jump-button'),
+                        onPressed: pageCount == 0 ? null : onJumpToPage,
+                        child: Text(
+                          pageCount == 0
+                              ? 'Page —'
+                              : 'Page ${currentPage + 1} of $pageCount',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                        ),
+                      ),
                     ),
+                    if (onJumpToPercent != null)
+                      _MenuButton(
+                        key: const Key('reader-percent-jump-button'),
+                        icon: Icons.percent,
+                        label: percent == null
+                            ? 'Jump'
+                            : '${(percent! * 100).round()}%',
+                        onPressed: onJumpToPercent!,
+                      ),
+                    _MenuButton(
+                      icon: Icons.tune,
+                      label: 'Settings',
+                      onPressed: onOpenSettings,
+                    ),
+                  ],
+                ),
+                if (showPdfControls) ...[
+                  const Divider(height: 1, thickness: 1),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ModeButton(
+                          key: const Key('reader-fit-height-button'),
+                          icon: Icons.fit_screen,
+                          label: 'Height',
+                          selected: settings.fitMode == PdfFitMode.fitHeight,
+                          onPressed: () =>
+                              onSelectFitMode(PdfFitMode.fitHeight),
+                        ),
+                      ),
+                      Expanded(
+                        child: _ModeButton(
+                          key: const Key('reader-fit-width-button'),
+                          icon: Icons.swap_horiz,
+                          label: 'Width',
+                          selected: settings.fitMode == PdfFitMode.fitWidth,
+                          onPressed: () => onSelectFitMode(PdfFitMode.fitWidth),
+                        ),
+                      ),
+                      Expanded(
+                        child: _ModeButton(
+                          key: const Key('reader-zoom-scroll-button'),
+                          icon: Icons.zoom_in,
+                          label: 'Zoom / Scroll',
+                          selected: settings.fitMode == PdfFitMode.zoom,
+                          onPressed: () => onSelectFitMode(PdfFitMode.zoom),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                _MenuButton(
-                  icon: Icons.chevron_right,
-                  label: 'Next',
-                  onPressed: onNext,
-                ),
-                _MenuButton(
-                  key: const Key('reader-fit-mode-button'),
-                  icon: _fitIcon(settings.fitMode),
-                  label: _fitLabel(settings.fitMode),
-                  onPressed: onCycleFitMode,
-                ),
-                _MenuButton(
-                  key: const Key('reader-crop-button'),
-                  icon: Icons.crop,
-                  label: settings.autoCrop
-                      ? settings.fitMode == PdfFitMode.continuousScroll
-                            ? 'Uniform crop'
-                            : 'Crop on'
-                      : 'Crop off',
-                  onPressed: onToggleCrop,
-                ),
-                _MenuButton(
-                  icon: Icons.tune,
-                  label: 'Settings',
-                  onPressed: onOpenSettings,
-                ),
+                ],
               ],
             ),
           ),
         ),
       ],
     );
-  }
-
-  static IconData _fitIcon(PdfFitMode mode) {
-    return switch (mode) {
-      PdfFitMode.fitHeight => Icons.fit_screen,
-      PdfFitMode.fitWidth => Icons.swap_horiz,
-      PdfFitMode.continuousScroll => Icons.view_stream,
-      PdfFitMode.freeZoom => Icons.zoom_in,
-    };
-  }
-
-  static String _fitLabel(PdfFitMode mode) {
-    return switch (mode) {
-      PdfFitMode.fitHeight => 'Height',
-      PdfFitMode.fitWidth => 'Width',
-      PdfFitMode.continuousScroll => 'Scroll',
-      PdfFitMode.freeZoom => 'Zoom',
-    };
   }
 }
 
@@ -218,6 +231,49 @@ class _MenuButton extends StatelessWidget {
         children: [
           Icon(icon, size: 24),
           Text(label, style: const TextStyle(fontSize: 11)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  const _ModeButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: selected ? Colors.white : Colors.black,
+        backgroundColor: selected ? Colors.black : Colors.white,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 22),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
         ],
       ),
     );

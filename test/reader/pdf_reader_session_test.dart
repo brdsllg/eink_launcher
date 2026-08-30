@@ -8,7 +8,6 @@ import 'package:eink_launcher/reader/models/reading_position.dart';
 import 'package:eink_launcher/reader/services/book_store_service.dart';
 import 'package:eink_launcher/reader/services/pdf_crop_service.dart';
 import 'package:eink_launcher/reader/services/pdf_document_service.dart';
-import 'package:eink_launcher/reader/widgets/no_momentum_scroll_physics.dart';
 import 'package:eink_launcher/reader/widgets/pdf_page_view.dart' as reader;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -232,6 +231,27 @@ void main() {
   });
 
   test(
+    'renders at physical pixels while retaining logical viewport geometry',
+    () async {
+      final fakeDoc = _FakePdfDocument(
+        pageCount: 2,
+        pageWidth: 200,
+        pageHeight: 300,
+      );
+      final session = makeSession(fakeDoc: fakeDoc);
+      await session.open();
+
+      final image = await session.renderCurrentView(
+        const Size(200, 300),
+        devicePixelRatio: 2.5,
+      );
+
+      expect(image.width, 500);
+      expect(image.height, 750);
+    },
+  );
+
+  test(
     'continuous scroll maps offsets, dominant pages, and tap jumps',
     () async {
       final session = makeSession(
@@ -243,12 +263,19 @@ void main() {
       );
       await session.open();
       await session.applySettings(
-        session.settings.copyWith(fitMode: PdfFitMode.continuousScroll),
+        session.settings.copyWith(fitMode: PdfFitMode.zoom),
       );
       const viewport = Size(200, 300);
       final layout = await session.continuousLayoutForViewport(viewport);
 
       expect(layout.pageHeights, [300, 300, 300, 300]);
+      final image = await session.renderContinuousPage(
+        0,
+        layout,
+        devicePixelRatio: 2,
+      );
+      expect(image.width, 400);
+      expect(image.height, 600);
       session.updateContinuousScrollOffset(350, layout, viewport.height);
       final dragged = session.position as PdfReadingPosition;
       expect(dragged.pageIndex, 1);
@@ -260,13 +287,23 @@ void main() {
         layout,
         viewport.height,
       );
-      expect(afterNext, closeTo(632, 0.0001));
+      expect(afterNext, closeTo(650, 0.0001));
       expect(session.currentPage, 2);
 
       await session.prevPage();
       expect(
         session.continuousOffsetForPosition(layout, viewport.height),
         closeTo(350, 0.0001),
+      );
+
+      // At 2x zoom only half the base canvas height is visible, so tap
+      // navigation advances by that transformed viewport rather than by a
+      // fixed page or the Fit Width overlap preference.
+      session.updateContinuousScrollOffset(350, layout, 150);
+      await session.nextPage();
+      expect(
+        session.continuousOffsetForPosition(layout, 150),
+        closeTo(500, 0.0001),
       );
       expect(
         BookStoreService.instance.getBookState('doc-1')?.uniformPdfCrop,
@@ -275,7 +312,7 @@ void main() {
     },
   );
 
-  testWidgets('PDF presenter builds an exact no-momentum continuous list', (
+  testWidgets('zoom / scroll builds one continuous zoomable momentum surface', (
     tester,
   ) async {
     final session = makeSession(
@@ -283,7 +320,7 @@ void main() {
     );
     await session.open();
     await session.applySettings(
-      session.settings.copyWith(fitMode: PdfFitMode.continuousScroll),
+      session.settings.copyWith(fitMode: PdfFitMode.zoom),
     );
     await session.continuousLayoutForViewport(const Size(200, 300));
 
@@ -299,13 +336,14 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 20));
-
-    final list = tester.widget<ListView>(
-      find.byKey(const Key('continuous-pdf-list')),
+    final viewer = tester.widget<InteractiveViewer>(
+      find.byKey(const Key('continuous-pdf-viewer')),
     );
-    expect(list.itemExtentBuilder, isNotNull);
-    expect(list.physics, isA<NoMomentumScrollPhysics>());
+    expect(viewer.scaleEnabled, isTrue);
+    expect(viewer.panEnabled, isTrue);
+    expect(viewer.minScale, 1);
+    expect(viewer.maxScale, 5);
+    expect(viewer.onInteractionEnd, isNotNull);
     await tester.pumpWidget(const SizedBox.shrink());
     session.dispose();
     BookStoreService.instance.dispose();

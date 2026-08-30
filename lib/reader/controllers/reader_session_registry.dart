@@ -1,6 +1,7 @@
 import '../models/doc_ref.dart';
 import 'pdf_reader_session.dart';
 import 'reader_session.dart';
+import 'text_reader_session.dart';
 
 typedef ReaderSessionFactory = ReaderSession Function(DocRef doc);
 
@@ -38,9 +39,7 @@ class ReaderSessionRegistry {
       case DocFormat.epub:
       case DocFormat.txt:
       case DocFormat.markdown:
-        throw UnimplementedError(
-          '${doc.format.name} reader sessions arrive in a later phase.',
-        );
+        return TextReaderSession(doc: doc);
     }
   }
 

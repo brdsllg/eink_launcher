@@ -34,10 +34,9 @@ Route<T> noTransitionRoute<T>(Widget page) {
 /// File extensions opened by the built-in document reader.
 const Set<String> kReadableExtensions = {'.pdf', '.epub', '.txt', '.md'};
 
-/// Tap zone proportions across the viewport width for page turning & menu.
-const double kTapZoneEdgeWidthRatio = 0.30;
-const double kTapZoneCenterWidthRatio = 0.40;
-const double kTapZoneZoomEdgeRatio = 0.12;
+/// Three equal vertical tap zones: previous, menu, and next.
+const double kTapZoneEdgeWidthRatio = 1 / 3;
+const double kTapZoneCenterWidthRatio = 1 / 3;
 
 /// Default vertical sub-screen overlap for fit-width and continuous scroll tap-jump.
 const double kPdfDefaultSplitOverlap = 0.06;

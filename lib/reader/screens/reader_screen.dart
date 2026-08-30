@@ -7,18 +7,19 @@ import '../../constants.dart';
 import '../controllers/pdf_reader_session.dart';
 import '../controllers/reader_session.dart';
 import '../controllers/reader_session_registry.dart';
+import '../controllers/text_reader_session.dart';
 import '../models/doc_ref.dart';
 import '../models/reader_settings.dart';
 import '../services/book_store_service.dart';
 import '../widgets/pdf_page_view.dart';
 import '../widgets/reader_menu_overlay.dart';
 import '../widgets/tap_zone_layer.dart';
+import '../widgets/text_page_view.dart';
 import 'reader_settings_screen.dart';
+import 'reader_toc_screen.dart';
 
 /// Full-bleed, format-agnostic reader shell.
 ///
-/// Only [PdfReaderSession] has a page presenter in Phase 1. EPUB/TXT/Markdown
-/// continue to open externally until [TextReaderSession] lands in Phase 2.
 class ReaderScreen extends StatefulWidget {
   final DocRef doc;
   final ReaderSessionRegistry registry;
@@ -132,24 +133,15 @@ class _ReaderScreenState extends State<ReaderScreen>
     await _applyOrientation(settings.landscape);
   }
 
-  Future<void> _cycleFitMode() async {
-    final session = _session;
-    if (session == null) return;
-    final next = switch (session.settings.fitMode) {
-      PdfFitMode.fitHeight => PdfFitMode.fitWidth,
-      PdfFitMode.fitWidth => PdfFitMode.continuousScroll,
-      PdfFitMode.continuousScroll => PdfFitMode.freeZoom,
-      PdfFitMode.freeZoom => PdfFitMode.fitHeight,
-    };
-    await _applySettings(session.settings.copyWith(fitMode: next));
-  }
-
   Future<void> _openSettings() async {
     final session = _session;
     if (session == null) return;
     final settings = await Navigator.of(context).push<ReaderSettings>(
       noTransitionRoute(
-        ReaderSettingsScreen(initialSettings: session.settings),
+        ReaderSettingsScreen(
+          initialSettings: session.settings,
+          format: session.doc.format,
+        ),
       ),
     );
     if (settings != null && mounted) await _applySettings(settings);
@@ -199,6 +191,54 @@ class _ReaderScreenState extends State<ReaderScreen>
     );
   }
 
+  Future<void> _showPercentJump() async {
+    final session = _session;
+    if (session == null) return;
+    final controller = TextEditingController(
+      text: (session.percent * 100).round().toString(),
+    );
+    final percent = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Go to percent'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(
+            labelText: 'Percent (0–100)',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (value) =>
+              Navigator.of(context).pop(int.tryParse(value)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pop(int.tryParse(controller.text)),
+            child: const Text('Go'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (percent == null || !mounted) return;
+    await _navigate(() => session.goToPercent(percent.clamp(0, 100) / 100));
+  }
+
+  Future<void> _openToc() async {
+    final session = _session;
+    if (session == null || session.toc.isEmpty) return;
+    final entry = await Navigator.of(context)
+        .push(noTransitionRoute(ReaderTocScreen(entries: session.toc)));
+    if (entry != null && mounted) await _navigate(() => session.goToToc(entry));
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = _session;
@@ -233,21 +273,25 @@ class _ReaderScreenState extends State<ReaderScreen>
     if (!session.isReady) {
       return const Center(child: Text('Reader is paused'));
     }
-    if (session is! PdfReaderSession) {
+    if (session is! PdfReaderSession && session is! TextReaderSession) {
       return const _ErrorView(
         message: 'This document format is not implemented yet.',
       );
     }
 
+    final isPdf = session is PdfReaderSession;
+
     return Stack(
       fit: StackFit.expand,
       children: [
         TapZoneLayer(
-          zoomMode: session.settings.fitMode == PdfFitMode.freeZoom,
+          zoomMode: isPdf && session.settings.fitMode == PdfFitMode.zoom,
           onPrevious: () => _navigate(session.prevPage),
           onMenu: () => setState(() => _menuVisible = !_menuVisible),
           onNext: () => _navigate(session.nextPage),
-          child: PdfPageView(session: session),
+          child: isPdf
+              ? PdfPageView(session: session)
+              : TextPageView(session: session as TextReaderSession),
         ),
         if (_menuVisible)
           ReaderMenuOverlay(
@@ -257,17 +301,17 @@ class _ReaderScreenState extends State<ReaderScreen>
             settings: session.settings,
             onCloseReader: () => Navigator.of(context).pop(),
             onDismiss: () => setState(() => _menuVisible = false),
-            onPrevious: () => _navigate(session.prevPage),
-            onNext: () => _navigate(session.nextPage),
             onJumpToPage: _showPageJump,
-            onCycleFitMode: _cycleFitMode,
-            onToggleCrop: () => _applySettings(
-              session.settings.copyWith(autoCrop: !session.settings.autoCrop),
-            ),
+            onSelectFitMode: (fitMode) =>
+                _applySettings(session.settings.copyWith(fitMode: fitMode)),
             onToggleOrientation: () => _applySettings(
               session.settings.copyWith(landscape: !session.settings.landscape),
             ),
             onOpenSettings: _openSettings,
+            showPdfControls: isPdf,
+            onOpenToc: session.toc.isEmpty ? null : _openToc,
+            onJumpToPercent: _showPercentJump,
+            percent: session.percent,
           ),
       ],
     );

@@ -18,14 +18,14 @@ Native-asset build hooks are already active in this project's build pipeline.
 | Area | Decision |
 |---|---|
 | PDF engine | `pdfrx` (PDFium, MIT). Use the **document API**, not its viewer widget. |
-| EPUB engine | `epubx` for container/OPF/TOC parsing + `html` for XHTML + **our own paginator**. |
+| EPUB engine | Direct `archive` + `xml` container/OPF/TOC parsing + `html` for XHTML + **our own paginator**. (`epubx` conflicts with `pdfrx` through incompatible `image` versions.) |
 | Formats | PDF, EPUB, TXT, Markdown. No CBZ, no MOBI. |
 | Page turns | Invisible tap zones (left = back, right = forward, centre = menu) **+** swipe. |
 | RTL | Right side is **always** forward, in every book. Text itself is still bidi-correct. |
 | EPUB pagination | Exact: block packing with mid-paragraph splitting at real line boundaries. |
-| PDF display | Four modes, remembered **per document**: fit-height, fit-width (split into sub-screens), **continuous vertical scroll**, free pinch-zoom. |
-| PDF margins | Auto-crop **on by default**, per-document toggle. Per-page in the tap-driven modes; **document-uniform** in continuous scroll — see §4.1. |
-| Scroll physics | Momentum/fling **off by default** (drag moves, release stops). Tap zones still jump one screen. Momentum is a setting. |
+| PDF display | Three modes, remembered **per document**: fit-height, fit-width (split into sub-screens), and **Zoom / Scroll** (always continuous, pinch-zoomable, and momentum-enabled). |
+| PDF margins | Auto-crop is configurable in fit-height and fit-width. Zoom / Scroll always uses a **document-uniform** automatic crop and exposes no crop toggle — see §4.1. |
+| Scroll physics | Zoom / Scroll always has momentum/fling. Tap zones still jump one visible screen. There is no momentum setting. |
 | Reading chrome | None. Full-bleed page; centre tap reveals a menu overlay. |
 | Typography | Font size, line height, margins, justify + hyphenation, paragraph style, publisher-CSS toggle. |
 | Paragraph default | Blank-line spacing (not first-line indent). |
@@ -63,10 +63,10 @@ crop mode. Positions are *logical*:
 - PDF → `(pageIndex, withinPage)`, where `withinPage` is a fraction in `[0, 1)`
 - EPUB/TXT/MD → `(spineIndex, blockIndex, charOffset)`
 
-The PDF fraction is what lets all four view modes share one position type:
-fit-height always stores `0.0`; fit-width-split stores `0.0` or `~0.5`;
-continuous scroll stores wherever the viewport top actually sits; free-zoom
-stores the pan offset's vertical fraction. Because they agree on a
+The PDF fraction is what lets all three view modes share one position type:
+fit-height always stores `0.0`; fit-width-split stores `0.0` or `~0.5`; and
+Zoom / Scroll stores wherever the transformed viewport top actually sits.
+Because they agree on a
 representation, **switching view mode mid-document keeps your place** instead of
 dropping you at the top of the current page.
 
@@ -110,7 +110,7 @@ lib/
       page_bitmap_cache.dart              in-memory LRU of rendered PDF pages
       pdf_document_service.dart           pdfrx wrapper: open / render / outline
       pdf_crop_service.dart               ink-bbox detection (isolate)
-      epub_parser_service.dart            epubx wrapper → ParsedBook (isolate)
+      epub_parser_service.dart            archive/XML EPUB parser → ParsedBook (isolate)
       html_block_parser.dart              XHTML → List<ContentBlock> (isolate)
       text_block_parser.dart              .txt and .md → List<ContentBlock>
       bidi_service.dart                   per-block direction detection
@@ -131,7 +131,7 @@ lib/
     widgets/
       tap_zone_layer.dart                 invisible zones + swipe
       reader_menu_overlay.dart            in-book floating control overlay
-      pdf_page_view.dart                  single/split PDF page renderer
+      pdf_page_view.dart                  single/split and continuous zoom PDF renderer
       text_page_view.dart                 renders a LaidOutPage
       block_slice_view.dart               the clip-and-offset renderer
 assets/fonts/                             bundled Latin + Hebrew faces
@@ -144,8 +144,9 @@ assets/fonts/                             bundled Latin + Hebrew faces
 ```yaml
 dependencies:
   pdfrx: ^2.4.7          # PDFium, MIT. PdfDocument.openFile / PdfPage.render / outline
-  epubx: ^4.0.0          # EPUB container + OPF + NCX + nav parsing, MIT
+  archive: ^4.2.0        # EPUB ZIP container
   html: ^0.15.4          # XHTML → DOM
+  xml: ^6.5.0            # EPUB container, OPF and NCX documents
   markdown: ^7.2.2       # .md → HTML, then reuse the HTML block parser
   path_provider: ^2.1.4  # app documents dir for library.json
   crypto: ^3.0.5         # sha1 for docId
@@ -173,16 +174,17 @@ marks don't defeat the crop. Detection runs off the UI isolate; PDFium rendering
 stays *on* it — FFI handles are not safely shared across isolates. Crop rects are
 cached in memory and persisted per document as a compact array.
 
-Crop has **two strategies**, chosen by view mode, not by the user:
+Crop has **two strategies**, chosen by view mode:
 
-- *Per-page* (the tap-driven modes) — every page gets its own crop rect,
-  detected lazily as you reach it. Maximum text size on every page.
-- *Document-uniform* (continuous scroll) — sample ~10 pages spread through the
+- *Per-page* (fit-height and fit-width, when auto-crop is enabled) — every page
+  gets its own crop rect, detected lazily as you reach it. Maximum text size on
+  every page.
+- *Document-uniform* (Zoom / Scroll, always enabled) — sample ~10 pages spread through the
   document, take the union of their ink boxes, apply it everywhere. One cheap
   up-front pass, and page geometry is fully known before any rendering. See
   §4.1.1 for why continuous scroll requires this.
 
-**The four fit modes.**
+**The three fit modes.**
 
 - **fit-height** — the cropped page scaled to fit the screen height. One page =
   one screen. Simplest, unambiguous position.
@@ -190,15 +192,17 @@ Crop has **two strategies**, chosen by view mode, not by the user:
   taller than the screen, so it is split into `ceil(h / screenH)` sub-screens
   (usually 2) with a **6 % overlap** by default, so a line straddling the split is
   fully readable in both halves.
-- **continuous scroll** — one uninterrupted vertical strip of pages at
-  fit-width. See §4.1.1.
-- **free-zoom** — `InteractiveViewer` over a higher-resolution render. Tap zones
-  shrink to 12 %-width screen *edges* so the middle stays free for panning.
+- **Zoom / Scroll** — one uninterrupted vertical strip of pages at fit-width,
+  hosted by `InteractiveViewer.builder` so it always supports pinch zoom,
+  two-axis panning, and momentum. Tap zones shrink to 12 %-width screen *edges*
+  so the middle stays free for gestures. See §4.1.1.
 
-#### 4.1.1 Continuous scroll mode
+#### 4.1.1 Zoom / Scroll mode
 
-A `ListView.builder` of variable-height page tiles inside a `CustomScrollView`,
-each tile sized to `screenWidth × (croppedAspect × screenWidth)`.
+An `InteractiveViewer.builder` presents one exact-size continuous document
+canvas. Its builder uses the current transformed viewport to construct only the
+nearby page tiles; each base tile is sized to
+`screenWidth × (croppedAspect × screenWidth)`.
 
 **Why this mode forces uniform crop.** A scrollable needs each tile's extent
 before it can compute total scroll extent and honour `jumpTo`. Per-page crop
@@ -207,43 +211,32 @@ the tile heights would keep changing as you scrolled — the content under your
 finger would shift and the scrollbar would lurch. Uniform crop makes every tile
 height derivable from `PdfPage.width/height` (which pdfrx exposes from the
 document structure without rendering anything) times one shared crop ratio. So
-in continuous mode, crop becomes document-uniform automatically, and the reader
-menu says so rather than silently changing behaviour.
+in Zoom / Scroll, crop becomes document-uniform automatically and no crop
+control is shown for that mode.
 
-**Exact extents.** With heights known up front, use `ListView.builder`'s
-`itemExtentBuilder` to return each page's height. That gives an exact total
-scroll extent, no estimation, no jumping, and O(1) `jumpTo` for any page — which
-is what makes TOC navigation and jump-to-page work correctly in this mode.
+**Exact extents.** With heights known up front, a cumulative offsets table gives
+the canvas its exact total height and maps logical positions directly to
+transforms. There is no estimated scroll extent or layout shift, and TOC,
+page, and percent jumps land deterministically.
 
-**Physics — the important part for e-ink.** Fling scrolling is the single worst
-thing you can do to an e-ink panel: dozens of full-frame repaints chasing a
-decaying velocity, each one ghosting over the last. So the default is a custom
-`ScrollPhysics` subclass that overrides `createBallisticSimulation` to return
-`null`: dragging moves the page, releasing stops it dead. No momentum, no
-overscroll bounce. Momentum is available as a setting for anyone who wants it,
-off by default.
+**Physics.** `InteractiveViewer` owns both pinch and pan gesture recognition and
+uses its inertial interaction-end behavior. Momentum is always enabled and is
+not user-configurable, so Zoom / Scroll behaves consistently every time it is
+selected.
 
-**Tap zones still work.** Left/right taps `jumpTo` one viewport height minus the
-6 % overlap — never `animateTo`, which would smooth-scroll and reintroduce
-exactly the repaint storm we just eliminated. Centre still toggles the menu. So
-this mode gives you the page-turn rhythm you already have *plus* free dragging
-when a figure or table straddles a boundary, which is the actual reason to want
-continuous scroll.
+**Tap zones still work.** Left/right taps move by one currently visible viewport
+height. The fit-width overlap setting does not apply here and is only shown when
+Fit Width is selected. Centre still toggles the menu.
 
-**Tile rendering.** Render requests are queued for the visible tiles ± 2, and
-cancelled when a tile scrolls out of the window. A tile with no bitmap yet paints
-a plain white box of the correct size — never a spinner, since spinners animate.
-Because extents are known, an unrendered tile costs nothing and leaves layout
-untouched, so nothing shifts when its bitmap arrives.
+**Tile rendering.** The builder constructs visible tiles plus one visible span
+of look-ahead in each direction. A tile with no bitmap yet paints a plain white
+box of the correct size — never a spinner, since spinners animate. Because
+extents are known, nothing shifts when its bitmap arrives. Render scale is
+quantised as zoom changes and remains capped by the shared 2048 px ceiling.
 
 **Current page.** In this mode "current page" is whichever page occupies the most
 viewport area, computed from the scroll offset against the cumulative height
 table. That feeds the menu overlay, percent-read, and position persistence.
-
-**Scope boundary:** continuous scroll is fit-width only, with no pinch-zoom.
-Combining a nested scrollable with an `InteractiveViewer` means two-axis panning
-and gesture-arena conflicts for very little gain — free-zoom mode already covers
-"I need to magnify this one page".
 
 **Resolution and memory.** Render at native device pixels, capped at 2048 px on
 the long edge. One page at ~1264×1680 RGBA ≈ 8.5 MB, so the LRU cache holds 3–5
@@ -253,7 +246,7 @@ background — this is what makes turns feel instant on e-ink.
 ### 4.2 EPUB / TXT / Markdown
 
 ```
-.epub → epubx        → spine items (HTML strings) + resources + TOC
+.epub → archive+xml  → spine items (HTML strings) + resources + TOC
 .md   → markdown pkg → HTML                        ┐
 .txt  → blank-line split                           ┴→ same block parser
   → html pkg DOM walk → List<ContentBlock>          isolate, per chapter
@@ -318,10 +311,9 @@ class ReaderSettings {
   bool   honorPublisherCss;    // default true — safe subset
 
   // pdf
-  PdfFitMode fitMode;          // fitHeight | fitWidth | continuousScroll | freeZoom
-  bool   autoCrop;             // default true
-  double splitOverlap;         // default 0.06 — also the tap-jump overlap in scroll mode
-  bool   scrollMomentum;       // default false — fling is brutal on e-ink
+  PdfFitMode fitMode;          // fitHeight | fitWidth | zoom
+  bool   autoCrop;             // default true; fitHeight / fitWidth only
+  double splitOverlap;         // default 0.06; fitWidth only
 
   // shared
   bool   landscape;            // manual toggle only
@@ -335,7 +327,7 @@ class ReaderSettings {
 
 | File | Change |
 |---|---|
-| `pubspec.yaml` | Add dependencies (`pdfrx`, `epubx`, `html`, `markdown`, `path_provider`, `crypto`, `hyphenatorx`); declare fonts assets. |
+| `pubspec.yaml` | Add dependencies (`pdfrx`, `archive`, `xml`, `html`, `markdown`, `path_provider`, `crypto`, `hyphenatorx`); declare fonts assets. |
 | `lib/main.dart` | `await pdfrxFlutterInitialize()` after `ensureInitialized()`. |
 | `lib/constants.dart` | Add `kReadableExtensions`, tap zone ratios, font size tables, crop constants. |
 | `lib/screens/file_browser_screen.dart` | Intercept readable files on tap → push `ReaderScreen`; add "Open with…" in selection bar. |
@@ -393,7 +385,7 @@ class ReaderSettings {
 
 - [x] **Step 1.5: UI Layer (Tap Zones, Menu, PDF View)**
   - Create `lib/reader/widgets/tap_zone_layer.dart` (30% left / 40% centre / 30% right zones + swipe handling).
-  - Create `lib/reader/widgets/pdf_page_view.dart` (handles fit-height, fit-width sub-screen slices, and free-zoom `InteractiveViewer`).
+  - Create `lib/reader/widgets/pdf_page_view.dart` (handles fit-height, fit-width sub-screen slices, and continuous pinch-zoom `InteractiveViewer.builder`).
   - Create `lib/reader/widgets/reader_menu_overlay.dart` (top/bottom bars: page jump, fit mode toggle, crop toggle, rotation, settings entry).
   - Create `lib/reader/screens/reader_settings_screen.dart` (discrete buttons for settings).
 
@@ -401,10 +393,10 @@ class ReaderSettings {
   - Create `lib/reader/screens/reader_screen.dart` (format-agnostic host with lifecycle-observer position saving).
   - Handle manual landscape/portrait orientation locking.
 
-- [ ] **Step 1.7: Wire File Browser Integration**
+- [x] **Step 1.7: Wire File Browser Integration**
   - Update `lib/screens/file_browser_screen.dart`:
     - [x] On PDF tap, push `ReaderScreen` via `noTransitionRoute`.
-    - [ ] Route EPUB/TXT/Markdown internally after `TextReaderSession` exists; until then they continue through Android rather than opening a non-functional reader.
+    - [x] Route EPUB/TXT/Markdown internally through the shared `TextReaderSession`.
     - [x] In the selection action bar, provide "Open with…" for one selected file through the native chooser bridge.
   - Update `lib/controllers/file_browser_controller.dart` if needed.
 
@@ -413,34 +405,35 @@ class ReaderSettings {
 
 ---
 
-### Phase 1b — Continuous Scroll Mode (PDF)
-**Objective:** Add continuous vertical scrolling without unneeded screen churn or layout shifts.
+### Phase 1b — Zoom / Scroll Mode (PDF)
+**Objective:** Add one continuous, pinch-zoomable, momentum-enabled PDF surface without layout shifts.
 
 - [x] **Step 1b.1: Uniform Crop & Cumulative Heights Table**
   - Extend `pdf_crop_service.dart` with document-uniform crop sampling (~10 sample pages).
   - Add cumulative height table calculation to `pdf_reader_session.dart`.
-  - Add `NoMomentumScrollPhysics` (stops dead on release, no ballistic deceleration).
 
-- [x] **Step 1b.2: Scrollable PDF View**
-  - Implement continuous scroll branch in `pdf_page_view.dart` using the `CustomScrollView`-backed `ListView.builder` with `itemExtentBuilder`.
-  - Wire tap zones to jump one viewport height minus overlap.
+- [x] **Step 1b.2: Continuous Zoomable PDF View**
+  - Implement Zoom / Scroll in `pdf_page_view.dart` with `InteractiveViewer.builder` and viewport-driven lazy tiles.
+  - Keep pinch zoom, two-axis pan, continuous pages, and momentum permanently enabled.
+  - Wire tap zones to jump one currently visible viewport height.
   - Map scroll offset ↔ `PdfReadingPosition` bidirectionally.
+  - Force document-uniform auto-crop; remove page-flow and momentum settings; show overlap only for Fit Width.
 
 - [ ] **Step 1b.3: Phase 1b Verification**
-  - [x] Automated coverage for exact extents, offset/position mapping, dominant-page selection, uniform crop sampling, no-momentum physics, and continuous-list construction.
-  - Verify continuous mode on device: dragging stops without momentum ghosting, tap jumps exactly one screen, TOC/percent jumps land accurately, switching fit modes preserves position.
+  - [x] Automated coverage for exact extents, offset/position mapping, dominant-page selection, uniform crop sampling, fixed settings invariants, and continuous zoom-surface construction.
+  - Verify Zoom / Scroll on device: pinch zoom, two-axis pan and momentum all work; tap jumps exactly one visible screen; TOC/percent jumps land accurately; switching fit modes preserves position.
 
 ---
 
 ### Phase 2 — EPUB Engine & Exact Pagination
 **Objective:** High-performance EPUB parsing, bidi paragraph layout, and text pagination.
 
-- [ ] **Step 2.1: Dependencies & Font Assets**
-  - Add `epubx: ^4.0.0`, `html: ^0.15.4`, `hyphenatorx: ^1.0.0` to `pubspec.yaml`.
+- [x] **Step 2.1: Dependencies & Font Assets**
+  - Add `archive: ^4.2.0`, `xml: ^6.5.0`, `html: ^0.15.4`, and `hyphenatorx: ^1.0.0` to `pubspec.yaml`. `epubx` was evaluated and replaced with the documented fallback because its `image` 3.x constraint conflicts with `pdfrx_engine`'s `image` 4.x constraint.
   - Bundle fonts in `assets/fonts/` (Literata, EB Garamond, Inter, Frank Ruhl Libre, Noto Serif Hebrew, Heebo).
   - Declare font families in `pubspec.yaml`.
 
-- [ ] **Step 2.2: Block Model & Parsing Services**
+- [x] **Step 2.2: Block Model & Parsing Services**
   - Create `lib/reader/models/content_block.dart` (`ContentBlock`, `InlineRun`, `BlockType`).
   - Create `lib/reader/models/laid_out_page.dart` (`LaidOutPage`, `BlockSlice`).
   - Create `lib/reader/models/parsed_book.dart`.
@@ -449,39 +442,45 @@ class ReaderSettings {
   - Create `lib/reader/services/html_block_parser.dart` (isolate-backed XHTML DOM walk).
   - Create `lib/reader/services/epub_parser_service.dart` (container, manifest, spine extraction).
   - Add unit tests for parser and bidi logic in `test/reader/`.
+  - Implemented EPUB 3 nav and EPUB 2 NCX hierarchy extraction, anchor-to-logical-position mapping, safe inline publisher styling, resource collection, and malformed-container errors.
 
-- [ ] **Step 2.3: Paginator & Disk Cache**
+- [x] **Step 2.3: Paginator & Disk Cache**
   - Create `lib/reader/services/pagination_cache_service.dart` (keyed by docId, spineIndex, geometry, typography).
   - Create `lib/reader/services/epub_paginator_service.dart`:
     - Immediate UI-isolate pagination for current chapter.
     - Progressive time-sliced background pagination for remaining chapters.
     - Widow/orphan line handling.
   - Add paginator unit tests in `test/reader/epub_paginator_service_test.dart`.
+  - Implemented real `TextPainter` line boundaries, stable soft-hyphen source offsets, two-line widow/orphan protection, priority-chapter pagination, progressive yielding, and atomic per-chapter disk caching. Cache keys retain fractional viewport geometry and cache writes use independent temporary files.
 
-- [ ] **Step 2.4: Text Session Controller & Widgets**
+- [x] **Step 2.4: Text Session Controller & Widgets**
   - Create `lib/reader/controllers/text_reader_session.dart`.
   - Create `lib/reader/widgets/block_slice_view.dart` (clip-and-translate slice renderer).
   - Create `lib/reader/widgets/text_page_view.dart` (renders `LaidOutPage`).
+  - Preserve pending TOC/percent targets and logical spine ordering while chapters are still being paginated; cover session progression and the slice renderer with regression tests.
 
-- [ ] **Step 2.5: Typography Settings UI**
+- [x] **Step 2.5: Typography Settings UI**
   - Wire font picker, font size steps, line spacing, margins, justification, hyphenation, and paragraph mode into `reader_settings_screen.dart`.
 
 - [ ] **Step 2.6: Phase 2 Verification**
-  - Verify on device: open English, Hebrew, and mixed bilingual EPUBs; verify paragraph directions, font rendering, flawless page splits without clipped lines, and fast resize re-pagination.
+  - [x] Automated bilingual coverage parses English, Hebrew-with-nikud, and both LTR-first/RTL-first mixed paragraphs; verifies direction, real line-boundary slice coverage, no height overflow, and portrait/landscape re-pagination.
+  - [x] Load and lay out every bundled Latin/Hebrew font asset in Flutter tests; confirm all nine font files are packaged in a successful release APK.
+  - [x] Verify viewport resize keeps the previous logical text anchor within the newly laid-out page.
+  - [ ] On the Bigme B751C: open representative English, Hebrew, and mixed bilingual EPUBs; visually confirm glyph/font quality, no clipped lines, responsive resize, and acceptable e-ink page-turn behaviour. No Android device was attached during the automated 2026-08-30 verification run.
 
 ---
 
 ### Phase 3 — Plain Text & Markdown Support
 **Objective:** Support `.txt` and `.md` using the unified text pipeline.
 
-- [ ] **Step 3.1: Dependencies & Text Block Parser**
+- [x] **Step 3.1: Dependencies & Text Block Parser**
   - Add `markdown: ^7.2.2` to `pubspec.yaml`.
   - Create `lib/reader/services/text_block_parser.dart`:
     - Encoding detection (UTF-8, UTF-16, Windows-1255 for Hebrew).
     - Plain text blank-line paragraph chunking.
     - Markdown → HTML conversion → `html_block_parser`.
 
-- [ ] **Step 3.2: Integrate into Text Session**
+- [x] **Step 3.2: Integrate into Text Session**
   - Wire `.txt` and `.md` formats into `TextReaderSession` and `DocIdentityService`.
   - Ensure character offset tracking and persistence match EPUB.
 
@@ -493,12 +492,12 @@ class ReaderSettings {
 ### Phase 4 — Navigation, Bookmarks & In-Book Search
 **Objective:** Rich in-document navigation for all formats.
 
-- [ ] **Step 4.1: Table of Contents Screen**
+- [x] **Step 4.1: Table of Contents Screen**
   - Create `lib/reader/screens/reader_toc_screen.dart`.
   - Wire EPUB NCX/nav hierarchy and PDF outline into TOC screen.
   - Implement direct jump from TOC entries in both PDF and Text sessions.
 
-- [ ] **Step 4.2: Page & Percent Jump Dialogs**
+- [x] **Step 4.2: Page & Percent Jump Dialogs**
   - Add discrete number-input jump-to-page dialog.
   - Add percent jump slider/buttons to menu overlay.
 
@@ -519,7 +518,7 @@ class ReaderSettings {
 **Objective:** Final hardening, memory management, and display tuning.
 - [ ] **Step 5.1: Error Boundaries & Fallback UI**
   - Handle corrupt PDFs, malformed EPUBs, missing files, and memory warnings gracefully.
-- [ ] **Step 5.2: Update Documentation & Tests**
+- [x] **Step 5.2: Update Documentation & Tests**
   - Update `README.md` with new file listings and architectural details.
   - Run full test suite (`flutter test`, `flutter analyze`).
 
@@ -531,7 +530,10 @@ class ReaderSettings {
 - `book_store_service_test.dart` — JSON round-trip; atomic write robustness; corrupt file recovery.
 - `bidi_service_test.dart` — English, Hebrew, Hebrew-with-nikud, mixed RTL/LTR, numbers, punctuation.
 - `html_block_parser_test.dart` — nested lists, blockquotes, inline tags, images, safe CSS filtering.
+- `epub_parser_service_test.dart` — EPUB metadata, spine, resources, nav hierarchy, logical anchors, malformed containers.
+- `hyphenation_service_test.dart` — Latin soft-hyphen insertion without modifying Hebrew or inline styling.
 - `epub_paginator_service_test.dart` — block packing, line splits, widow/orphan protection.
+- `phase2_verification_test.dart` — bundled fonts, bilingual directions, exact portrait/landscape slice coverage, and re-pagination timing.
 - `pdf_crop_service_test.dart` — bbox bounding math, noise filtering, uniform crop sampling.
 - `reading_position_test.dart` — JSON round-trips, cross-view-mode conversion consistency.
 - `continuous_scroll_test.dart` — offset-to-page and page-to-offset mapping correctness.
@@ -541,7 +543,7 @@ class ReaderSettings {
 
 ## 10. Known risks & Mitigations
 
-1. **`epubx` staleness:** Validate against real library in Phase 2 Step 2.1. Fallback: custom 300-line `archive` + `xml` parser.
+1. **`epubx` dependency conflict (resolved):** Phase 2 validation found incompatible transitive `image` constraints with `pdfrx`; the direct `archive` + `xml` fallback is implemented and covered by an in-memory EPUB fixture.
 2. **UI-isolate pagination load:** Mitigated via current-chapter priority pagination + progressive frame slicing + disk caching.
 3. **Hebrew fonts & nikud:** Multiple bundled OFL fonts selectable per-book.
 4. **Memory pressure:** Hard 4-session cap + LRU bitmap cache (25–40MB max) + session suspend contract.

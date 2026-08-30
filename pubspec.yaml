@@ -41,6 +41,11 @@ dependencies:
   pdfrx: ^2.4.7
   path_provider: ^2.1.4
   crypto: ^3.0.5
+  archive: ^4.2.0
+  html: ^0.15.4
+  hyphenatorx: ^1.0.0
+  xml: ^6.5.0
+  markdown: ^7.2.2
 
 dev_dependencies:
   flutter_test:
@@ -63,6 +68,32 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  fonts:
+    - family: Literata
+      fonts:
+        - asset: assets/fonts/Literata-Regular.ttf
+        - asset: assets/fonts/Literata-Italic.ttf
+          style: italic
+    - family: EB Garamond
+      fonts:
+        - asset: assets/fonts/EBGaramond-Regular.ttf
+        - asset: assets/fonts/EBGaramond-Italic.ttf
+          style: italic
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Italic.ttf
+          style: italic
+    - family: Frank Ruhl Libre
+      fonts:
+        - asset: assets/fonts/FrankRuhlLibre-Regular.ttf
+    - family: Noto Serif Hebrew
+      fonts:
+        - asset: assets/fonts/NotoSerifHebrew-Regular.ttf
+    - family: Heebo
+      fonts:
+        - asset: assets/fonts/Heebo-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

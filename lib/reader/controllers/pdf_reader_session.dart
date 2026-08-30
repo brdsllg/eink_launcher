@@ -26,9 +26,9 @@ typedef PdfDocumentServiceFactory = PdfDocumentService Function(String path);
 /// Owns a [PdfDocumentService] (native PDFium handle), a [PageBitmapCache]
 /// (rendered page bitmaps), and a [PdfCropService] (auto-crop detection).
 /// Position is tracked as `(pageIndex, withinPage)` per READER_PLAN.md §1.B:
-/// `withinPage` is `0.0` in fit-height and free-zoom, and the sub-screen's
-/// vertical start fraction in fit-width — this is what lets switching fit
-/// mode mid-document keep your place.
+/// `withinPage` is `0.0` in fit-height, the sub-screen's vertical start
+/// fraction in fit-width, and the transformed viewport-top fraction in
+/// Zoom / Scroll. This lets switching fit mode keep your place.
 class PdfReaderSession extends ReaderSession {
   @override
   final DocRef doc;
@@ -53,10 +53,12 @@ class PdfReaderSession extends ReaderSession {
   PdfCropRect? _uniformCropRect;
   PdfContinuousLayout? _continuousLayout;
   int? _continuousCurrentPage;
+  double? _continuousViewportHeight;
 
   /// Last viewport size reported by the reader widget (Step 1.5). Sub-screen
   /// math and prefetching are no-ops until this is known.
   Size? _lastViewport;
+  double _lastDevicePixelRatio = 1.0;
 
   PdfReaderSession({
     required this.doc,
@@ -82,9 +84,8 @@ class PdfReaderSession extends ReaderSession {
   int get pageCount => _pageCount;
 
   @override
-  int get currentPage => _settings.fitMode == PdfFitMode.continuousScroll
-      ? _continuousCurrentPage ?? _pageIndex
-      : _pageIndex;
+  int get currentPage =>
+      _isContinuous ? _continuousCurrentPage ?? _pageIndex : _pageIndex;
 
   @override
   double get percent => _pageCount == 0
@@ -100,6 +101,8 @@ class PdfReaderSession extends ReaderSession {
 
   @override
   ReaderSettings get settings => _settings;
+
+  bool get _isContinuous => _settings.fitMode == PdfFitMode.zoom;
 
   // ---------------------------------------------------------------------
   // Lifecycle
@@ -165,9 +168,9 @@ class PdfReaderSession extends ReaderSession {
   Future<void> nextPage() async {
     if (!_isReady) return;
     final viewport = _lastViewport;
-    if (_settings.fitMode == PdfFitMode.continuousScroll) {
+    if (_isContinuous) {
       if (viewport != null && _continuousLayout != null) {
-        _moveContinuousViewport(viewport.height * (1 - _settings.splitOverlap));
+        _moveContinuousViewport(_continuousViewportHeight ?? viewport.height);
       }
       return;
     }
@@ -190,10 +193,10 @@ class PdfReaderSession extends ReaderSession {
   Future<void> prevPage() async {
     if (!_isReady) return;
     final viewport = _lastViewport;
-    if (_settings.fitMode == PdfFitMode.continuousScroll) {
+    if (_isContinuous) {
       if (viewport != null && _continuousLayout != null) {
         _moveContinuousViewport(
-          -viewport.height * (1 - _settings.splitOverlap),
+          -(_continuousViewportHeight ?? viewport.height),
         );
       }
       return;
@@ -254,10 +257,10 @@ class PdfReaderSession extends ReaderSession {
   Future<void> applySettings(ReaderSettings settings) async {
     final oldSettings = _settings;
     _settings = settings;
-    if (oldSettings.autoCrop != settings.autoCrop) {
+    if (oldSettings.fitMode != settings.fitMode) {
       _continuousLayout = null;
     }
-    if (settings.fitMode == PdfFitMode.continuousScroll) {
+    if (settings.fitMode == PdfFitMode.zoom) {
       _continuousCurrentPage ??= _pageIndex;
     } else {
       _continuousCurrentPage = null;
@@ -269,9 +272,13 @@ class PdfReaderSession extends ReaderSession {
   /// Reports the current render viewport so sub-screen math and prefetch
   /// have something to work with. Called by the reader widget (Step 1.5) on
   /// every layout; cheap to call repeatedly since it no-ops when unchanged.
-  void updateViewport(Size size) {
-    if (size == _lastViewport) return;
+  void updateViewport(Size size, {double? devicePixelRatio}) {
     _lastViewport = size;
+    if (devicePixelRatio != null &&
+        devicePixelRatio.isFinite &&
+        devicePixelRatio > 0) {
+      _lastDevicePixelRatio = devicePixelRatio;
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -286,9 +293,9 @@ class PdfReaderSession extends ReaderSession {
     final cached = _continuousLayout;
     if (cached != null && cached.viewportWidth == viewport.width) return cached;
 
-    final crop = _settings.autoCrop
-        ? await _resolveUniformCropRect()
-        : PdfCropRect.fullPage;
+    // Zoom / scroll always uses one stable document-wide crop. A per-page or
+    // user-disabled crop would change page geometry while panning.
+    final crop = await _resolveUniformCropRect();
     final pageSizes = List<Size>.generate(_pageCount, (pageIndex) {
       final info = _documentService!.pageInfo(pageIndex);
       return Size(info.width, info.height);
@@ -300,6 +307,7 @@ class PdfReaderSession extends ReaderSession {
       cropHeight: crop.height,
     );
     _continuousLayout = layout;
+    _continuousViewportHeight = viewport.height;
     _continuousCurrentPage = layout.dominantPage(
       layout.offsetForPosition(
         position as PdfReadingPosition,
@@ -328,7 +336,8 @@ class PdfReaderSession extends ReaderSession {
     PdfContinuousLayout layout,
     double viewportHeight,
   ) {
-    if (_settings.fitMode != PdfFitMode.continuousScroll) return;
+    if (!_isContinuous) return;
+    _continuousViewportHeight = viewportHeight;
     final logical = layout.positionForOffset(offset);
     final dominant = layout.dominantPage(offset, viewportHeight);
     final pageChanged = dominant != _continuousCurrentPage;
@@ -343,14 +352,15 @@ class PdfReaderSession extends ReaderSession {
     final layout = _continuousLayout;
     final viewport = _lastViewport;
     if (layout == null || viewport == null) return;
-    final current = continuousOffsetForPosition(layout, viewport.height);
+    final visibleHeight = _continuousViewportHeight ?? viewport.height;
+    final current = continuousOffsetForPosition(layout, visibleHeight);
     final target = (current + delta)
-        .clamp(0.0, layout.maxScrollOffset(viewport.height))
+        .clamp(0.0, layout.maxScrollOffset(visibleHeight))
         .toDouble();
     final logical = layout.positionForOffset(target);
     _pageIndex = logical.pageIndex;
     _withinPage = logical.withinPage;
-    _continuousCurrentPage = layout.dominantPage(target, viewport.height);
+    _continuousCurrentPage = layout.dominantPage(target, visibleHeight);
     _afterPositionChanged();
   }
 
@@ -362,26 +372,34 @@ class PdfReaderSession extends ReaderSession {
   /// [viewport]. This is the render pipeline the dedicated `pdf_page_view.dart`
   /// widget (Step 1.5) is expected to call; the session owns the fit-mode
   /// geometry and crop resolution so that widget stays a thin presenter.
-  Future<Image> renderCurrentView(Size viewport) async {
+  Future<Image> renderCurrentView(
+    Size viewport, {
+    double devicePixelRatio = 1.0,
+  }) async {
     if (!_isReady) {
       throw StateError('Cannot render: session for ${doc.title} is not ready');
     }
-    updateViewport(viewport);
-    return _renderPageAt(_pageIndex, _withinPage, viewport);
+    updateViewport(viewport, devicePixelRatio: devicePixelRatio);
+    return _renderPageAt(
+      _pageIndex,
+      _withinPage,
+      viewport,
+      devicePixelRatio: devicePixelRatio,
+    );
   }
 
   Future<Image> renderContinuousPage(
     int pageIndex,
-    PdfContinuousLayout layout,
-  ) async {
-    if (!_isReady || _settings.fitMode != PdfFitMode.continuousScroll) {
+    PdfContinuousLayout layout, {
+    double devicePixelRatio = 1.0,
+  }) async {
+    if (!_isReady || !_isContinuous) {
       throw StateError('Continuous PDF rendering is not active');
     }
-    final crop = _settings.autoCrop
-        ? await _resolveUniformCropRect()
-        : PdfCropRect.fullPage;
-    final pixelWidth = layout.viewportWidth.round();
-    final pixelHeight = layout.pageHeights[pageIndex].round();
+    final crop = await _resolveUniformCropRect();
+    final pixelWidth = (layout.viewportWidth * devicePixelRatio).round();
+    final pixelHeight = (layout.pageHeights[pageIndex] * devicePixelRatio)
+        .round();
     final key = PdfBitmapCacheKey(
       pageIndex: pageIndex,
       pixelWidth: pixelWidth,
@@ -406,11 +424,18 @@ class PdfReaderSession extends ReaderSession {
   Future<Image> _renderPageAt(
     int pageIndex,
     double withinPage,
-    Size viewport,
-  ) async {
+    Size viewport, {
+    double devicePixelRatio = 1.0,
+  }) async {
     final crop = await _resolveCropRect(pageIndex);
     final info = _documentService!.pageInfo(pageIndex);
-    final geometry = _geometryFor(info, crop, viewport, withinPage);
+    final geometry = _geometryFor(
+      info,
+      crop,
+      viewport,
+      withinPage,
+      devicePixelRatio,
+    );
 
     final key = PdfBitmapCacheKey(
       pageIndex: pageIndex,
@@ -444,16 +469,17 @@ class PdfReaderSession extends ReaderSession {
     PdfCropRect crop,
     Size viewport,
     double withinPage,
+    double devicePixelRatio,
   ) {
     final croppedWidth = info.width * crop.width;
     final croppedHeight = info.height * crop.height;
 
     switch (_settings.fitMode) {
       case PdfFitMode.fitHeight:
-      case PdfFitMode.continuousScroll:
-        final pixelHeight = viewport.height.round();
-        final pixelWidth = (viewport.height * croppedWidth / croppedHeight)
-            .round();
+        final pixelHeight = (viewport.height * devicePixelRatio).round();
+        final pixelWidth =
+            (viewport.height * croppedWidth / croppedHeight * devicePixelRatio)
+                .round();
         return (pixelWidth: pixelWidth, pixelHeight: pixelHeight, crop: crop);
 
       case PdfFitMode.fitWidth:
@@ -479,12 +505,12 @@ class PdfReaderSession extends ReaderSession {
           bottom: bottom,
         );
         return (
-          pixelWidth: viewport.width.round(),
-          pixelHeight: viewport.height.round(),
+          pixelWidth: (viewport.width * devicePixelRatio).round(),
+          pixelHeight: (viewport.height * devicePixelRatio).round(),
           crop: subCrop,
         );
 
-      case PdfFitMode.freeZoom:
+      case PdfFitMode.zoom:
         // Base render for InteractiveViewer (Step 1.5) to scale further; go
         // as large as the shared render ceiling allows.
         final aspect = croppedWidth / croppedHeight;
@@ -558,7 +584,6 @@ class PdfReaderSession extends ReaderSession {
   }
 
   Future<PdfCropRect> _resolveUniformCropRect() async {
-    if (!_settings.autoCrop) return PdfCropRect.fullPage;
     final cached = _uniformCropRect;
     if (cached != null) return cached;
     final detected = await _cropService.detectDocumentCrop(
@@ -575,7 +600,7 @@ class PdfReaderSession extends ReaderSession {
   // ---------------------------------------------------------------------
 
   void _prefetchNeighbors() {
-    if (_settings.fitMode == PdfFitMode.continuousScroll) return;
+    if (_isContinuous) return;
     unawaited(_prefetchPage(_pageIndex + 1));
     unawaited(_prefetchPage(_pageIndex - 1));
   }
@@ -585,7 +610,12 @@ class PdfReaderSession extends ReaderSession {
     if (viewport == null || pageIndex < 0 || pageIndex >= _pageCount) return;
     if (!_isReady || _isSuspended) return;
     try {
-      await _renderPageAt(pageIndex, 0.0, viewport);
+      await _renderPageAt(
+        pageIndex,
+        0.0,
+        viewport,
+        devicePixelRatio: _lastDevicePixelRatio,
+      );
     } catch (_) {
       // Best-effort: a failed prefetch must never surface to the reader UI.
     }

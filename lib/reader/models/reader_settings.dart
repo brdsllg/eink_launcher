@@ -1,16 +1,8 @@
 import '../../constants.dart';
 
-enum PdfFitMode {
-  fitHeight,
-  fitWidth,
-  continuousScroll,
-  freeZoom,
-}
+enum PdfFitMode { fitHeight, fitWidth, zoom }
 
-enum ParagraphMode {
-  blankLine,
-  firstLineIndent,
-}
+enum ParagraphMode { blankLine, firstLineIndent }
 
 class ReaderSettings {
   // Text formats typography
@@ -28,7 +20,6 @@ class ReaderSettings {
   final PdfFitMode fitMode;
   final bool autoCrop;
   final double splitOverlap;
-  final bool scrollMomentum;
 
   // Shared
   final bool landscape;
@@ -47,13 +38,17 @@ class ReaderSettings {
     this.fitMode = PdfFitMode.fitHeight,
     this.autoCrop = true,
     this.splitOverlap = kPdfDefaultSplitOverlap,
-    this.scrollMomentum = false,
     this.landscape = false,
     this.flashEveryNTurns = 0,
   });
 
-  double get fontSize => kReaderFontSizeSteps[fontSizeStep.clamp(0, kReaderFontSizeSteps.length - 1)];
-  double get horizontalMargin => kReaderMarginSteps[marginStep.clamp(0, kReaderMarginSteps.length - 1)];
+  double get fontSize =>
+      kReaderFontSizeSteps[fontSizeStep.clamp(
+        0,
+        kReaderFontSizeSteps.length - 1,
+      )];
+  double get horizontalMargin =>
+      kReaderMarginSteps[marginStep.clamp(0, kReaderMarginSteps.length - 1)];
 
   ReaderSettings copyWith({
     String? latinFontFamily,
@@ -68,7 +63,6 @@ class ReaderSettings {
     PdfFitMode? fitMode,
     bool? autoCrop,
     double? splitOverlap,
-    bool? scrollMomentum,
     bool? landscape,
     int? flashEveryNTurns,
   }) {
@@ -85,49 +79,54 @@ class ReaderSettings {
       fitMode: fitMode ?? this.fitMode,
       autoCrop: autoCrop ?? this.autoCrop,
       splitOverlap: splitOverlap ?? this.splitOverlap,
-      scrollMomentum: scrollMomentum ?? this.scrollMomentum,
       landscape: landscape ?? this.landscape,
       flashEveryNTurns: flashEveryNTurns ?? this.flashEveryNTurns,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'latinFontFamily': latinFontFamily,
-        'hebrewFontFamily': hebrewFontFamily,
-        'fontSizeStep': fontSizeStep,
-        'lineHeight': lineHeight,
-        'marginStep': marginStep,
-        'justify': justify,
-        'hyphenate': hyphenate,
-        'paragraphMode': paragraphMode.name,
-        'honorPublisherCss': honorPublisherCss,
-        'fitMode': fitMode.name,
-        'autoCrop': autoCrop,
-        'splitOverlap': splitOverlap,
-        'scrollMomentum': scrollMomentum,
-        'landscape': landscape,
-        'flashEveryNTurns': flashEveryNTurns,
-      };
+    'latinFontFamily': latinFontFamily,
+    'hebrewFontFamily': hebrewFontFamily,
+    'fontSizeStep': fontSizeStep,
+    'lineHeight': lineHeight,
+    'marginStep': marginStep,
+    'justify': justify,
+    'hyphenate': hyphenate,
+    'paragraphMode': paragraphMode.name,
+    'honorPublisherCss': honorPublisherCss,
+    'fitMode': fitMode.name,
+    'autoCrop': autoCrop,
+    'splitOverlap': splitOverlap,
+    'landscape': landscape,
+    'flashEveryNTurns': flashEveryNTurns,
+  };
 
-  factory ReaderSettings.fromJson(Map<String, dynamic> json) => ReaderSettings(
-        latinFontFamily: json['latinFontFamily'] as String? ?? 'Literata',
-        hebrewFontFamily: json['hebrewFontFamily'] as String? ?? 'Frank Ruhl Libre',
-        fontSizeStep: json['fontSizeStep'] as int? ?? 3,
-        lineHeight: (json['lineHeight'] as num?)?.toDouble() ?? 1.4,
-        marginStep: json['marginStep'] as int? ?? 1,
-        justify: json['justify'] as bool? ?? true,
-        hyphenate: json['hyphenate'] as bool? ?? true,
-        paragraphMode: json['paragraphMode'] != null
-            ? ParagraphMode.values.byName(json['paragraphMode'] as String)
-            : ParagraphMode.blankLine,
-        honorPublisherCss: json['honorPublisherCss'] as bool? ?? true,
-        fitMode: json['fitMode'] != null
-            ? PdfFitMode.values.byName(json['fitMode'] as String)
-            : PdfFitMode.fitHeight,
-        autoCrop: json['autoCrop'] as bool? ?? true,
-        splitOverlap: (json['splitOverlap'] as num?)?.toDouble() ?? kPdfDefaultSplitOverlap,
-        scrollMomentum: json['scrollMomentum'] as bool? ?? false,
-        landscape: json['landscape'] as bool? ?? false,
-        flashEveryNTurns: json['flashEveryNTurns'] as int? ?? 0,
-      );
+  factory ReaderSettings.fromJson(Map<String, dynamic> json) {
+    final storedFitMode = json['fitMode'] as String?;
+    final fitMode = switch (storedFitMode) {
+      'fitWidth' => PdfFitMode.fitWidth,
+      'continuousScroll' || 'freeZoom' || 'zoom' => PdfFitMode.zoom,
+      _ => PdfFitMode.fitHeight,
+    };
+    return ReaderSettings(
+      latinFontFamily: json['latinFontFamily'] as String? ?? 'Literata',
+      hebrewFontFamily:
+          json['hebrewFontFamily'] as String? ?? 'Frank Ruhl Libre',
+      fontSizeStep: json['fontSizeStep'] as int? ?? 3,
+      lineHeight: (json['lineHeight'] as num?)?.toDouble() ?? 1.4,
+      marginStep: json['marginStep'] as int? ?? 1,
+      justify: json['justify'] as bool? ?? true,
+      hyphenate: json['hyphenate'] as bool? ?? true,
+      paragraphMode: json['paragraphMode'] != null
+          ? ParagraphMode.values.byName(json['paragraphMode'] as String)
+          : ParagraphMode.blankLine,
+      honorPublisherCss: json['honorPublisherCss'] as bool? ?? true,
+      fitMode: fitMode,
+      autoCrop: json['autoCrop'] as bool? ?? true,
+      splitOverlap:
+          (json['splitOverlap'] as num?)?.toDouble() ?? kPdfDefaultSplitOverlap,
+      landscape: json['landscape'] as bool? ?? false,
+      flashEveryNTurns: json['flashEveryNTurns'] as int? ?? 0,
+    );
+  }
 }

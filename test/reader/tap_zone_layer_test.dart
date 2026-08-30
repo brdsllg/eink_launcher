@@ -9,13 +9,13 @@ void main() {
     expect(TapZoneLayer.zoneForDx(90, 100), ReaderTapZone.next);
   });
 
-  test('free zoom uses narrow page-turn edges', () {
+  test('Zoom / Scroll keeps the same equal thirds', () {
     expect(
-      TapZoneLayer.zoneForDx(11, 100, zoomMode: true),
+      TapZoneLayer.zoneForDx(32, 100, zoomMode: true),
       ReaderTapZone.previous,
     );
-    expect(TapZoneLayer.zoneForDx(13, 100, zoomMode: true), ReaderTapZone.menu);
-    expect(TapZoneLayer.zoneForDx(89, 100, zoomMode: true), ReaderTapZone.next);
+    expect(TapZoneLayer.zoneForDx(34, 100, zoomMode: true), ReaderTapZone.menu);
+    expect(TapZoneLayer.zoneForDx(67, 100, zoomMode: true), ReaderTapZone.next);
   });
 
   testWidgets('taps and horizontal swipes dispatch reader actions', (

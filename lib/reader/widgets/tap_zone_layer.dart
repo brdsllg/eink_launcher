@@ -6,10 +6,9 @@ enum ReaderTapZone { previous, menu, next }
 
 /// Invisible, e-ink-friendly page-turn controls.
 ///
-/// In normal modes the entire viewport accepts taps and horizontal swipes.
-/// In free-zoom mode only narrow edge/centre tap targets are installed and
-/// swipe recognition is disabled, leaving the remaining surface available to
-/// [InteractiveViewer] for panning and zooming.
+/// The viewport is always divided into three equal vertical tap zones. In
+/// Zoom / Scroll mode swipe recognition is disabled, leaving pans and pinch
+/// gestures available to [InteractiveViewer].
 class TapZoneLayer extends StatefulWidget {
   final Widget? child;
   final VoidCallback onPrevious;
@@ -32,10 +31,14 @@ class TapZoneLayer extends StatefulWidget {
     bool zoomMode = false,
   }) {
     if (width <= 0) return ReaderTapZone.menu;
-    final edgeRatio = zoomMode ? kTapZoneZoomEdgeRatio : kTapZoneEdgeWidthRatio;
     final clampedDx = dx.clamp(0.0, width);
-    if (clampedDx < width * edgeRatio) return ReaderTapZone.previous;
-    if (clampedDx >= width * (1 - edgeRatio)) return ReaderTapZone.next;
+    if (clampedDx < width * kTapZoneEdgeWidthRatio) {
+      return ReaderTapZone.previous;
+    }
+    if (clampedDx >=
+        width * (kTapZoneEdgeWidthRatio + kTapZoneCenterWidthRatio)) {
+      return ReaderTapZone.next;
+    }
     return ReaderTapZone.menu;
   }
 
