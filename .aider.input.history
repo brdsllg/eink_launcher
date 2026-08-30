@@ -131,3 +131,9 @@
 
 # 2026-08-30 15:46:29.478324
 +btw i think the fps i think is 30 not 21. the momentum is still not working for some reason. it was working originally so, idk figure it out however as long as it works, you know. is there perhaps an open source project we can copy parts of? i dont actually know how to code so ill trust you.
+
+# 2026-08-30 16:04:35.872379
++yes, please clean up and update the documentation
+
+# 2026-08-30 16:15:37.154152
++i guess if something is useless then delete it. also reading_position_test.dart does not exist in project folder. and whats screen flashing setting? if its an improvement then i guess it existing for rea would be good.
