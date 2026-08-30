@@ -4,9 +4,9 @@
 
 A native PDF / EPUB / TXT / Markdown reader inside `eink_launcher`.
 
-**Target device:** Bigme B751C (7" Android e-ink). The device manages its own e-ink
-refresh modes and contrast, so no vendor refresh SDK is used. Distribution is
-personal sideload only.
+**Target device:** Bigme B751C (7" Android e-ink, roughly 30 fps panel refresh).
+The device manages its own e-ink refresh modes and contrast, so no vendor refresh
+SDK is used. Distribution is personal sideload only.
 
 **Environment (verified):** Flutter 3.47.1 stable, Dart 3.13.1, `compileSdk = 37`.
 Native-asset build hooks are already active in this project's build pipeline.
@@ -21,16 +21,20 @@ Native-asset build hooks are already active in this project's build pipeline.
 | EPUB engine | Direct `archive` + `xml` container/OPF/TOC parsing + `html` for XHTML + **our own paginator**. (`epubx` conflicts with `pdfrx` through incompatible `image` versions.) |
 | Formats | PDF, EPUB, TXT, Markdown. No CBZ, no MOBI. |
 | Page turns | Invisible tap zones (left = back, right = forward, centre = menu) **+** swipe. |
+| Tap zones | Three **equal thirds**, in every mode and every format. Zoom / Scroll keeps the same thirds for taps but disables swipe, so pans and pinches reach the PDF surface. |
 | RTL | Right side is **always** forward, in every book. Text itself is still bidi-correct. |
 | EPUB pagination | Exact: block packing with mid-paragraph splitting at real line boundaries. |
-| PDF display | Three modes, remembered **per document**: fit-height, fit-width (split into sub-screens), and **Zoom / Scroll** (always continuous, pinch-zoomable, and momentum-enabled). |
+| PDF display | Three modes, remembered **per document**: fit-height, fit-width (split into sub-screens), and **Zoom / Scroll** (always continuous, always pinch-zoomable, always momentum-enabled). |
 | PDF margins | Auto-crop is configurable in fit-height and fit-width. Zoom / Scroll always uses a **document-uniform** automatic crop and exposes no crop toggle — see §4.1. |
-| Scroll physics | Zoom / Scroll always has momentum/fling. Tap zones still jump one visible screen. There is no momentum setting. |
+| Zoom / Scroll transform | Owned by our own widget as a `scale` + scene-space `origin`. **Not** `InteractiveViewer` — see §4.1.1 for the two reasons that were unfixable from outside. |
+| Scroll physics | Releases are animated with `ClampingScrollSimulation`, Flutter's port of the AOSP `OverScroller` fling curve, driven from a bare `Ticker`. Momentum is always on and is not user-configurable. |
+| Zoom range | Pinch ceiling 5×. Pinching out below fit-width is **on by default** (one setting to disable) and bottoms out at roughly **two pages** on screen, derived from real page geometry. |
 | Reading chrome | None. Full-bleed page; centre tap reveals a menu overlay. |
 | Typography | Font size, line height, margins, justify + hyphenation, paragraph style, publisher-CSS toggle. |
 | Paragraph default | Blank-line spacing (not first-line indent). |
 | Publisher CSS default | Honour a **safe subset** (bold / italic / headings / alignment); ignore fonts, sizes, colours. |
 | Fonts | Bundle several Latin + several Hebrew faces, user-selectable, per book. |
+| Settings visibility | The settings screen shows **only** controls the current mode honours, and never repeats the fit-mode selector that already lives in the menu overlay. See §6. |
 | Storage | One atomic `library.json` in app documents dir. |
 | Entry point | File browser only. Tapping a readable file opens the reader. |
 | Escape hatch | "Open with…" in the long-press selection menu → `OpenFilex`. |
@@ -38,7 +42,7 @@ Native-asset build hooks are already active in this project's build pipeline.
 | Not building | Highlights, notes, dictionary, TTS, PDF text search. |
 | Rotation | Manual toggle in the reader menu only. **Never** sensor-driven. Always single-column. |
 | Android intents | Designed for, but wired up in a later phase. |
-| Sequence | Shell + PDF → Continuous Scroll → EPUB → TXT/MD → TOC/bookmarks/search → Polish. |
+| Sequence | Shell + PDF → Zoom / Scroll → EPUB → TXT/MD → TOC/bookmarks/search → Polish. |
 | Future | Tab system — architecture below is built to accept it. |
 
 ---
@@ -103,11 +107,12 @@ lib/
       content_block.dart                  THE layout primitive (blocks + inline runs)
       laid_out_page.dart                  a page = ordered list of BlockSlice
       parsed_book.dart                    spine items, resources, TOC, char counts
+      pdf_continuous_layout.dart          exact Zoom / Scroll extents + offset mapping
     services/
       doc_identity_service.dart           sha1 fingerprint
       book_store_service.dart             library.json, atomic write, debounced
       pagination_cache_service.dart       disk cache keyed by geometry+typography
-      page_bitmap_cache.dart              in-memory LRU of rendered PDF pages
+      page_bitmap_cache.dart              in-memory LRU of rendered PDF bitmaps
       pdf_document_service.dart           pdfrx wrapper: open / render / outline
       pdf_crop_service.dart               ink-bbox detection (isolate)
       epub_parser_service.dart            archive/XML EPUB parser → ParsedBook (isolate)
@@ -124,14 +129,14 @@ lib/
       reader_session_registry.dart        docId → session, LRU suspend
     screens/
       reader_screen.dart                  format-agnostic shell
-      reader_settings_screen.dart         typography and layout settings dialog/screen
+      reader_settings_screen.dart         mode-scoped display + typography settings
       reader_toc_screen.dart              table of contents navigation screen
       reader_bookmarks_screen.dart        saved bookmarks screen
       reader_search_screen.dart           in-book text search screen (EPUB)
     widgets/
-      tap_zone_layer.dart                 invisible zones + swipe
+      tap_zone_layer.dart                 invisible equal-thirds zones + swipe
       reader_menu_overlay.dart            in-book floating control overlay
-      pdf_page_view.dart                  single/split and continuous zoom PDF renderer
+      pdf_page_view.dart                  fit-mode bitmaps + the continuous zoom surface
       text_page_view.dart                 renders a LaidOutPage
       block_slice_view.dart               the clip-and-offset renderer
 assets/fonts/                             bundled Latin + Hebrew faces
@@ -153,6 +158,10 @@ dependencies:
   hyphenatorx: ^1.0.0    # TeX hyphenation patterns, pure Dart
 ```
 
+`ClampingScrollSimulation` (the AOSP `OverScroller` fling curve) and `Ticker`
+come from the Flutter SDK itself, so Zoom / Scroll momentum needs no extra
+dependency.
+
 ---
 
 ## 4. The two rendering pipelines
@@ -163,7 +172,7 @@ dependencies:
 file path
   → PdfDocument.openFile()                        pdfrx / PDFium
   → per page: crop rect?                          pdf_crop_service (cached)
-  → PdfPage.render(width, height)  → RGBA         UI isolate
+  → PdfPage.render(x, y, width, height, full*)    UI isolate
   → ui.Image → RawImage widget                    pdf_page_view
 ```
 
@@ -179,69 +188,128 @@ Crop has **two strategies**, chosen by view mode:
 - *Per-page* (fit-height and fit-width, when auto-crop is enabled) — every page
   gets its own crop rect, detected lazily as you reach it. Maximum text size on
   every page.
-- *Document-uniform* (Zoom / Scroll, always enabled) — sample ~10 pages spread through the
-  document, take the union of their ink boxes, apply it everywhere. One cheap
-  up-front pass, and page geometry is fully known before any rendering. See
-  §4.1.1 for why continuous scroll requires this.
+- *Document-uniform* (Zoom / Scroll, always enabled) — sample ~10 pages spread
+  through the document, take the union of their ink boxes, apply it everywhere.
+  One cheap up-front pass, and page geometry is fully known before any rendering.
+  See §4.1.1 for why the continuous surface requires this.
 
 **The three fit modes.**
 
 - **fit-height** — the cropped page scaled to fit the screen height. One page =
-  one screen. Simplest, unambiguous position.
+  one screen. Simplest, unambiguous position. Tap-driven only; no zoom.
 - **fit-width** — scaled so cropped width equals screen width. The result is
   taller than the screen, so it is split into `ceil(h / screenH)` sub-screens
   (usually 2) with a **6 % overlap** by default, so a line straddling the split is
-  fully readable in both halves.
-- **Zoom / Scroll** — one uninterrupted vertical strip of pages at fit-width,
-  hosted by `InteractiveViewer.builder` so it always supports pinch zoom,
-  two-axis panning, and momentum. Tap zones shrink to 12 %-width screen *edges*
-  so the middle stays free for gestures. See §4.1.1.
+  fully readable in both halves. Tap-driven only; no zoom.
+- **Zoom / Scroll** — one uninterrupted vertical strip of pages, always
+  pinch-zoomable, two-axis pannable, and momentum-flinging. Zoom is *exclusively*
+  this mode's job. See §4.1.1.
+
+`PdfReaderSession.renderCurrentView()` serves the two tap-driven modes and
+deliberately **throws** in Zoom / Scroll, so nothing can silently fall back to
+magnifying a single whole-page bitmap.
 
 #### 4.1.1 Zoom / Scroll mode
 
-An `InteractiveViewer.builder` presents one exact-size continuous document
-canvas. Its builder uses the current transformed viewport to construct only the
-nearby page tiles; each base tile is sized to
-`screenWidth × (croppedAspect × screenWidth)`.
+**Why not `InteractiveViewer`.** It was tried and removed. Two of its behaviours
+could not be fixed from outside:
 
-**Why this mode forces uniform crop.** A scrollable needs each tile's extent
-before it can compute total scroll extent and honour `jumpTo`. Per-page crop
-rects are only known *after* that page has been rendered, so with per-page crop
-the tile heights would keep changing as you scrolled — the content under your
-finger would shift and the scrollbar would lurch. Uniform crop makes every tile
+1. It calls `onInteractionEnd` *before* starting its fling. Reacting to the
+   gesture there (settling the render scale, publishing the new dominant page)
+   rebuilt the tile grid and blanked every tile at the exact moment the glide
+   began. Movement across plain white on a ~30 fps panel is indistinguishable
+   from no movement at all — which is why momentum appeared to be missing even
+   when it was mathematically running.
+2. Its fling uses `FrictionSimulation`, whose curve is not what Android users
+   expect and which decays within a handful of frames on this hardware.
+
+It also floors the pinch scale at `viewport.width / boundaryRect.width`
+independently of `minScale`, so zooming out below fit-width required
+`boundaryMargin` slack — which in turn let the user pan into empty space beside
+a zoomed-in page.
+
+**What replaced it.** `_ContinuousPdfView` owns the transform directly as a
+`scale` plus a scene-space `origin` (the document coordinate sitting at the
+viewport's top-left), so `screen = (scene - origin) * scale`. A single
+`GestureDetector` handles `onScaleStart/Update/End`, which covers one-finger
+pans and two-finger pinches alike and still loses the gesture arena to a
+stationary tap, so the enclosing tap zones keep working.
+
+- **Momentum.** On release, per-axis `ClampingScrollSimulation`s are driven from
+  a bare `Ticker`. Because the ticker is not tied to the widget tree's animation
+  plumbing, **no rebuild can cancel an in-flight fling**. Friction is
+  `kPdfFlingFriction` (lower = longer glide; deliberately below Flutter's 0.015
+  default because a 30 fps panel shows so few frames). Releases slower than
+  `kPdfMinFlingVelocity` are treated as a stop, so resting a finger doesn't
+  drift the page.
+- **Clamping.** Origin clamping is ours, so it is exact: content larger than the
+  viewport is bounded to the document, and content *smaller* than the viewport
+  (zoomed out past fit-width) is simply centred. No boundary slack, therefore no
+  panning into blank space.
+- **Zoom floor.** `minScale` is derived per document as
+  `viewportHeight / (kPdfZoomOutPageSpan × currentPageHeight)`, clamped to
+  `[kPdfMinZoomScaleBeyondFit, 1.0]`, so "fully zoomed out" means about two
+  pages on screen regardless of page aspect ratio. Turning
+  `allowZoomOutBeyondFit` off pins the floor back to 1.0 and snaps an
+  already-shrunken view back to fit-width.
+
+**Why this mode forces uniform crop.** The tile grid needs each page's extent
+before it can compute total document height and map logical positions to
+transforms. Per-page crop rects are only known *after* that page has been
+rendered, so with per-page crop the page heights would keep changing as you
+scrolled — content under your finger would shift. Uniform crop makes every page
 height derivable from `PdfPage.width/height` (which pdfrx exposes from the
 document structure without rendering anything) times one shared crop ratio. So
 in Zoom / Scroll, crop becomes document-uniform automatically and no crop
 control is shown for that mode.
 
-**Exact extents.** With heights known up front, a cumulative offsets table gives
-the canvas its exact total height and maps logical positions directly to
-transforms. There is no estimated scroll extent or layout shift, and TOC,
-page, and percent jumps land deterministically.
+**Exact extents.** With heights known up front, `PdfContinuousLayout` gives the
+canvas its exact total height and maps logical positions directly to offsets.
+There is no estimated extent and no layout shift, so TOC, page, and percent jumps
+land deterministically.
 
-**Physics.** `InteractiveViewer` owns both pinch and pan gesture recognition and
-uses its inertial interaction-end behavior. Momentum is always enabled and is
-not user-configurable, so Zoom / Scroll behaves consistently every time it is
-selected.
+**Crisp zoom, and the 2-D tile grid.** The pinch scale is quantised to the rungs
+in `kPdfZoomRenderScales` and pushed **into PDFium**, so vector content is
+genuinely re-rasterised rather than magnified as a texture. To keep that
+affordable, each page is cut into a **two-dimensional** grid of tiles whose sides
+are at most `kPdfTileSidePixels` device pixels, and only tiles intersecting the
+visible rect (on both axes) are built. Because the number of on-screen device
+pixels is constant regardless of zoom, so is the cost and the memory — and no
+request ever reaches `kPdfMaxTileDimension`, which is what used to silently
+downscale full-width strips and make deep zoom look blurry.
+
+**Deferred re-rasterisation.** The render scale is settled only once the gesture
+*and* any subsequent fling have finished. Re-rendering mid-pinch would thrash
+PDFium; re-rendering mid-fling would swap every tile for a blank one. During a
+pinch the existing bitmaps are scaled (briefly soft, `FilterQuality.low`), then
+snap crisp when the gesture settles.
 
 **Tap zones still work.** Left/right taps move by one currently visible viewport
-height. The fit-width overlap setting does not apply here and is only shown when
-Fit Width is selected. Centre still toggles the menu.
+height — so at 2× zoom a tap advances half a base screen. The fit-width overlap
+setting does not apply here and is only shown when Fit Width is selected. Centre
+still toggles the menu.
 
-**Tile rendering.** The builder constructs visible tiles plus one visible span
-of look-ahead in each direction. A tile with no bitmap yet paints a plain white
-box of the correct size — never a spinner, since spinners animate. Because
-extents are known, nothing shifts when its bitmap arrives. Render scale is
-quantised as zoom changes and remains capped by the shared 2048 px ceiling.
+**Look-ahead.** Tiles are built for the visible rect plus ~0.75 screens above and
+below (and ~0.35 screens each side), so a fling glides over rendered content
+instead of running into white. A tile with no bitmap yet paints a plain white box
+of the correct size — never a spinner, since spinners animate. Because extents
+are known, nothing shifts when its bitmap arrives.
 
 **Current page.** In this mode "current page" is whichever page occupies the most
 viewport area, computed from the scroll offset against the cumulative height
 table. That feeds the menu overlay, percent-read, and position persistence.
+User-driven scrolling deliberately does **not** bump the session's navigation
+epoch, so the view never fights the user's own pan; only programmatic moves
+(tap jumps, page/percent/TOC jumps, resume) do.
 
-**Resolution and memory.** Render at native device pixels, capped at 2048 px on
-the long edge. One page at ~1264×1680 RGBA ≈ 8.5 MB, so the LRU cache holds 3–5
-pages ≈ 25–40 MB. After displaying page N, pre-render N+1 and N−1 in the
-background — this is what makes turns feel instant on e-ink.
+**Resolution and memory.** Tap-driven modes render whole pages at native device
+pixels capped at `kPdfMaxRenderDimension` (2048 px) on the long edge; one page at
+~1264×1680 RGBA ≈ 8.5 MB, and after displaying page N the session pre-renders
+N+1 and N−1 in the background, which is what makes turns feel instant. Zoom /
+Scroll instead keeps a grid of tiles plus look-ahead resident, so the shared LRU
+budget is `kPdfBitmapCacheBytes` (96 MB). Tiles handed to widgets are
+`ui.Image.clone()`s, so a cache eviction can never dispose a bitmap that is
+still on screen.
 
 ### 4.2 EPUB / TXT / Markdown
 
@@ -268,6 +336,7 @@ count, a current page, and a widget:
 abstract class ReaderSession extends ChangeNotifier {
   DocRef get doc;
   bool get isReady;
+  bool get isSuspended;
   String? get error;
   int get pageCount;            // may grow while background pagination runs
   int get currentPage;
@@ -284,12 +353,17 @@ abstract class ReaderSession extends ChangeNotifier {
   Future<void> goToPercent(double pct);
   Future<void> applySettings(ReaderSettings s);
 
-  Widget buildPage(BuildContext context, Size viewport);
-
   void suspend();               // free bitmaps, close native handles, keep position
   Future<void> resume();
 }
 ```
+
+The shell picks the view widget by session type (`PdfPageView` or
+`TextPageView`), wraps it in `TapZoneLayer`, and rebuilds through a
+`ListenableBuilder` on the session. `PdfReaderSession` additionally exposes
+`navigationEpoch`, `continuousLayoutForViewport`, `continuousOffsetForPosition`,
+`updateContinuousScrollOffset`, and `renderContinuousTile` for the Zoom / Scroll
+surface.
 
 ---
 
@@ -301,7 +375,7 @@ Global defaults plus per-document overrides, both living in `library.json`.
 class ReaderSettings {
   // text formats
   String latinFontFamily;      // Literata | EB Garamond | Inter
-  String hebrewFontFamily;     // Frank Ruhl Libre | Noto Serif Hebrew | David Libre | Heebo
+  String hebrewFontFamily;     // Frank Ruhl Libre | Noto Serif Hebrew | Heebo
   int    fontSizeStep;         // 0..7, mapped to pt via a table
   double lineHeight;           // 1.2 .. 2.0
   int    marginStep;           // tight | normal | wide | extra
@@ -311,15 +385,29 @@ class ReaderSettings {
   bool   honorPublisherCss;    // default true — safe subset
 
   // pdf
-  PdfFitMode fitMode;          // fitHeight | fitWidth | zoom
-  bool   autoCrop;             // default true; fitHeight / fitWidth only
-  double splitOverlap;         // default 0.06; fitWidth only
+  PdfFitMode fitMode;            // fitHeight | fitWidth | zoom
+  bool   autoCrop;               // default true; fitHeight / fitWidth only
+  double splitOverlap;           // default 0.06; fitWidth only
+  bool   allowZoomOutBeyondFit;  // default true; zoom only
 
   // shared
   bool   landscape;            // manual toggle only
   int    flashEveryNTurns;     // 0 = off
 }
 ```
+
+**Visibility rules.** `ReaderSettingsScreen` renders only what the active mode
+honours, and never duplicates the fit-mode selector already present in the menu
+overlay:
+
+| Control | Fit Height | Fit Width | Zoom / Scroll | Text formats |
+|---|---|---|---|---|
+| Automatic margin crop | shown | shown | hidden (forced document-uniform) | — |
+| Fit-width overlap | hidden | shown | hidden (moves by visible viewport) | — |
+| Zoom out past the page | hidden | hidden | shown | — |
+| Typography (fonts, size, spacing, margins, justify, hyphenation, paragraph mode, publisher CSS) | hidden | hidden | hidden | shown |
+
+Orientation lives in the menu overlay for every format.
 
 ---
 
@@ -329,7 +417,7 @@ class ReaderSettings {
 |---|---|
 | `pubspec.yaml` | Add dependencies (`pdfrx`, `archive`, `xml`, `html`, `markdown`, `path_provider`, `crypto`, `hyphenatorx`); declare fonts assets. |
 | `lib/main.dart` | `await pdfrxFlutterInitialize()` after `ensureInitialized()`. |
-| `lib/constants.dart` | Add `kReadableExtensions`, tap zone ratios, font size tables, crop constants. |
+| `lib/constants.dart` | Add `kReadableExtensions`, equal-thirds tap zone ratios, font size/margin tables, crop constants, and the Zoom / Scroll zoom, tile, fling, and cache constants. |
 | `lib/screens/file_browser_screen.dart` | Intercept readable files on tap → push `ReaderScreen`; add "Open with…" in selection bar. |
 
 ---
@@ -369,8 +457,8 @@ class ReaderSettings {
   - Add unit tests in `test/reader/book_store_service_test.dart`.
 
 - [x] **Step 1.3: PDF Services & Auto-Crop**
-  - Create `lib/reader/services/pdf_document_service.dart` (pdfrx open, page count, outline parser).
-  - Create `lib/reader/services/page_bitmap_cache.dart` (LRU memory cache with 25–40MB budget).
+  - Create `lib/reader/services/pdf_document_service.dart` (pdfrx open, page count, capped crop-rect rendering, outline parser).
+  - Create `lib/reader/services/page_bitmap_cache.dart` (LRU memory cache bounded by `kPdfBitmapCacheBytes`).
   - Create `lib/reader/services/pdf_crop_service.dart` (isolate-backed ink bbox detection, minimum-run filtering).
   - Add unit tests in `test/reader/pdf_crop_service_test.dart`.
 
@@ -379,15 +467,15 @@ class ReaderSettings {
   - Create `lib/reader/controllers/pdf_reader_session.dart`:
     - Implement page navigation (`nextPage`, `prevPage`, `goToPage`, `goToPercent`).
     - Sub-screen calculations for fit-width (with 6% overlap).
-    - Background pre-fetching for pages $N+1$ and $N-1$.
-    - Logical position mapping.
+    - Background pre-fetching for pages $N+1$ and $N-1$ (tap-driven modes only).
+    - Logical position mapping and a navigation epoch that distinguishes programmatic moves from user scrolling.
   - Create `lib/reader/controllers/reader_session_registry.dart` (singleton session pool, max 4 active, auto-suspend).
 
 - [x] **Step 1.5: UI Layer (Tap Zones, Menu, PDF View)**
-  - Create `lib/reader/widgets/tap_zone_layer.dart` (30% left / 40% centre / 30% right zones + swipe handling).
-  - Create `lib/reader/widgets/pdf_page_view.dart` (handles fit-height, fit-width sub-screen slices, and continuous pinch-zoom `InteractiveViewer.builder`).
-  - Create `lib/reader/widgets/reader_menu_overlay.dart` (top/bottom bars: page jump, fit mode toggle, crop toggle, rotation, settings entry).
-  - Create `lib/reader/screens/reader_settings_screen.dart` (discrete buttons for settings).
+  - Create `lib/reader/widgets/tap_zone_layer.dart` (three **equal-thirds** zones: left = back, centre = menu, right = forward, plus horizontal swipe; swipe suppressed in Zoom / Scroll so pan/pinch reach the PDF surface).
+  - Create `lib/reader/widgets/pdf_page_view.dart` (fit-height and fit-width cached bitmaps, plus the continuous Zoom / Scroll surface).
+  - Create `lib/reader/widgets/reader_menu_overlay.dart` (top/bottom bars: page jump, percent jump, TOC, fit mode toggle, rotation, settings entry).
+  - Create `lib/reader/screens/reader_settings_screen.dart` (discrete buttons, mode-scoped per §6).
 
 - [x] **Step 1.6: Reader Shell Screen & Lifecycle Hooks**
   - Create `lib/reader/screens/reader_screen.dart` (format-agnostic host with lifecycle-observer position saving).
@@ -406,22 +494,23 @@ class ReaderSettings {
 ---
 
 ### Phase 1b — Zoom / Scroll Mode (PDF)
-**Objective:** Add one continuous, pinch-zoomable, momentum-enabled PDF surface without layout shifts.
+**Objective:** One continuous, pinch-zoomable, momentum-enabled PDF surface with no layout shifts and no blurry zoom.
 
 - [x] **Step 1b.1: Uniform Crop & Cumulative Heights Table**
   - Extend `pdf_crop_service.dart` with document-uniform crop sampling (~10 sample pages).
-  - Add cumulative height table calculation to `pdf_reader_session.dart`.
+  - Add `pdf_continuous_layout.dart`: exact page heights, cumulative offsets, offset ↔ logical position mapping, dominant-page selection, max scroll offset.
 
-- [x] **Step 1b.2: Continuous Zoomable PDF View**
-  - Implement Zoom / Scroll in `pdf_page_view.dart` with `InteractiveViewer.builder` and viewport-driven lazy tiles.
-  - Keep pinch zoom, two-axis pan, continuous pages, and momentum permanently enabled.
-  - Wire tap zones to jump one currently visible viewport height.
-  - Map scroll offset ↔ `PdfReadingPosition` bidirectionally.
-  - Force document-uniform auto-crop; remove page-flow and momentum settings; show overlap only for Fit Width.
+- [x] **Step 1b.2: Continuous Zoomable PDF Surface**
+  - Implement Zoom / Scroll in `pdf_page_view.dart` with a self-owned `scale` + scene `origin` transform, a single scale/pan `GestureDetector`, and exact clamping (undersized content centred).
+  - Fling with per-axis `ClampingScrollSimulation` driven from a `Ticker`, so rebuilds cannot cancel momentum. `InteractiveViewer` was removed for the two reasons recorded in §4.1.1.
+  - Push the quantised zoom into PDFium via `renderContinuousTile`, using a 2-D tile grid bounded by `kPdfTileSidePixels`, and settle the render scale only after the gesture *and* fling finish.
+  - Derive the pinch floor from real page geometry (~two pages) behind `allowZoomOutBeyondFit`.
+  - Wire tap zones to jump one currently visible viewport height; keep overlap out of this mode.
+  - Map scroll offset ↔ `PdfReadingPosition` bidirectionally, persisting on page changes and on `suspend()` rather than on every drag pixel.
 
 - [ ] **Step 1b.3: Phase 1b Verification**
-  - [x] Automated coverage for exact extents, offset/position mapping, dominant-page selection, uniform crop sampling, fixed settings invariants, and continuous zoom-surface construction.
-  - Verify Zoom / Scroll on device: pinch zoom, two-axis pan and momentum all work; tap jumps exactly one visible screen; TOC/percent jumps land accurately; switching fit modes preserves position.
+  - [x] Automated coverage for exact extents, offset/position mapping, dominant-page selection, uniform crop sampling, per-density tile re-rasterisation, and a fling that keeps gliding after release while respecting the end of the document.
+  - Verify Zoom / Scroll on device: pinch zoom stays crisp on vector PDFs; two-axis pan and momentum feel right at ~30 fps; zoom-out bottoms out at about two pages; tap jumps exactly one visible screen; TOC/percent jumps land accurately; switching fit modes preserves position.
 
 ---
 
@@ -499,11 +588,12 @@ class ReaderSettings {
 
 - [x] **Step 4.2: Page & Percent Jump Dialogs**
   - Add discrete number-input jump-to-page dialog.
-  - Add percent jump slider/buttons to menu overlay.
+  - Add percent jump entry to the menu overlay.
 
 - [ ] **Step 4.3: Bookmarks Management**
   - Create `lib/reader/screens/reader_bookmarks_screen.dart`.
   - Allow adding, viewing, navigating, and deleting bookmarks.
+  - Extend the `ReaderSession` contract so both PDF and text sessions add/list/remove bookmarks, and make sure each session's `_persistState` preserves the existing bookmark list.
 
 - [ ] **Step 4.4: In-Book Text Search (EPUB)**
   - Create `lib/reader/services/text_search_service.dart` (nikud-insensitive Hebrew normalisation, isolate-backed).
@@ -536,8 +626,10 @@ class ReaderSettings {
 - `phase2_verification_test.dart` — bundled fonts, bilingual directions, exact portrait/landscape slice coverage, and re-pagination timing.
 - `pdf_crop_service_test.dart` — bbox bounding math, noise filtering, uniform crop sampling.
 - `reading_position_test.dart` — JSON round-trips, cross-view-mode conversion consistency.
-- `continuous_scroll_test.dart` — offset-to-page and page-to-offset mapping correctness.
-- `tap_zone_layer_test.dart` — tap-zone callback boundaries and direction invariants.
+- `pdf_continuous_layout_test.dart` — offset-to-page and page-to-offset mapping, dominant page, boundary clamping.
+- `pdf_reader_session_test.dart` — fit-mode navigation and sub-screens, whole-page cache reuse, refusal to render whole pages in Zoom / Scroll, per-density tile re-rasterisation, navigation-epoch semantics, and a widget test proving a fling keeps gliding after release.
+- `reader_settings_screen_test.dart` — mode-scoped control visibility, no duplicated fit-mode selector, zoom-out default and JSON round-trip.
+- `tap_zone_layer_test.dart` — equal-thirds tap boundaries, fixed forward direction, and swipe callbacks.
 
 ---
 
@@ -546,5 +638,6 @@ class ReaderSettings {
 1. **`epubx` dependency conflict (resolved):** Phase 2 validation found incompatible transitive `image` constraints with `pdfrx`; the direct `archive` + `xml` fallback is implemented and covered by an in-memory EPUB fixture.
 2. **UI-isolate pagination load:** Mitigated via current-chapter priority pagination + progressive frame slicing + disk caching.
 3. **Hebrew fonts & nikud:** Multiple bundled OFL fonts selectable per-book.
-4. **Memory pressure:** Hard 4-session cap + LRU bitmap cache (25–40MB max) + session suspend contract.
-5. **Continuous scroll ghosting:** Momentum disabled by default + discrete tap-jump support.
+4. **Memory pressure:** Hard 4-session cap + suspend contract + LRU bitmap cache bounded by `kPdfBitmapCacheBytes`, with 2-D tiling so zoom cost stays flat instead of growing with scale.
+5. **Zoom / Scroll on a ~30 fps panel:** A fling only gets a dozen or so frames, so momentum must never be interrupted. Mitigated by owning the transform, driving the fling from a `Ticker` that rebuilds cannot cancel, deferring re-rasterisation until the glide ends, and rendering ~0.75 screens of look-ahead. Tunable via `kPdfFlingFriction` (lower = longer glide) and `kPdfMinFlingVelocity`.
+6. **PDFium renders on the UI isolate:** FFI handles cannot be shared across isolates, so tile rasterisation competes with the glide. Mitigated by bounded tile sizes and look-ahead; if it still stutters, the next step is direction-biased pre-rendering ahead of the fling rather than symmetric look-ahead.
