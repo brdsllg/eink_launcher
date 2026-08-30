@@ -79,3 +79,6 @@
 
 # 2026-08-30 14:18:57.027194
 +i have some problems with the current app. the settings page shows redundant/non-applicable settings settings for what mode you are in. i need it to only show what is applicable for the current mode that im in. also in the zoom/scroll mode there is some problems, and here is what i want: the scroll/zoom mode should be only continous, it should always let you zoom, because right now zooming only works for page by page. also when i zoom in, the pdf should not become blurry if its vector, it should update and adjust like a normal pdf reader. start with that, and im happy to answer wuestions.
+
+# 2026-08-30 14:56:32.594069
++ok i didnt catch your answer, it got cut off but is there something i should know? i did a push on github, and i did fltter test and flutter analyze and everything good. if all is good then i have the following: why is there no momentum in scroll mode? wy can i not zoom out past the text? i want to be able to do all these, but make the zoom out past text default on, but setting to turn off. and the rendering is still bad and not crisp when zoomed.

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
 // NOTE: `num.clamp()` always returns `num`, even when called on an `int` or
@@ -55,6 +56,12 @@ class PdfReaderSession extends ReaderSession {
   int? _continuousCurrentPage;
   double? _continuousViewportHeight;
 
+  /// Bumped by every *programmatic* move (tap jump, page jump, TOC, percent).
+  /// User scrolling deliberately leaves it alone: the continuous view only
+  /// snaps its transform when this changes, so an in-flight fling is never
+  /// cancelled by a rebuild.
+  int _navigationEpoch = 0;
+
   /// Last viewport size reported by the reader widget (Step 1.5). Sub-screen
   /// math and prefetching are no-ops until this is known.
   Size? _lastViewport;
@@ -68,7 +75,8 @@ class PdfReaderSession extends ReaderSession {
     PdfDocumentServiceFactory? documentServiceFactory,
   }) : _bookStore = bookStore ?? BookStoreService.instance,
        _cropService = cropService ?? PdfCropService(),
-       _bitmapCache = bitmapCache ?? PageBitmapCache(),
+       _bitmapCache =
+           bitmapCache ?? PageBitmapCache(maxBytes: kPdfBitmapCacheBytes),
        _serviceFactory = documentServiceFactory ?? PdfDocumentService.new;
 
   @override
@@ -102,6 +110,10 @@ class PdfReaderSession extends ReaderSession {
   @override
   ReaderSettings get settings => _settings;
 
+  /// Monotonic counter identifying the last programmatic navigation. See
+  /// [_navigationEpoch].
+  int get navigationEpoch => _navigationEpoch;
+
   bool get _isContinuous => _settings.fitMode == PdfFitMode.zoom;
 
   // ---------------------------------------------------------------------
@@ -131,6 +143,9 @@ class PdfReaderSession extends ReaderSession {
     if (_isSuspended) return;
     _isSuspended = true;
     _isReady = false;
+    // Continuous scrolling only persists on page changes, so capture the
+    // exact sub-page offset before the bitmaps and handles go away.
+    _persistState();
     _bitmapCache.clear();
     unawaited(_documentService?.close());
     notifyListeners();
@@ -145,6 +160,7 @@ class PdfReaderSession extends ReaderSession {
       _isSuspended = false;
       _isReady = true;
       _error = null;
+      _navigationEpoch++;
       notifyListeners();
     } catch (e) {
       _error = 'Failed to resume ${doc.title}: $e';
@@ -259,6 +275,9 @@ class PdfReaderSession extends ReaderSession {
     _settings = settings;
     if (oldSettings.fitMode != settings.fitMode) {
       _continuousLayout = null;
+      // The incoming view must anchor itself to the preserved logical
+      // position rather than wherever its transform happens to sit.
+      _navigationEpoch++;
     }
     if (settings.fitMode == PdfFitMode.zoom) {
       _continuousCurrentPage ??= _pageIndex;
@@ -330,7 +349,8 @@ class PdfReaderSession extends ReaderSession {
 
   /// Records a user-driven scroll without rebuilding on every drag pixel.
   /// Listeners are notified only when the dominant page shown in the menu
-  /// changes; the logical top-of-viewport position is still always persisted.
+  /// changes, and the navigation epoch is deliberately left untouched so the
+  /// view never fights the user's own pan or fling.
   void updateContinuousScrollOffset(
     double offset,
     PdfContinuousLayout layout,
@@ -341,10 +361,13 @@ class PdfReaderSession extends ReaderSession {
     final logical = layout.positionForOffset(offset);
     final dominant = layout.dominantPage(offset, viewportHeight);
     final pageChanged = dominant != _continuousCurrentPage;
+    final logicalPageChanged = logical.pageIndex != _pageIndex;
     _pageIndex = logical.pageIndex;
     _withinPage = logical.withinPage;
     _continuousCurrentPage = dominant;
-    _persistState();
+    // Rebuilding a BookState on every transform tick would allocate through
+    // an entire fling; page boundaries plus suspend() are enough.
+    if (pageChanged || logicalPageChanged) _persistState();
     if (pageChanged) notifyListeners();
   }
 
@@ -369,15 +392,20 @@ class PdfReaderSession extends ReaderSession {
   // ---------------------------------------------------------------------
 
   /// Renders (or returns from cache) the bitmap for the current position at
-  /// [viewport]. This is the render pipeline the dedicated `pdf_page_view.dart`
-  /// widget (Step 1.5) is expected to call; the session owns the fit-mode
-  /// geometry and crop resolution so that widget stays a thin presenter.
+  /// [viewport]. Used by the tap-driven fit-height and fit-width modes only:
+  /// Zoom / Scroll is always continuous and renders through
+  /// [renderContinuousTile].
   Future<Image> renderCurrentView(
     Size viewport, {
     double devicePixelRatio = 1.0,
   }) async {
     if (!_isReady) {
       throw StateError('Cannot render: session for ${doc.title} is not ready');
+    }
+    if (_isContinuous) {
+      throw StateError(
+        'Zoom / Scroll renders through renderContinuousTile, not whole pages',
+      );
     }
     updateViewport(viewport, devicePixelRatio: devicePixelRatio);
     return _renderPageAt(
@@ -388,26 +416,63 @@ class PdfReaderSession extends ReaderSession {
     );
   }
 
-  Future<Image> renderContinuousPage(
+  /// Rasterises one tile of [pageIndex] for the continuous view.
+  ///
+  /// [region] is the tile's rectangle within the page, expressed as fractions
+  /// of the page's laid-out size (`0..1` on both axes). Tiling in *two*
+  /// dimensions is what keeps deep zoom affordable: the number of device
+  /// pixels on screen is constant regardless of zoom, so only a handful of
+  /// tiles are ever needed. Rendering full-width strips instead forced
+  /// enormous bitmaps that hit the dimension cap and came back downscaled —
+  /// which is what made zoomed pages look blurry.
+  ///
+  /// [renderScale] is the quantised pinch zoom, pushed all the way down into
+  /// PDFium so vector content is genuinely re-rasterised rather than
+  /// magnified as a bitmap.
+  Future<Image> renderContinuousTile(
     int pageIndex,
     PdfContinuousLayout layout, {
     double devicePixelRatio = 1.0,
+    double renderScale = 1.0,
+    Rect region = const Rect.fromLTRB(0, 0, 1, 1),
   }) async {
     if (!_isReady || !_isContinuous) {
       throw StateError('Continuous PDF rendering is not active');
     }
+    if (pageIndex < 0 || pageIndex >= layout.pageHeights.length) {
+      throw RangeError.index(pageIndex, layout.pageHeights, 'pageIndex');
+    }
     final crop = await _resolveUniformCropRect();
-    final pixelWidth = (layout.viewportWidth * devicePixelRatio).round();
-    final pixelHeight = (layout.pageHeights[pageIndex] * devicePixelRatio)
-        .round();
+
+    final left = clampDouble(region.left, 0.0, 0.9999);
+    final right = clampDouble(region.right, left + 0.0001, 1.0);
+    final top = clampDouble(region.top, 0.0, 0.9999);
+    final bottom = clampDouble(region.bottom, top + 0.0001, 1.0);
+    final tileCrop = PdfCropRect(
+      left: crop.left + left * crop.width,
+      top: crop.top + top * crop.height,
+      right: crop.left + right * crop.width,
+      bottom: crop.top + bottom * crop.height,
+    );
+
+    final density = devicePixelRatio * renderScale;
+    final pixelWidth = math.max(
+      1,
+      (layout.viewportWidth * (right - left) * density).round(),
+    );
+    final pixelHeight = math.max(
+      1,
+      (layout.pageHeights[pageIndex] * (bottom - top) * density).round(),
+    );
+
     final key = PdfBitmapCacheKey(
       pageIndex: pageIndex,
       pixelWidth: pixelWidth,
       pixelHeight: pixelHeight,
-      cropLeft: crop.left,
-      cropTop: crop.top,
-      cropRight: crop.right,
-      cropBottom: crop.bottom,
+      cropLeft: tileCrop.left,
+      cropTop: tileCrop.top,
+      cropRight: tileCrop.right,
+      cropBottom: tileCrop.bottom,
     );
     final cached = _bitmapCache.get(key);
     if (cached != null) return cached;
@@ -415,7 +480,8 @@ class PdfReaderSession extends ReaderSession {
       pageIndex: pageIndex,
       pixelWidth: pixelWidth,
       pixelHeight: pixelHeight,
-      crop: crop,
+      crop: tileCrop,
+      maxDimension: kPdfMaxTileDimension,
     );
     _bitmapCache.put(key, image);
     return image;
@@ -461,9 +527,6 @@ class PdfReaderSession extends ReaderSession {
 
   /// Computes output pixel size and the (possibly sub-screen-sliced) crop
   /// rect to render, for the current [ReaderSettings.fitMode].
-  ///
-  /// Continuous scroll has its own whole-document rendering path; this branch
-  /// is retained as a safe single-page fallback during mode transitions.
   ({int pixelWidth, int pixelHeight, PdfCropRect crop}) _geometryFor(
     PdfPageInfo info,
     PdfCropRect crop,
@@ -511,16 +574,12 @@ class PdfReaderSession extends ReaderSession {
         );
 
       case PdfFitMode.zoom:
-        // Base render for InteractiveViewer (Step 1.5) to scale further; go
-        // as large as the shared render ceiling allows.
-        final aspect = croppedWidth / croppedHeight;
-        var pixelWidth = kPdfMaxRenderDimension.round();
-        var pixelHeight = (kPdfMaxRenderDimension / aspect).round();
-        if (pixelHeight > kPdfMaxRenderDimension) {
-          pixelHeight = kPdfMaxRenderDimension.round();
-          pixelWidth = (kPdfMaxRenderDimension * aspect).round();
-        }
-        return (pixelWidth: pixelWidth, pixelHeight: pixelHeight, crop: crop);
+        // Zoom / Scroll is exclusively continuous. Rendering a whole page
+        // here and letting a transform magnify it is what used to make
+        // zoomed vector PDFs blurry, so there is no such path any more.
+        throw StateError(
+          'Zoom / Scroll geometry is owned by PdfContinuousLayout',
+        );
     }
   }
 
@@ -608,7 +667,7 @@ class PdfReaderSession extends ReaderSession {
   Future<void> _prefetchPage(int pageIndex) async {
     final viewport = _lastViewport;
     if (viewport == null || pageIndex < 0 || pageIndex >= _pageCount) return;
-    if (!_isReady || _isSuspended) return;
+    if (!_isReady || _isSuspended || _isContinuous) return;
     try {
       await _renderPageAt(
         pageIndex,
@@ -661,6 +720,7 @@ class PdfReaderSession extends ReaderSession {
   }
 
   void _afterPositionChanged() {
+    _navigationEpoch++;
     notifyListeners();
     _persistState();
     _prefetchNeighbors();

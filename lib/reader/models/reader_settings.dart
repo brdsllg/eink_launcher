@@ -21,6 +21,10 @@ class ReaderSettings {
   final bool autoCrop;
   final double splitOverlap;
 
+  /// Zoom / Scroll only: allow pinching in below the fit-width size, so pages
+  /// shrink and several can be skimmed at once. Default on.
+  final bool allowZoomOutBeyondFit;
+
   // Shared
   final bool landscape;
   final int flashEveryNTurns; // 0 = disabled
@@ -38,6 +42,7 @@ class ReaderSettings {
     this.fitMode = PdfFitMode.fitHeight,
     this.autoCrop = true,
     this.splitOverlap = kPdfDefaultSplitOverlap,
+    this.allowZoomOutBeyondFit = true,
     this.landscape = false,
     this.flashEveryNTurns = 0,
   });
@@ -49,6 +54,10 @@ class ReaderSettings {
       )];
   double get horizontalMargin =>
       kReaderMarginSteps[marginStep.clamp(0, kReaderMarginSteps.length - 1)];
+
+  /// The Zoom / Scroll pinch floor implied by [allowZoomOutBeyondFit].
+  double get minZoomScale =>
+      allowZoomOutBeyondFit ? kPdfMinZoomScaleBeyondFit : kPdfMinZoomScale;
 
   ReaderSettings copyWith({
     String? latinFontFamily,
@@ -63,6 +72,7 @@ class ReaderSettings {
     PdfFitMode? fitMode,
     bool? autoCrop,
     double? splitOverlap,
+    bool? allowZoomOutBeyondFit,
     bool? landscape,
     int? flashEveryNTurns,
   }) {
@@ -79,6 +89,8 @@ class ReaderSettings {
       fitMode: fitMode ?? this.fitMode,
       autoCrop: autoCrop ?? this.autoCrop,
       splitOverlap: splitOverlap ?? this.splitOverlap,
+      allowZoomOutBeyondFit:
+          allowZoomOutBeyondFit ?? this.allowZoomOutBeyondFit,
       landscape: landscape ?? this.landscape,
       flashEveryNTurns: flashEveryNTurns ?? this.flashEveryNTurns,
     );
@@ -97,6 +109,7 @@ class ReaderSettings {
     'fitMode': fitMode.name,
     'autoCrop': autoCrop,
     'splitOverlap': splitOverlap,
+    'allowZoomOutBeyondFit': allowZoomOutBeyondFit,
     'landscape': landscape,
     'flashEveryNTurns': flashEveryNTurns,
   };
@@ -125,6 +138,7 @@ class ReaderSettings {
       autoCrop: json['autoCrop'] as bool? ?? true,
       splitOverlap:
           (json['splitOverlap'] as num?)?.toDouble() ?? kPdfDefaultSplitOverlap,
+      allowZoomOutBeyondFit: json['allowZoomOutBeyondFit'] as bool? ?? true,
       landscape: json['landscape'] as bool? ?? false,
       flashEveryNTurns: json['flashEveryNTurns'] as int? ?? 0,
     );

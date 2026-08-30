@@ -5,6 +5,10 @@ import '../models/reader_settings.dart';
 
 /// Discrete PDF controls; no animated switches or continuously repainting
 /// sliders, keeping interaction predictable on an e-ink panel.
+///
+/// Only settings that actually affect the *current* mode are shown. The fit
+/// mode itself is not repeated here: the reader menu overlay already offers
+/// Height / Width / Zoom-Scroll.
 class ReaderSettingsScreen extends StatefulWidget {
   final ReaderSettings initialSettings;
   final DocFormat format;
@@ -26,10 +30,6 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
   void initState() {
     super.initState();
     _settings = widget.initialSettings;
-  }
-
-  void _setFitMode(PdfFitMode mode) {
-    setState(() => _settings = _settings.copyWith(fitMode: mode));
   }
 
   void _changeOverlap(double delta) {
@@ -195,6 +195,92 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
     ),
   ];
 
+  /// Only the controls the active fit mode actually honours.
+  List<Widget> _pdfControls(BuildContext context) {
+    switch (_settings.fitMode) {
+      case PdfFitMode.fitHeight:
+        return [_cropControl()];
+
+      case PdfFitMode.fitWidth:
+        return [
+          _cropControl(),
+          const SizedBox(height: 28),
+          const _SectionLabel('Fit-width overlap'),
+          _overlapControl(context),
+        ];
+
+      case PdfFitMode.zoom:
+        return [
+          const _SectionLabel('Zoom out past the page'),
+          _ChoiceButton(
+            key: const Key('reader-settings-zoom-out'),
+            label: _settings.allowZoomOutBeyondFit ? 'Enabled' : 'Disabled',
+            selected: _settings.allowZoomOutBeyondFit,
+            onPressed: () => setState(
+              () => _settings = _settings.copyWith(
+                allowZoomOutBeyondFit: !_settings.allowZoomOutBeyondFit,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'When enabled, pinching in can shrink pages below the screen '
+            'width so several can be skimmed at once. When disabled, the '
+            'page never gets smaller than the screen width.',
+          ),
+          const SizedBox(height: 28),
+          const Text(
+            'Zoom / Scroll always scrolls continuously, always allows pinch '
+            'zoom, and crops margins uniformly across the whole document, so '
+            'it has no other options.',
+          ),
+        ];
+    }
+  }
+
+  Widget _cropControl() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SectionLabel('Automatic margin crop'),
+        _ChoiceButton(
+          key: const Key('reader-settings-crop'),
+          label: _settings.autoCrop ? 'Enabled' : 'Disabled',
+          selected: _settings.autoCrop,
+          onPressed: () => setState(
+            () => _settings = _settings.copyWith(autoCrop: !_settings.autoCrop),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _overlapControl(BuildContext context) {
+    return Row(
+      children: [
+        OutlinedButton(
+          onPressed: _settings.splitOverlap <= 0
+              ? null
+              : () => _changeOverlap(-0.01),
+          child: const Icon(Icons.remove),
+        ),
+        Expanded(
+          child: Text(
+            '${(_settings.splitOverlap * 100).round()}%',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+        ),
+        OutlinedButton(
+          onPressed: _settings.splitOverlap >= 0.20
+              ? null
+              : () => _changeOverlap(0.01),
+          child: const Icon(Icons.add),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textDocument = widget.format != DocFormat.pdf;
@@ -222,74 +308,7 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
         child: ListView(
           physics: const ClampingScrollPhysics(),
           padding: const EdgeInsets.all(20),
-          children: [
-            if (textDocument) ..._textControls(),
-            if (!textDocument) ...[
-              const _SectionLabel('Page fit'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _ChoiceButton(
-                    label: 'Fit height',
-                    selected: _settings.fitMode == PdfFitMode.fitHeight,
-                    onPressed: () => _setFitMode(PdfFitMode.fitHeight),
-                  ),
-                  _ChoiceButton(
-                    label: 'Fit width',
-                    selected: _settings.fitMode == PdfFitMode.fitWidth,
-                    onPressed: () => _setFitMode(PdfFitMode.fitWidth),
-                  ),
-                  _ChoiceButton(
-                    label: 'Zoom / scroll',
-                    selected: _settings.fitMode == PdfFitMode.zoom,
-                    onPressed: () => _setFitMode(PdfFitMode.zoom),
-                  ),
-                ],
-              ),
-              if (_settings.fitMode != PdfFitMode.zoom) ...[
-                const SizedBox(height: 28),
-                const _SectionLabel('Automatic margin crop'),
-                _ChoiceButton(
-                  key: const Key('reader-settings-crop'),
-                  label: _settings.autoCrop ? 'Enabled' : 'Disabled',
-                  selected: _settings.autoCrop,
-                  onPressed: () => setState(
-                    () => _settings = _settings.copyWith(
-                      autoCrop: !_settings.autoCrop,
-                    ),
-                  ),
-                ),
-              ],
-              if (_settings.fitMode == PdfFitMode.fitWidth) ...[
-                const SizedBox(height: 28),
-                const _SectionLabel('Fit-width overlap'),
-                Row(
-                  children: [
-                    OutlinedButton(
-                      onPressed: _settings.splitOverlap <= 0
-                          ? null
-                          : () => _changeOverlap(-0.01),
-                      child: const Icon(Icons.remove),
-                    ),
-                    Expanded(
-                      child: Text(
-                        '${(_settings.splitOverlap * 100).round()}%',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                    ),
-                    OutlinedButton(
-                      onPressed: _settings.splitOverlap >= 0.20
-                          ? null
-                          : () => _changeOverlap(0.01),
-                      child: const Icon(Icons.add),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ],
+          children: textDocument ? _textControls() : _pdfControls(context),
         ),
       ),
     );

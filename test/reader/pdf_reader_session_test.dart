@@ -251,6 +251,67 @@ void main() {
     },
   );
 
+  test('zoom / scroll never falls back to whole-page bitmap scaling', () async {
+    final session = makeSession(
+      fakeDoc: _FakePdfDocument(pageCount: 2, pageWidth: 200, pageHeight: 300),
+    );
+    await session.open();
+    await session.applySettings(
+      session.settings.copyWith(fitMode: PdfFitMode.zoom),
+    );
+
+    await expectLater(
+      session.renderCurrentView(const Size(200, 300)),
+      throwsStateError,
+    );
+  });
+
+  test('zoom re-rasterises tiles through PDFium at the requested density', () async {
+    final session = makeSession(
+      fakeDoc: _FakePdfDocument(pageCount: 2, pageWidth: 200, pageHeight: 300),
+    );
+    await session.open();
+    await session.applySettings(
+      session.settings.copyWith(fitMode: PdfFitMode.zoom),
+    );
+    final layout = await session.continuousLayoutForViewport(
+      const Size(200, 300),
+    );
+
+    // Unzoomed: one tile covers the whole page at device resolution.
+    final base = await session.renderContinuousTile(
+      0,
+      layout,
+      devicePixelRatio: 2,
+    );
+    expect(base.width, 400);
+    expect(base.height, 600);
+
+    // Zoomed 2x: the top half of the page occupies the same screen area but
+    // is rendered with twice the pixels, rather than being magnified.
+    final zoomed = await session.renderContinuousTile(
+      0,
+      layout,
+      devicePixelRatio: 2,
+      renderScale: 2,
+      region: const Rect.fromLTRB(0, 0, 1, 0.5),
+    );
+    expect(zoomed.width, 800);
+    expect(zoomed.height, 600);
+
+    // Tiles also subdivide horizontally, so a deep zoom never asks for a
+    // full-width strip that the dimension cap would silently shrink.
+    final quadrant = await session.renderContinuousTile(
+      0,
+      layout,
+      devicePixelRatio: 2,
+      renderScale: 4,
+      region: const Rect.fromLTRB(0.5, 0.5, 1.0, 0.75),
+    );
+    expect(quadrant.width, 800);
+    expect(quadrant.height, 600);
+  });
+
   test(
     'continuous scroll maps offsets, dominant pages, and tap jumps',
     () async {
@@ -269,20 +330,19 @@ void main() {
       final layout = await session.continuousLayoutForViewport(viewport);
 
       expect(layout.pageHeights, [300, 300, 300, 300]);
-      final image = await session.renderContinuousPage(
-        0,
-        layout,
-        devicePixelRatio: 2,
-      );
-      expect(image.width, 400);
-      expect(image.height, 600);
+
+      // Scrolling is the user's own gesture, so it must not bump the
+      // navigation epoch the view uses to decide when to snap its transform.
+      final epochBeforeScroll = session.navigationEpoch;
       session.updateContinuousScrollOffset(350, layout, viewport.height);
+      expect(session.navigationEpoch, epochBeforeScroll);
       final dragged = session.position as PdfReadingPosition;
       expect(dragged.pageIndex, 1);
       expect(dragged.withinPage, closeTo(1 / 6, 0.0001));
       expect(session.currentPage, 1);
 
       await session.nextPage();
+      expect(session.navigationEpoch, greaterThan(epochBeforeScroll));
       final afterNext = session.continuousOffsetForPosition(
         layout,
         viewport.height,
@@ -312,7 +372,7 @@ void main() {
     },
   );
 
-  testWidgets('zoom / scroll builds one continuous zoomable momentum surface', (
+  testWidgets('zoom / scroll is continuous, zoomable, and has momentum', (
     tester,
   ) async {
     final session = makeSession(
@@ -336,14 +396,35 @@ void main() {
       ),
     );
     await tester.pump();
-    final viewer = tester.widget<InteractiveViewer>(
+
+    var viewer = tester.widget<InteractiveViewer>(
       find.byKey(const Key('continuous-pdf-viewer')),
     );
     expect(viewer.scaleEnabled, isTrue);
     expect(viewer.panEnabled, isTrue);
-    expect(viewer.minScale, 1);
     expect(viewer.maxScale, 5);
     expect(viewer.onInteractionEnd, isNotNull);
+
+    // Momentum: friction must be lower than Flutter's 0.0000135 default,
+    // otherwise a fling decays inside a single e-ink refresh.
+    expect(viewer.interactionEndFrictionCoefficient, lessThan(0.0000135));
+
+    // Zooming out past the page is on by default, and needs BOTH a sub-1
+    // minScale and a boundary margin: InteractiveViewer independently floors
+    // the scale at viewport.width / boundaryRect.width.
+    expect(viewer.minScale, lessThan(1.0));
+    expect(viewer.boundaryMargin.horizontal, greaterThan(0));
+
+    await session.applySettings(
+      session.settings.copyWith(allowZoomOutBeyondFit: false),
+    );
+    await tester.pump();
+    viewer = tester.widget<InteractiveViewer>(
+      find.byKey(const Key('continuous-pdf-viewer')),
+    );
+    expect(viewer.minScale, 1.0);
+    expect(viewer.boundaryMargin, EdgeInsets.zero);
+
     await tester.pumpWidget(const SizedBox.shrink());
     session.dispose();
     BookStoreService.instance.dispose();
