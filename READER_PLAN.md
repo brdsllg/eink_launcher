@@ -38,7 +38,7 @@ Native-asset build hooks are already active in this project's build pipeline.
 | Storage | One atomic `library.json` in app documents dir. |
 | Entry point | File browser only. Tapping a readable file opens the reader. |
 | Escape hatch | "Open with…" in the long-press selection menu → `OpenFilex`. |
-| In-document features | TOC + jump to page/percent, bookmarks, text search (**EPUB only**). |
+| In-document features | TOC + jump to page/percent, bookmarks, text search (EPUB, TXT, and Markdown). |
 | Not building | Highlights, notes, dictionary, TTS, PDF text search. |
 | Rotation | Manual toggle in the reader menu only. **Never** sensor-driven. Always single-column. |
 | Android intents | Designed for, but wired up in a later phase. |
@@ -594,9 +594,10 @@ Orientation lives in the menu overlay for every format.
   - Allow adding, viewing, navigating, and deleting bookmarks.
   - Extend the `ReaderSession` contract so both PDF and text sessions add/list/remove bookmarks, and make sure each session's `_persistState` preserves the existing bookmark list.
 
-- [ ] **Step 4.4: In-Book Text Search (EPUB)**
+- [ ] **Step 4.4: In-Book Text Search (EPUB, TXT, Markdown)**
   - Create `lib/reader/services/text_search_service.dart` (nikud-insensitive Hebrew normalisation, isolate-backed).
   - Create `lib/reader/screens/reader_search_screen.dart` with paginated search results.
+  - Search operates on `ContentBlock` lists, which all text formats already produce, so TXT and Markdown get search for free alongside EPUB. PDF search is out of scope (requires text extraction from PDFium).
 
 - [ ] **Step 4.5: Phase 4 Verification**
   - Test chapter jumping, bookmark round-trips across font size changes, and Hebrew search queries with/without vowel points.
@@ -607,7 +608,18 @@ Orientation lives in the menu overlay for every format.
 **Objective:** Final hardening, memory management, and display tuning.
 - [ ] **Step 5.1: Error Boundaries & Fallback UI**
   - Handle corrupt PDFs, malformed EPUBs, missing files, and memory warnings gracefully.
-- [x] **Step 5.2: Update Documentation & Tests**
+- [ ] **Step 5.2: DRM-Protected EPUB Detection**
+  - During EPUB parsing, inspect `META-INF/encryption.xml` when it exists.
+  - Do not reject a book merely because that file exists: EPUB font obfuscation also uses `encryption.xml` and is not the same as DRM. Distinguish supported font-obfuscation entries from encryption of spine documents or other reading content.
+  - If reading content is encrypted with an unsupported scheme, throw a typed error and show a clear message such as "This book contains DRM-protected or encrypted content that this reader cannot open" instead of failing opaquely or displaying garbled content.
+  - Add fixtures for an unencrypted EPUB, a font-obfuscated EPUB, and an EPUB with encrypted spine content.
+- [ ] **Step 5.3: Adaptive PDF Bitmap Cache Size**
+  - Query Android's `ActivityManager.getMemoryClass()` through a platform channel when the PDF runtime is first needed, rather than adding work to launcher startup.
+  - Size the PDF bitmap cache from the reported per-app heap class instead of always using the current hard-coded 96 MB. Start with a conservative fraction (for example 20–25%) and clamp it to measured minimum and maximum limits so unusually small or large reports cannot produce a harmful cache size.
+  - This prevents the cache from being too large on low-memory devices or too conservative on devices with more RAM.
+  - Keep a safe fixed fallback if the Android query fails, and verify the chosen fraction on the Bigme with `adb shell dumpsys meminfo` before locking it in.
+  - Requires a small Kotlin handler plus changes to make the cache budget a runtime value rather than a compile-time constant.
+- [x] **Step 5.4: Update Documentation & Tests**
   - Update `README.md` with new file listings and architectural details.
   - Run full test suite (`flutter test`, `flutter analyze`).
 
@@ -638,4 +650,5 @@ Orientation lives in the menu overlay for every format.
 3. **Hebrew fonts & nikud:** Multiple bundled OFL fonts selectable per-book.
 4. **Memory pressure:** Hard 4-session cap + suspend contract + LRU bitmap cache bounded by `kPdfBitmapCacheBytes`, with 2-D tiling so zoom cost stays flat instead of growing with scale.
 5. **Zoom / Scroll on a ~30 fps panel:** A fling only gets a dozen or so frames, so momentum must never be interrupted. Mitigated by owning the transform, driving the fling from a `Ticker` that rebuilds cannot cancel, deferring re-rasterisation until the glide ends, and rendering ~0.75 screens of look-ahead. Tunable via `kPdfFlingFriction` (lower = longer glide) and `kPdfMinFlingVelocity`.
-6. **PDFium renders on the UI isolate:** FFI handles cannot be shared across isolates, so tile rasterisation competes with the glide. Mitigated by bounded tile sizes and look-ahead; if it still stutters, the next step is direction-biased pre-rendering ahead of the fling rather than symmetric look-ahead.
+6. **PDFium renders on the UI isolate:** PDF tile rasterisation and screen updates currently compete for the app's main Flutter worker. Bounded tiles, deferred re-rasterisation, and look-ahead mitigate this. As of 2026-08-30, flinging is smooth on the Bigme B751C, so no redesign is justified now. Revisit only if measured stutter appears with heavier PDFs, higher zoom, or different hardware; first try direction-biased pre-rendering, and investigate a separate rendering worker only if the simpler mitigation is insufficient.
+7. **Custom EPUB parser maintenance:** The direct `archive` + `xml` parser was built because `epubx` had incompatible transitive `image` version constraints with `pdfrx`. If `epubx` or a fork resolves that conflict in the future, consider switching back to reduce the maintenance surface of container/OPF/NCX/nav parsing. The current parser is tested against an in-memory EPUB fixture, but real-world EPUBs vary widely and may expose edge cases over time.

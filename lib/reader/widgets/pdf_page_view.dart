@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -143,6 +144,8 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   /// Zoom rung the tiles are currently rasterised at. Changes are deferred
   /// until a gesture *and* its fling are over, so a glide never blanks tiles.
   double _renderScale = 1.0;
+  double? _oldRenderScale;
+  Timer? _oldScaleTimer;
 
   late final Ticker _flingTicker;
   Simulation? _flingX;
@@ -163,6 +166,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   @override
   void dispose() {
     _flingTicker.dispose();
+    _oldScaleTimer?.cancel();
     super.dispose();
   }
 
@@ -349,7 +353,21 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   void _settleRenderScale() {
     final quantized = _quantizeRenderScale(_scale);
     if (quantized == _renderScale || !mounted) return;
-    setState(() => _renderScale = quantized);
+
+    final previousScale = _renderScale;
+    setState(() {
+      _oldRenderScale = previousScale;
+      _renderScale = quantized;
+    });
+
+    _oldScaleTimer?.cancel();
+    _oldScaleTimer = Timer(const Duration(milliseconds: 500), () {
+      if (mounted && _oldRenderScale == previousScale) {
+        setState(() {
+          _oldRenderScale = null;
+        });
+      }
+    });
   }
 
   static double _quantizeRenderScale(double scale) {
@@ -444,7 +462,11 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
           child: ClipRect(
             child: Stack(
               clipBehavior: Clip.hardEdge,
-              children: _buildTiles(layout),
+              children: [
+                if (_oldRenderScale != null)
+                  ..._buildTiles(layout, _oldRenderScale!),
+                ..._buildTiles(layout, _renderScale),
+              ],
             ),
           ),
         );
@@ -452,7 +474,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     );
   }
 
-  List<Widget> _buildTiles(PdfContinuousLayout layout) {
+  List<Widget> _buildTiles(PdfContinuousLayout layout, double targetRenderScale) {
     if (layout.pageCount == 0 || layout.totalHeight <= 0) {
       return const [SizedBox.expand()];
     }
@@ -482,7 +504,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     // device pixels. Because the on-screen pixel count is constant, so is the
     // cost, at every zoom level — and no request ever hits the dimension cap
     // that used to silently downscale zoomed pages into blurriness.
-    final density = widget.devicePixelRatio * _renderScale;
+    final density = widget.devicePixelRatio * targetRenderScale;
     final maxTileSide = math.max(16.0, kPdfTileSidePixels / density);
 
     final columns = math.max(1, (layout.viewportWidth / maxTileSide).ceil());
@@ -511,7 +533,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
           }
           tiles.add(
             Positioned(
-              key: ValueKey('$pageIndex/$rows.$row/$columns.$column'),
+              key: ValueKey('${targetRenderScale.toStringAsFixed(2)}/$pageIndex/$rows.$row/$columns.$column'),
               left: (tileLeft - _originX) * _scale,
               top: (tileTop - _originY) * _scale,
               // Half a pixel of overdraw hides hairline seams between
@@ -529,7 +551,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
                   (row + 1) / rows,
                 ),
                 devicePixelRatio: widget.devicePixelRatio,
-                renderScale: _renderScale,
+                renderScale: targetRenderScale,
               ),
             ),
           );
@@ -637,14 +659,13 @@ class _ContinuousPdfTileState extends State<_ContinuousPdfTile> {
   Widget build(BuildContext context) {
     final image = _image;
     if (image == null) {
-      // Extents are known up front, so a plain white tile is never a layout
-      // shift; and a spinner would animate, which e-ink cannot afford.
-      return ColoredBox(
-        color: Colors.white,
-        child: _failed
-            ? const Center(child: Text('Page could not be rendered'))
-            : null,
-      );
+      if (_failed) {
+        return const ColoredBox(
+          color: Colors.white,
+          child: Center(child: Text('Page could not be rendered')),
+        );
+      }
+      return const SizedBox.expand();
     }
     return RawImage(
       image: image,

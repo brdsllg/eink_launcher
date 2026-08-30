@@ -339,9 +339,6 @@ class TextReaderSession extends ReaderSession {
     }
     _pages = List<LaidOutPage>.unmodifiable(pages);
     _currentPage = _pageIndexForPosition(_position);
-    if (_pages.isNotEmpty && _chapterPages.containsKey(_position.spineIndex)) {
-      _position = _pages[_currentPage].start;
-    }
   }
 
   void _goToPosition(TextReadingPosition target) {

@@ -4,18 +4,19 @@ This plan keeps the Flutter UI and improves the parts that matter for an Android
 
 ## Priorities
 
-| Priority | Improvement | Expected payoff |
-| --- | --- | --- |
-| P0 | Establish device baselines and fix startup ordering | Reliable measurements and deterministic home-folder startup |
-| P1 | Defer PDF runtime initialization | Faster launcher cold start |
-| P1 | Replace `open_filex` with the existing native Android bridge | Correct MIME handling, fewer plugin dependencies, one file-opening path |
-| Done | Native `PackageManager` app discovery and launching | Removed the Kotlin plugin warning and gives direct launcher control |
-| Done | Preserve simple personal-sideload signing | Directly installable APKs that upgrade on the owned device |
-| P2 | Compare Impeller with the legacy renderer on the Bigme | Select the renderer with the least ghosting and best response |
-| P2 | Reduce rebuild/repaint scope only where profiling proves useful | Less unnecessary rendering work |
-| P3 | Add Bigme refresh controls only if a supported API is available | Direct partial/full e-ink refresh control |
+| Priority | Improvement | Expected payoff | Status |
+| --- | --- | --- | --- |
+| P0 | Establish device baselines and fix startup ordering | Reliable measurements and deterministic home-folder startup | [ ] Not started |
+| P1 | Defer PDF runtime initialization | Faster launcher cold start | [ ] Not started |
+| P1 | Launcher crash resilience (safe mode, corrupt-state recovery) | Prevents the device from becoming unusable if the launcher crashes repeatedly | [ ] Not started |
+| P2 | Compare Impeller with the legacy renderer on the Bigme | Select the renderer with the least ghosting and best response | [ ] Not started |
+| P2 | Reduce rebuild/repaint scope only where profiling proves useful | Less unnecessary rendering work | [ ] Conditional |
+| P3 | Add Bigme refresh controls only if a supported API is available | Direct partial/full e-ink refresh control | [ ] Conditional |
+| Done | Native `PackageManager` app discovery and launching | Removed the Kotlin plugin warning and gives direct launcher control | [x] Implemented |
+| Done | Native Android battery broadcast bridge | Event-driven battery updates with no `battery_plus` dependency | [x] Implemented |
+| Done | Preserve simple personal-sideload signing | Directly installable APKs that upgrade on the owned device | [x] Documented current workflow |
 
-## 1. Measure the Current App First
+## 1. Measure the Current App First — Not Started
 
 Use a release or profile build on the actual Bigme device. Debug APK size and timing are not representative.
 
@@ -74,7 +75,7 @@ Acceptance criteria:
 - Permission prompts still work on a fresh install.
 - No folder is loaded twice during normal startup.
 
-## 2. Defer PDF Runtime Initialization
+## 2. Defer PDF Runtime Initialization — Not Started
 
 `lib/main.dart` currently awaits `pdfrxFlutterInitialize()` before `runApp()`, although most launcher sessions do not open a PDF. Move that work off the launcher startup path.
 
@@ -103,33 +104,29 @@ Acceptance criteria:
 - Later PDFs reuse the same initialization future.
 - All reader tests continue to pass.
 
-## 3. Consolidate Android File Opening
+## 3. Keep `open_filex` — Decision Complete
 
-Normal opening still uses `open_filex`, while selection-mode **Open with** uses the custom Kotlin channel. Maintain one native implementation instead.
+Normal file opening uses `open_filex`, while the selection-mode **Open with** uses the custom Kotlin channel with `Intent.createChooser()`. Both paths work correctly, so `open_filex` is being kept as a dependency. The dual-path approach is acceptable for a personal-sideload app:
 
-Implementation:
+- Normal taps go through `open_filex`, which handles its own `FileProvider` and `ACTION_VIEW` intent.
+- **Open with** goes through the Kotlin bridge, which borrows `open_filex`'s `FileProvider` authority for the chooser intent.
 
-1. Rename the channel operation to `openFile` and pass:
+This was originally planned for consolidation but has been deliberately deferred — the current setup works reliably and removing `open_filex` would require setting up a standalone `FileProvider` configuration.
 
-   - `path`
-   - `mimeType`
-   - `forceChooser`
+Important dependency: the custom Kotlin chooser currently borrows the provider authority installed by `open_filex`. Do not remove or replace `open_filex` in the future unless an app-owned `FileProvider` and `file_paths.xml` are added first and both opening paths are retested.
 
-2. When `forceChooser` is false, launch the `ACTION_VIEW` intent directly. When true, wrap it with `Intent.createChooser()`.
-3. Move the Dart call behind one `AndroidFileService` used by both normal taps and **Open with**.
-4. Declare an app-owned `FileProvider` in `AndroidManifest.xml` and add `android/app/src/main/res/xml/file_paths.xml`.
-5. Change the provider authority to `${applicationId}.fileprovider`. Do not keep relying on the provider contributed by `open_filex`, because it disappears when that dependency is removed.
-6. Remove `open_filex` from `pubspec.yaml` only after both opening paths work through the native bridge.
+## 4. Native Android Battery Bridge — Implemented
 
-Acceptance criteria:
+The app does not depend on `battery_plus`. `MainActivity.kt` already listens to Android's sticky `ACTION_BATTERY_CHANGED` broadcast and sends percentage and charging state through `eink_launcher/battery_events`. `BatteryStatus` subscribes to that event stream and cancels its subscription when disposed.
 
-- Normal taps respect an existing Android default app.
-- **Open with** always displays the chooser.
-- PDF, EPUB, TXT, Markdown, DOCX, images, audio, video, and unknown binary files receive the expected MIME type.
-- A missing file and a file with no compatible app show useful launcher feedback.
-- `open_filex` is absent from `pubspec.yaml` and the generated plugin registrant.
+This already provides the desired low-work behavior: there is no polling, and the launcher repaints only when Android reports a battery change. Moving the receiver into a separate `BatteryStatusHandler.kt` can be done later if `MainActivity.kt` becomes difficult to maintain, but that is code organization rather than a performance or reliability improvement.
 
-## 4. Replace `installed_apps` with Android `PackageManager` — Implemented
+Remaining verification:
+
+- Add a widget test for valid, malformed, and unavailable battery events.
+- Confirm charging transitions and receiver reattachment after an activity/engine restart on the Bigme.
+
+## 5. Replace `installed_apps` with Android `PackageManager` — Implemented
 
 The launcher now owns this integration. `LauncherApp`, `AppListService`, and
 `InstalledAppsHandler` replace the plugin, preserve separate caches, and remove
@@ -167,7 +164,7 @@ Acceptance criteria:
 - App launching and refresh work after repeated use.
 - The Kotlin Gradle warning from `installed_apps` is gone.
 
-## 5. Personal Sideloading and Optional Distribution
+## 6. Personal Sideloading and Optional Distribution — Current Workflow Complete
 
 This app is currently intended for personal sideloading onto one owned device,
 so both debug and release-mode APKs use Flutter's generated debug key. That is
@@ -208,7 +205,28 @@ Acceptance criteria for the current personal workflow:
 - The package ID stays stable so Android retains app data across sideloaded updates.
 - Distribution signing remains explicitly out of scope until distribution is planned.
 
-## 6. Compare Flutter Renderers on the E-Ink Device
+## 7. Launcher Crash Resilience — Not Started
+
+Because this app is registered as the device's Home launcher, startup recovery matters more than it would for an ordinary app. The goal is not to hide every error; it is to ensure a bad saved folder, corrupt state file, or repeated startup failure still leaves a usable route to the app drawer and recovery controls without requiring ADB.
+
+Implementation:
+
+1. Make startup an explicit state machine (loading, ready, and recovery) instead of letting unawaited initialization errors escape. Catch failures from shared preferences, permission checks, and the first folder load.
+2. If the saved home folder is missing or unreadable, fall back to `/storage/emulated/0`, clear only the invalid home-folder preference, and show a concise warning. Do not clear unrelated settings.
+3. `BookStoreService` already falls back to empty reader state when `library.json` cannot be decoded. Before that fallback, preserve the bad file as a bounded `.corrupt` backup and record a useful error; never repeatedly overwrite the only copy of the user's reading state.
+4. Add a minimal recovery screen that does not initialize the reader. It must offer **Retry startup**, **Use storage root**, and **Open app drawer**. A reset-reading-state action may be included, but it must require confirmation and preserve or rename the old file rather than silently deleting it.
+5. Add a small native startup-health marker. Mark a launch as healthy only after Flutter has rendered a usable file browser or recovery screen. If three launches fail before that point within a short window, start in recovery mode and ignore the saved home folder for that launch.
+6. Install top-level Flutter error handlers for diagnostics and a bounded local crash record. Treat these as evidence for recovery, not as a substitute for the guarded startup flow.
+
+Acceptance criteria:
+
+- A missing or inaccessible saved home folder opens the storage root and explains what changed.
+- Invalid `library.json` data cannot prevent the launcher or app drawer from opening, and a recoverable backup is retained.
+- Three simulated early startup failures lead to the recovery screen on the next launch.
+- Recovery mode can open the app drawer and return to normal startup without ADB or clearing all app data.
+- Tests cover invalid preferences, unreadable folders, corrupt JSON, and the crash-loop threshold.
+
+## 8. Compare Flutter Renderers on the E-Ink Device — Not Started
 
 Do not disable Impeller based on assumptions. Compare both renderers using identical actions and the baseline checklist.
 
@@ -240,7 +258,7 @@ Acceptance criteria:
 - The selected renderer wins repeatably on the actual device.
 - The choice is documented with measurements, not preference.
 
-## 7. Reduce Rebuilds Only If Profiling Shows a Problem
+## 9. Reduce Rebuilds Only If Profiling Shows a Problem — Conditional
 
 The file browser currently places most of the scaffold under one `ListenableBuilder`. That is simple and probably acceptable for twelve visible rows, but file-stat updates can rebuild the whole screen.
 
@@ -254,7 +272,7 @@ Practical sequence:
 
 Do not replace the fixed twelve/fifteen-row layout with a complex lazy list. The current number of children is small and bounded.
 
-## 8. Add Vendor Refresh Control Only When Supported
+## 10. Add Vendor Refresh Control Only When Supported — Conditional
 
 This is useful only if Bigme provides a documented SDK, system service, or intent for refresh modes.
 
@@ -268,7 +286,7 @@ Implementation if an API is available:
 
 Do not use undocumented reflection or hard-coded service calls that could break after a firmware update.
 
-## 9. Expand Regression Coverage Around the Android-Only Features
+## 11. Expand Regression Coverage Around the Android-Only Features — Ongoing
 
 Add tests as each refactor lands:
 
@@ -279,6 +297,7 @@ Add tests as each refactor lands:
 - Equal-band layout: 15 portrait bands and 12 landscape bands on both screens.
 - Live app search filters on each edit and resets to page one.
 - Battery event parsing and charging-icon selection.
+- Startup recovery: invalid home folder, corrupt reader state, and crash-loop safe mode.
 - Opening feedback inverts a row before invoking the opener.
 
 Keep the standard completion checks:
@@ -304,9 +323,9 @@ Also perform a short on-device smoke test for battery events, MIME resolution, A
 
 1. Capture the baseline and fix startup sequencing.
 2. Defer PDF initialization.
-3. Consolidate native file opening and remove `open_filex`.
-4. Continue splitting battery and file-intent handlers out of `MainActivity`.
-5. Configure signed, architecture-appropriate release builds.
+3. Add launcher startup recovery and crash-loop safe mode.
+4. Keep the current `open_filex` and native battery implementations; only perform their remaining tests.
+5. Keep using the documented personal-sideload signing workflow.
 6. Compare Impeller on/off.
 7. Optimize rebuild boundaries only if profiling identifies them.
 8. Add Bigme-specific refresh control only if a supported API exists.
