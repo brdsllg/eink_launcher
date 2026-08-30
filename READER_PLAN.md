@@ -131,8 +131,8 @@ lib/
       reader_screen.dart                  format-agnostic shell
       reader_settings_screen.dart         mode-scoped display + typography settings
       reader_toc_screen.dart              table of contents navigation screen
-      reader_bookmarks_screen.dart        PLANNED: saved bookmarks screen
-      reader_search_screen.dart           PLANNED: in-book text search screen (EPUB)
+      reader_bookmarks_screen.dart        add/list/navigate/delete bookmarks
+      reader_search_screen.dart           PLANNED: text search (EPUB/TXT/Markdown)
     widgets/
       tap_zone_layer.dart                 invisible equal-thirds zones + swipe
       reader_menu_overlay.dart            in-book floating control overlay
@@ -170,6 +170,9 @@ dependency.
 
 ```
 file path
+  → PdfReaderSession.open() / resume()
+  → PdfDocumentService.open()
+  → PdfRuntimeService.ensureInitialized()        once, on first real PDF open
   → PdfDocument.openFile()                        pdfrx / PDFium
   → per page: crop rect?                          pdf_crop_service (cached)
   → PdfPage.render(x, y, width, height, full*)    UI isolate
@@ -208,6 +211,14 @@ Crop has **two strategies**, chosen by view mode:
 `PdfReaderSession.renderCurrentView()` serves the two tap-driven modes and
 deliberately **throws** in Zoom / Scroll, so nothing can silently fall back to
 magnifying a single whole-page bitmap.
+
+**Lazy PDF runtime initialization.** Launcher startup must not initialize
+PDFium. As specified in [Android-Only Hardening Plan §2](ANDROID_HARDENING_PLAN.md#2-defer-pdf-runtime-initialization--not-started),
+`PdfReaderSession.open()` and `resume()` own the reader lifecycle and call
+`PdfDocumentService.open()`. The service's default document opener must await
+the memoized `PdfRuntimeService.ensureInitialized()` immediately before
+`PdfDocument.openFile()`. Keeping the check in the default opener means tests
+that inject a fake `PdfDocumentOpener` do not try to initialize native PDFium.
 
 #### 4.1.1 Zoom / Scroll mode
 
@@ -353,6 +364,10 @@ abstract class ReaderSession extends ChangeNotifier {
   Future<void> goToPercent(double pct);
   Future<void> applySettings(ReaderSettings s);
 
+  List<Bookmark> get bookmarks;
+  Future<void> addBookmark(String label);
+  Future<void> removeBookmark(String id);
+
   void suspend();               // free bitmaps, close native handles, keep position
   Future<void> resume();
 }
@@ -415,7 +430,9 @@ Orientation lives in the menu overlay for every format.
 | File | Change |
 |---|---|
 | `pubspec.yaml` | Add dependencies (`pdfrx`, `archive`, `xml`, `html`, `markdown`, `path_provider`, `crypto`, `hyphenatorx`); declare fonts assets. |
-| `lib/main.dart` | `await pdfrxFlutterInitialize()` after `ensureInitialized()`. |
+| `lib/main.dart` | Do not initialize PDFium during launcher startup; see the hardening plan §2. |
+| `lib/reader/services/pdf_runtime_service.dart` | Memoize the one-time `pdfrxFlutterInitialize()` future. |
+| `lib/reader/services/pdf_document_service.dart` | In the default (non-injected) opener, await the runtime service immediately before `PdfDocument.openFile()`. |
 | `lib/constants.dart` | Add `kReadableExtensions`, equal-thirds tap zone ratios, font size/margin tables, crop constants, and the Zoom / Scroll zoom, tile, fling, and cache constants. |
 | `lib/screens/file_browser_screen.dart` | Intercept readable files on tap → push `ReaderScreen`; add "Open with…" in selection bar. |
 
@@ -427,7 +444,7 @@ Orientation lives in the menu overlay for every format.
 **Objective:** Prove `pdfrx` and PDFium build and render cleanly on target hardware.
 - [x] **Step 0.1: Add dependencies & init pdfrx**
   - Add `pdfrx: ^2.4.7`, `path_provider: ^2.1.4`, `crypto: ^3.0.5` to `pubspec.yaml`.
-  - Add `await pdfrxFlutterInitialize();` in `lib/main.dart`.
+  - Initial native verification used `await pdfrxFlutterInitialize();` in `lib/main.dart`. This remains the currently implemented state, but Android hardening §2 will move it into the default PDF document-opening path so launcher startup stays lazy.
   - Add `kReadableExtensions` and reader constants in `lib/constants.dart`.
 - [ ] **Step 0.2: Smoke test PDF render on device**
   - Create minimal verification widget/test calling `PdfDocument.openFile` and rendering page 0.
@@ -589,10 +606,12 @@ Orientation lives in the menu overlay for every format.
   - Add discrete number-input jump-to-page dialog.
   - Add percent jump entry to the menu overlay.
 
-- [ ] **Step 4.3: Bookmarks Management**
-  - Create `lib/reader/screens/reader_bookmarks_screen.dart`.
-  - Allow adding, viewing, navigating, and deleting bookmarks.
-  - Extend the `ReaderSession` contract so both PDF and text sessions add/list/remove bookmarks, and make sure each session's `_persistState` preserves the existing bookmark list.
+- [x] **Step 4.3: Bookmarks Management**
+  - Created `lib/reader/screens/reader_bookmarks_screen.dart`: add (with a page-number default label), list (newest first, discretely paginated), tap-to-navigate, and delete-with-confirmation.
+  - Extended the `ReaderSession` contract with `bookmarks`, `addBookmark`, and `removeBookmark`; both `PdfReaderSession` and `TextReaderSession` implement them against their own logical `position`, restore the list in `_restorePersistedState`, and `_persistState` now writes the live in-memory list instead of only carrying forward whatever was already on disk.
+  - Navigating to a bookmark reuses `goToToc` by wrapping the bookmark's label and position as a one-off `TocEntry`, so no separate navigation path was needed.
+  - Wired a "Bookmarks" entry point into `reader_menu_overlay.dart`'s top bar (next to Back) and `reader_screen.dart`.
+  - Covered by `pdf_reader_session_test.dart` and `text_reader_session_test.dart` (add/remove and cross-session persistence round-trips) and the new `reader_bookmarks_screen_test.dart` (add/list/navigate/delete); `reader_menu_overlay_test.dart` and `reader_session_registry_test.dart` were updated for the new contract member.
 
 - [ ] **Step 4.4: In-Book Text Search (EPUB, TXT, Markdown)**
   - Create `lib/reader/services/text_search_service.dart` (nikud-insensitive Hebrew normalisation, isolate-backed).

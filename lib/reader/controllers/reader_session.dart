@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/bookmark.dart';
 import '../models/doc_ref.dart';
 import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
@@ -48,6 +49,10 @@ abstract class ReaderSession extends ChangeNotifier {
 
   ReaderSettings get settings;
 
+  /// User-created bookmarks for this document, restored from and persisted
+  /// to [BookStoreService] alongside the rest of [BookState].
+  List<Bookmark> get bookmarks;
+
   /// Opens the underlying document and restores the last saved position.
   Future<void> open();
 
@@ -57,6 +62,12 @@ abstract class ReaderSession extends ChangeNotifier {
   Future<void> goToToc(TocEntry entry);
   Future<void> goToPercent(double pct);
   Future<void> applySettings(ReaderSettings settings);
+
+  /// Adds a bookmark at the current [position] with the given [label].
+  Future<void> addBookmark(String label);
+
+  /// Removes the bookmark with the given [id], if one exists.
+  Future<void> removeBookmark(String id);
 
   /// Frees rendered bitmaps and closes native handles but keeps [position],
   /// [toc], and [pageCount] so the session can be shown again instantly.

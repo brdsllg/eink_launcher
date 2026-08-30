@@ -197,6 +197,52 @@ void main() {
     expect(saved?.settingsOverride?.fitMode, PdfFitMode.fitWidth);
   });
 
+  test(
+    'bookmarks are added, persisted across sessions, and removed',
+    () async {
+      final session = makeSession(
+        fakeDoc: _FakePdfDocument(
+          pageCount: 3,
+          pageWidth: 200,
+          pageHeight: 300,
+        ),
+      );
+      await session.open();
+      await session.goToPage(1);
+
+      await session.addBookmark('Chapter 2');
+      expect(session.bookmarks, hasLength(1));
+      expect(session.bookmarks.single.label, 'Chapter 2');
+      expect(
+        session.bookmarks.single.position,
+        const PdfReadingPosition(pageIndex: 1),
+      );
+
+      final saved = BookStoreService.instance.getBookState('doc-1');
+      expect(saved?.bookmarks, hasLength(1));
+
+      // A freshly created session for the same doc (simulating an app
+      // restart) restores the bookmark from library.json.
+      final reopened = makeSession(
+        fakeDoc: _FakePdfDocument(
+          pageCount: 3,
+          pageWidth: 200,
+          pageHeight: 300,
+        ),
+      );
+      await reopened.open();
+      expect(reopened.bookmarks, hasLength(1));
+      expect(reopened.bookmarks.single.label, 'Chapter 2');
+
+      await reopened.removeBookmark(reopened.bookmarks.single.id);
+      expect(reopened.bookmarks, isEmpty);
+      expect(
+        BookStoreService.instance.getBookState('doc-1')?.bookmarks,
+        isEmpty,
+      );
+    },
+  );
+
   test('renderCurrentView caches identical requests and re-renders on viewport change', () async {
     final fakeDoc = _FakePdfDocument(
       pageCount: 2,

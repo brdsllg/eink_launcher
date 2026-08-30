@@ -9,6 +9,7 @@ class ReaderMenuOverlay extends StatelessWidget {
   final ReaderSettings settings;
   final VoidCallback onCloseReader;
   final VoidCallback onDismiss;
+  final VoidCallback onOpenBookmarks;
   final VoidCallback onJumpToPage;
   final ValueChanged<PdfFitMode> onSelectFitMode;
   final VoidCallback onToggleOrientation;
@@ -26,6 +27,7 @@ class ReaderMenuOverlay extends StatelessWidget {
     required this.settings,
     required this.onCloseReader,
     required this.onDismiss,
+    required this.onOpenBookmarks,
     required this.onJumpToPage,
     required this.onSelectFitMode,
     required this.onToggleOrientation,
@@ -62,6 +64,12 @@ class ReaderMenuOverlay extends StatelessWidget {
                   icon: Icons.arrow_back,
                   label: 'Back',
                   onPressed: onCloseReader,
+                ),
+                _MenuButton(
+                  key: const Key('reader-bookmarks-button'),
+                  icon: Icons.bookmark_outline,
+                  label: 'Bookmarks',
+                  onPressed: onOpenBookmarks,
                 ),
                 Expanded(
                   child: Text(

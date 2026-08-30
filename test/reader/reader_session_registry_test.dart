@@ -1,5 +1,6 @@
 import 'package:eink_launcher/reader/controllers/reader_session.dart';
 import 'package:eink_launcher/reader/controllers/reader_session_registry.dart';
+import 'package:eink_launcher/reader/models/bookmark.dart';
 import 'package:eink_launcher/reader/models/doc_ref.dart';
 import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:eink_launcher/reader/models/reading_position.dart';
@@ -162,6 +163,9 @@ class _FakeSession extends ReaderSession {
   ReaderSettings get settings => const ReaderSettings();
 
   @override
+  List<Bookmark> get bookmarks => const [];
+
+  @override
   Future<void> open() async {
     openCalls++;
     _isReady = true;
@@ -185,6 +189,12 @@ class _FakeSession extends ReaderSession {
 
   @override
   Future<void> applySettings(ReaderSettings settings) async {}
+
+  @override
+  Future<void> addBookmark(String label) async {}
+
+  @override
+  Future<void> removeBookmark(String id) async {}
 
   @override
   void suspend() {

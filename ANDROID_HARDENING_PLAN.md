@@ -79,6 +79,13 @@ Acceptance criteria:
 
 `lib/main.dart` currently awaits `pdfrxFlutterInitialize()` before `runApp()`, although most launcher sessions do not open a PDF. Move that work off the launcher startup path.
 
+This step is the startup side of the reader lifecycle described in
+[E-Ink Reader Plan §4.1](READER_PLAN.md#41-pdf). `PdfReaderSession.open()` and
+`resume()` call `PdfDocumentService.open()`; the service's default document
+opener is the precise place where lazy initialization belongs. This preserves
+the session's suspend/resume architecture without making the launcher aware of
+PDFium.
+
 Implementation:
 
 1. Add `lib/reader/services/pdf_runtime_service.dart` with a memoized `Future<void>`:
@@ -94,8 +101,9 @@ Implementation:
    ```
 
 2. Remove the `pdfrxFlutterInitialize()` call and `pdfrx` import from `lib/main.dart`.
-3. In the default PDF-opening path, await `PdfRuntimeService.ensureInitialized()` immediately before `PdfDocument.openFile()`.
-4. Preserve injected PDF openers in tests so unit tests do not require native PDFium initialization.
+3. In `PdfDocumentService._openPdfDocument()`, await `PdfRuntimeService.ensureInitialized()` immediately before `PdfDocument.openFile()`.
+4. Leave `PdfReaderSession.open()` and `resume()` calling `PdfDocumentService.open()`; both lifecycle paths will therefore use the same memoized initialization.
+5. Preserve injected PDF openers in tests so unit tests do not require native PDFium initialization.
 
 Acceptance criteria:
 

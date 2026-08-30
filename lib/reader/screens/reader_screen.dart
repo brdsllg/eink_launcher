@@ -8,13 +8,16 @@ import '../controllers/pdf_reader_session.dart';
 import '../controllers/reader_session.dart';
 import '../controllers/reader_session_registry.dart';
 import '../controllers/text_reader_session.dart';
+import '../models/bookmark.dart';
 import '../models/doc_ref.dart';
 import '../models/reader_settings.dart';
+import '../models/toc_entry.dart';
 import '../services/book_store_service.dart';
 import '../widgets/pdf_page_view.dart';
 import '../widgets/reader_menu_overlay.dart';
 import '../widgets/tap_zone_layer.dart';
 import '../widgets/text_page_view.dart';
+import 'reader_bookmarks_screen.dart';
 import 'reader_settings_screen.dart';
 import 'reader_toc_screen.dart';
 
@@ -241,6 +244,22 @@ class _ReaderScreenState extends State<ReaderScreen>
     if (entry != null && mounted) await _navigate(() => session.goToToc(entry));
   }
 
+  Future<void> _openBookmarks() async {
+    final session = _session;
+    if (session == null) return;
+    final bookmark = await Navigator.of(context).push<Bookmark>(
+      noTransitionRoute(ReaderBookmarksScreen(session: session)),
+    );
+    if (bookmark == null || !mounted) return;
+    // Bookmarks reuse the TOC's own jump machinery — both are just a title
+    // plus a logical position as far as the session is concerned.
+    await _navigate(
+      () => session.goToToc(
+        TocEntry(title: bookmark.label, position: bookmark.position),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = _session;
@@ -303,6 +322,7 @@ class _ReaderScreenState extends State<ReaderScreen>
             settings: session.settings,
             onCloseReader: () => Navigator.of(context).pop(),
             onDismiss: () => setState(() => _menuVisible = false),
+            onOpenBookmarks: _openBookmarks,
             onJumpToPage: _showPageJump,
             onSelectFitMode: (fitMode) =>
                 _applySettings(session.settings.copyWith(fitMode: fitMode)),

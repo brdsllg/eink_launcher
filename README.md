@@ -74,6 +74,7 @@ eink_launcher/
 │   │   │   └── text_block_parser.dart    # TXT encodings and Markdown semantic parsing
 │   │   ├── screens/
 │   │   │   ├── reader_screen.dart        # Full-bleed reader shell & lifecycle hooks
+│   │   │   ├── reader_bookmarks_screen.dart # Add, list, navigate to & delete bookmarks
 │   │   │   ├── reader_settings_screen.dart # Mode-scoped PDF and typography settings
 │   │   │   └── reader_toc_screen.dart    # Paginated PDF/text table of contents
 │   │   └── widgets/
@@ -184,7 +185,12 @@ logical position persistence, progressive per-chapter pagination, a disk page
 cache, bundled Latin/Hebrew fonts, bidi block direction, optional Latin
 hyphenation, and discrete typography controls. EPUB 3 nav, EPUB 2 NCX, PDF
 outlines, and Markdown headings feed the paginated Table of Contents screen;
-page and percent jumps are available from the reader overlay.
+page and percent jumps are available from the reader overlay. Bookmarks work
+the same way for every format: each is a label plus the same logical
+`ReadingPosition` used for persistence, so a bookmark survives font-size,
+margin, rotation, and PDF-fit-mode changes exactly like the saved reading
+position does, and jumping to one reuses the Table of Contents' own
+navigation path.
 
 PDFs offer three per-document display modes. **Fit Height** and **Fit Width** are
 purely tap-driven, with optional per-page auto-crop and (for Fit Width) an
@@ -269,6 +275,10 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 
 - **[`lib/reader/screens/reader_screen.dart`](lib/reader/screens/reader_screen.dart)**:
   - Obtains long-lived sessions from the registry, subscribes to them through a `ListenableBuilder`, presents a full-bleed page, hosts the tap-zone layer and menu overlay, coordinates app pause/resume persistence, and applies manual portrait/landscape locks.
+  - Pushes `ReaderBookmarksScreen` and, when a bookmark is selected, jumps to it by wrapping its label and position as a one-off `TocEntry` and calling the session's existing `goToToc`.
+- **[`lib/reader/screens/reader_bookmarks_screen.dart`](lib/reader/screens/reader_bookmarks_screen.dart)**:
+  - Reads and mutates bookmarks directly through the live `ReaderSession` (add, list, delete) so changes appear immediately via the session's own `ChangeNotifier`, discretely paginated like the file browser and TOC screen.
+  - Prompts for a label defaulting to the current page number, confirms before deleting, and returns the tapped `Bookmark` to the caller.
 - **[`lib/reader/screens/reader_settings_screen.dart`](lib/reader/screens/reader_settings_screen.dart)**:
   - Shows only the controls the current mode honours, and never repeats the fit-mode selector that already lives in the menu overlay: crop for Fit Height, crop plus overlap for Fit Width, and the zoom-out toggle for Zoom / Scroll. Text formats get the full typography panel instead.
 - **[`lib/reader/screens/reader_toc_screen.dart`](lib/reader/screens/reader_toc_screen.dart)**:
@@ -279,7 +289,7 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
   - `InteractiveViewer` was removed deliberately: it fires `onInteractionEnd` *before* starting its fling (so reacting to the gesture blanked every tile exactly as the glide began), its `FrictionSimulation` curve decayed within a few frames on a ~30 fps panel, and its scale floor ignored `minScale` unless given `boundaryMargin` slack that then allowed panning into empty space.
   - Builds a two-dimensional tile grid bounded by `kPdfTileSidePixels`, positions tiles in screen pixels, requests each at the quantised zoom density, and settles the render scale only after both the gesture and any fling finish. Tiles awaiting bitmaps paint plain white at the correct size, never a spinner.
 - **[`lib/reader/widgets/reader_menu_overlay.dart`](lib/reader/widgets/reader_menu_overlay.dart)**:
-  - Supplies title, page status, page and percent jumps, contents, fit-mode selection, orientation, settings, and exit controls in high-contrast top and bottom bars.
+  - Supplies title, bookmarks, page status, page and percent jumps, contents, fit-mode selection, orientation, settings, and exit controls in high-contrast top and bottom bars.
 - **[`lib/reader/widgets/tap_zone_layer.dart`](lib/reader/widgets/tap_zone_layer.dart)**:
   - Implements three equal-thirds tap zones — left/back, centre/menu, right/forward — with the right side always forward regardless of text direction, plus horizontal swipe page turns. In Zoom / Scroll it keeps the same tap thirds but registers no swipe recognizer, so pans and pinches reach the PDF surface below.
 - **[`lib/reader/widgets/block_slice_view.dart`](lib/reader/widgets/block_slice_view.dart)** and **[`lib/reader/widgets/text_page_view.dart`](lib/reader/widgets/text_page_view.dart)**:
@@ -349,8 +359,9 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 - **[`test/reader/pdf_continuous_layout_test.dart`](test/reader/pdf_continuous_layout_test.dart)**: Unit tests for exact extents, offset mapping, dominant-page selection, and boundary clamping.
 - **[`test/reader/pdf_crop_service_test.dart`](test/reader/pdf_crop_service_test.dart)**: Unit tests for ink bounds, blank pages, alpha compositing, and noise filtering.
 - **[`test/reader/pdf_document_service_test.dart`](test/reader/pdf_document_service_test.dart)**: Unit tests for PDF lifecycle/rendering and an opt-in native PDFium smoke test.
-- **[`test/reader/pdf_reader_session_test.dart`](test/reader/pdf_reader_session_test.dart)**: Unit and widget tests for fit-mode navigation and sub-screens, whole-page cache reuse and physical-pixel sizing, the refusal to render whole pages in Zoom / Scroll, per-density and per-region tile re-rasterisation, navigation-epoch semantics, persistence, suspension/resumption, and a fling that keeps gliding after release while respecting the end of the document.
-- **[`test/reader/reader_menu_overlay_test.dart`](test/reader/reader_menu_overlay_test.dart)**: Widget tests for reader-menu controls and mode-specific actions.
+- **[`test/reader/pdf_reader_session_test.dart`](test/reader/pdf_reader_session_test.dart)**: Unit and widget tests for fit-mode navigation and sub-screens, whole-page cache reuse and physical-pixel sizing, the refusal to render whole pages in Zoom / Scroll, per-density and per-region tile re-rasterisation, navigation-epoch semantics, persistence, suspension/resumption, bookmark add/remove/cross-session persistence, and a fling that keeps gliding after release while respecting the end of the document.
+- **[`test/reader/reader_bookmarks_screen_test.dart`](test/reader/reader_bookmarks_screen_test.dart)**: Widget tests for adding a bookmark with the default label, listing, tap-to-select, and delete-with-confirmation.
+- **[`test/reader/reader_menu_overlay_test.dart`](test/reader/reader_menu_overlay_test.dart)**: Widget tests for reader-menu controls, the bookmarks entry point, and mode-specific actions.
 - **[`test/reader/reader_session_registry_test.dart`](test/reader/reader_session_registry_test.dart)**: Unit tests for reader-session registry reuse and lifecycle management.
 - **[`test/reader/reader_settings_test.dart`](test/reader/reader_settings_test.dart)**: Unit tests for settings persistence and legacy-value migration.
 - **[`test/reader/reader_settings_screen_test.dart`](test/reader/reader_settings_screen_test.dart)**: Widget tests asserting each fit mode shows only its applicable controls, that the fit-mode selector is not duplicated, and that the zoom-out setting defaults to on and round-trips through JSON.
@@ -363,7 +374,7 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 - **[`test/reader/epub_paginator_service_test.dart`](test/reader/epub_paginator_service_test.dart)**: Exact line splitting, source-offset continuity, widow/orphan handling, and publisher-alignment tests.
 - **[`test/reader/pagination_cache_service_test.dart`](test/reader/pagination_cache_service_test.dart)**: Versioned atomic cache round-trips, replacement, fractional geometry keys, and stale-entry rejection.
 - **[`test/reader/text_block_parser_test.dart`](test/reader/text_block_parser_test.dart)**: Unit tests for TXT decoding and Markdown block parsing.
-- **[`test/reader/text_reader_session_test.dart`](test/reader/text_reader_session_test.dart)**: Text navigation, persistence, re-pagination, suspension, logical page ordering, and pending TOC-target tests.
+- **[`test/reader/text_reader_session_test.dart`](test/reader/text_reader_session_test.dart)**: Text navigation, persistence, re-pagination, suspension, logical page ordering, bookmark add/remove/cross-session persistence, and pending TOC-target tests.
 - **[`test/reader/text_reader_settings_screen_test.dart`](test/reader/text_reader_settings_screen_test.dart)**: Widget tests for text-format typography controls.
 - **[`test/reader/text_page_view_test.dart`](test/reader/text_page_view_test.dart)**: Widget coverage for rendering exact clip-and-offset block slices.
 - **[`test/reader/phase2_verification_test.dart`](test/reader/phase2_verification_test.dart)**: Automated bundled-font, bilingual direction, exact slice coverage, portrait/landscape re-pagination, and timing verification.

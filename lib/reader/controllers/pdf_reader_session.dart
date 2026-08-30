@@ -9,6 +9,7 @@ import 'dart:ui';
 
 import '../../constants.dart';
 import '../models/book_state.dart';
+import '../models/bookmark.dart';
 import '../models/doc_ref.dart';
 import '../models/pdf_continuous_layout.dart';
 import '../models/reader_settings.dart';
@@ -51,6 +52,7 @@ class PdfReaderSession extends ReaderSession {
   List<TocEntry> _toc = const [];
   ReaderSettings _settings = const ReaderSettings();
   final Map<int, PdfCropRect> _cropRectCache = {};
+  List<Bookmark> _bookmarks = const [];
   PdfCropRect? _uniformCropRect;
   PdfContinuousLayout? _continuousLayout;
   int? _continuousCurrentPage;
@@ -109,6 +111,9 @@ class PdfReaderSession extends ReaderSession {
 
   @override
   ReaderSettings get settings => _settings;
+
+  @override
+  List<Bookmark> get bookmarks => _bookmarks;
 
   /// Monotonic counter identifying the last programmatic navigation. See
   /// [_navigationEpoch].
@@ -267,6 +272,29 @@ class PdfReaderSession extends ReaderSession {
     _withinPage = 0.0;
     _continuousCurrentPage = _pageIndex;
     _afterPositionChanged();
+  }
+
+  @override
+  Future<void> addBookmark(String label) async {
+    final bookmark = Bookmark(
+      id: Bookmark.generateId(),
+      docId: doc.id,
+      createdAt: DateTime.now(),
+      label: label,
+      position: position,
+    );
+    _bookmarks = List<Bookmark>.unmodifiable([..._bookmarks, bookmark]);
+    notifyListeners();
+    _persistState();
+  }
+
+  @override
+  Future<void> removeBookmark(String id) async {
+    _bookmarks = List<Bookmark>.unmodifiable(
+      _bookmarks.where((b) => b.id != id),
+    );
+    notifyListeners();
+    _persistState();
   }
 
   @override
@@ -706,6 +734,7 @@ class PdfReaderSession extends ReaderSession {
       _pageIndex = position.pageIndex.clamp(0, _pageCount - 1).toInt();
       _withinPage = position.withinPage;
     }
+    _bookmarks = saved.bookmarks;
     _cropRectCache
       ..clear()
       ..addEntries(
@@ -737,7 +766,7 @@ class PdfReaderSession extends ReaderSession {
         position: position,
         percent: percent,
         settingsOverride: settingsOverride ?? existing?.settingsOverride,
-        bookmarks: existing?.bookmarks ?? const [],
+        bookmarks: _bookmarks,
         cachedCropRects: {
           for (final entry in _cropRectCache.entries)
             entry.key: entry.value.toList(),

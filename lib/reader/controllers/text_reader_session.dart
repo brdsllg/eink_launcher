@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import '../models/book_state.dart';
+import '../models/bookmark.dart';
 import '../models/content_block.dart';
 import '../models/doc_ref.dart';
 import '../models/laid_out_page.dart';
@@ -43,6 +44,7 @@ class TextReaderSession extends ReaderSession {
   Size? _contentSize;
   int _currentPage = 0;
   int _paginationGeneration = 0;
+  List<Bookmark> _bookmarks = const [];
   bool _isReady = false;
   bool _isSuspended = false;
   bool _isPaginating = false;
@@ -116,6 +118,9 @@ class TextReaderSession extends ReaderSession {
 
   @override
   ReaderSettings get settings => _settings;
+
+  @override
+  List<Bookmark> get bookmarks => _bookmarks;
 
   ParsedBook? get book => _book;
 
@@ -249,6 +254,29 @@ class TextReaderSession extends ReaderSession {
         charOffset: remaining.clamp(0, blocks[blockIndex].characterCount),
       ),
     );
+  }
+
+  @override
+  Future<void> addBookmark(String label) async {
+    final bookmark = Bookmark(
+      id: Bookmark.generateId(),
+      docId: doc.id,
+      createdAt: DateTime.now(),
+      label: label,
+      position: _position,
+    );
+    _bookmarks = List<Bookmark>.unmodifiable([..._bookmarks, bookmark]);
+    notifyListeners();
+    _persistState();
+  }
+
+  @override
+  Future<void> removeBookmark(String id) async {
+    _bookmarks = List<Bookmark>.unmodifiable(
+      _bookmarks.where((b) => b.id != id),
+    );
+    notifyListeners();
+    _persistState();
   }
 
   @override
@@ -388,6 +416,7 @@ class TextReaderSession extends ReaderSession {
     if (stored?.position case final TextReadingPosition value) {
       _position = value;
     }
+    _bookmarks = stored?.bookmarks ?? const [];
   }
 
   void _clampPositionToBook() {
@@ -430,7 +459,7 @@ class TextReaderSession extends ReaderSession {
         position: _position,
         percent: percent,
         settingsOverride: settingsOverride ?? previous?.settingsOverride,
-        bookmarks: previous?.bookmarks ?? const [],
+        bookmarks: _bookmarks,
       ),
     );
   }

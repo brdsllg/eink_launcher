@@ -110,6 +110,48 @@ void main() {
   });
 
   test(
+    'bookmarks are added, persisted across sessions, and removed',
+    () async {
+      await session.open();
+      await session.prepareViewport(const Size(220, 180));
+      await session.goToToc(_book.tableOfContents.last);
+
+      await session.addBookmark('Chapter two');
+      expect(session.bookmarks, hasLength(1));
+      expect(session.bookmarks.single.label, 'Chapter two');
+      expect(
+        (session.bookmarks.single.position as TextReadingPosition).spineIndex,
+        1,
+      );
+
+      final saved = BookStoreService.instance.getBookState(doc.id);
+      expect(saved?.bookmarks, hasLength(1));
+
+      // A freshly created session for the same doc (simulating an app
+      // restart) restores the bookmark from library.json.
+      final reopened = TextReaderSession(
+        doc: doc,
+        bookStore: BookStoreService.instance,
+        paginationCache: PaginationCacheService(
+          cacheDirectory: Directory('${directory.path}/pages'),
+        ),
+        bookLoader: (_, _) async => _book,
+      );
+      addTearDown(reopened.dispose);
+      await reopened.open();
+      expect(reopened.bookmarks, hasLength(1));
+      expect(reopened.bookmarks.single.label, 'Chapter two');
+
+      await reopened.removeBookmark(reopened.bookmarks.single.id);
+      expect(reopened.bookmarks, isEmpty);
+      expect(
+        BookStoreService.instance.getBookState(doc.id)?.bookmarks,
+        isEmpty,
+      );
+    },
+  );
+
+  test(
     'retains a TOC target requested during progressive pagination',
     () async {
       session.dispose();

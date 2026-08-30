@@ -8,6 +8,7 @@ void main() {
     tester,
   ) async {
     PdfFitMode? selectedMode;
+    var bookmarksOpened = false;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -19,6 +20,7 @@ void main() {
             settings: const ReaderSettings(),
             onCloseReader: () {},
             onDismiss: () {},
+            onOpenBookmarks: () => bookmarksOpened = true,
             onJumpToPage: () {},
             onSelectFitMode: (mode) => selectedMode = mode,
             onToggleOrientation: () {},
@@ -39,5 +41,8 @@ void main() {
     expect(selectedMode, PdfFitMode.fitWidth);
     await tester.tap(find.byKey(const Key('reader-zoom-scroll-button')));
     expect(selectedMode, PdfFitMode.zoom);
+
+    await tester.tap(find.byKey(const Key('reader-bookmarks-button')));
+    expect(bookmarksOpened, isTrue);
   });
 }
