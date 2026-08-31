@@ -8,6 +8,8 @@ import '../models/file_entry.dart';
 import '../services/file_operations_service.dart';
 import '../services/folder_loader_service.dart';
 
+enum LauncherStartupState { loading, ready, recovery }
+
 /// Owns all navigation state, folder loading, permission state, selection,
 /// and clipboard operations for [FileBrowserScreen].
 ///
@@ -19,6 +21,26 @@ class FileBrowserController extends ChangeNotifier {
 
   final FileOperationsService _ops = FileOperationsService();
   SharedPreferences? _prefs;
+  final Future<SharedPreferences> Function() _loadPreferences;
+  final Future<List<FileEntry>> Function(String) _listFolder;
+  bool _disposed = false;
+  bool _starting = false;
+  LauncherStartupState _startupState = LauncherStartupState.loading;
+  String? _startupMessage;
+
+  FileBrowserController({
+    Future<SharedPreferences> Function()? loadPreferences,
+    Future<List<FileEntry>> Function(String)? listFolder,
+  }) : _loadPreferences = loadPreferences ?? SharedPreferences.getInstance,
+       _listFolder = listFolder ?? FolderLoaderService.instance.loadFolder;
+
+  LauncherStartupState get startupState => _startupState;
+  String? get startupMessage => _startupMessage;
+
+  void dismissStartupMessage() {
+    _startupMessage = null;
+    notifyListeners();
+  }
 
   String _currentPath = kStorageRoot;
   String _homeFolder = kStorageRoot;
@@ -47,20 +69,88 @@ class FileBrowserController extends ChangeNotifier {
   bool get atRoot => _currentPath == kStorageRoot;
 
   /// Loads shared preferences and the persisted home folder. Idempotent.
-  Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
-    final saved = _prefs?.getString(_homeFolderPrefixKey);
-    if (saved != null && Directory(saved).existsSync()) {
+  Future<void> init({bool useStorageRoot = false}) async {
+    _homeFolder = kStorageRoot;
+    _currentPath = kStorageRoot;
+    // Recovery must still work if the preferences plugin cannot load at all.
+    // This bypass is for this launch only; it does not erase a valid preference.
+    if (useStorageRoot) return;
+    final prefs = await _loadPreferences().timeout(const Duration(seconds: 5));
+    if (_disposed) return;
+    _prefs = prefs;
+    final saved = prefs.get(_homeFolderPrefixKey);
+    if (saved is String && saved.startsWith('/') && !saved.contains('\u0000')) {
       _homeFolder = saved;
       _currentPath = saved;
+    } else if (saved != null) {
+      await _clearInvalidHome();
     }
   }
 
-  void setPermissionGranted(bool granted) {
+  Future<void> _clearInvalidHome() async {
+    _homeFolder = kStorageRoot;
+    _currentPath = kStorageRoot;
+    _startupMessage = 'Saved home folder unavailable. Using internal storage.';
+    if (_prefs != null && !await _prefs!.remove(_homeFolderPrefixKey)) {
+      throw StateError('Could not clear the invalid home folder preference.');
+    }
+  }
+
+  /// Preferences must resolve before permission handling or the first listing.
+  Future<void> initialize({
+    required Future<bool> Function() checkPermission,
+    bool useStorageRoot = false,
+    void Function(Object, StackTrace)? onError,
+  }) async {
+    if (_disposed || _starting) return;
+    _starting = true;
+    _startupState = LauncherStartupState.loading;
+    _startupMessage = null;
+    notifyListeners();
+    try {
+      await init(useStorageRoot: useStorageRoot);
+      if (_disposed) return;
+      final granted = await checkPermission();
+      if (_disposed) return;
+      _permissionGranted = granted;
+      if (granted) {
+        try {
+          await loadFolder(_currentPath, propagateError: true);
+        } catch (error, stack) {
+          if (_disposed) return;
+          if (_homeFolder == kStorageRoot) rethrow;
+          onError?.call(error, stack);
+          await _clearInvalidHome();
+          if (_disposed) return;
+          await loadFolder(kStorageRoot, propagateError: true);
+        }
+      }
+      if (!_disposed) {
+        _startupState = LauncherStartupState.ready;
+        notifyListeners();
+      }
+    } catch (error, stack) {
+      if (_disposed) return;
+      onError?.call(error, stack);
+      showRecovery('Startup could not finish. Retry or use internal storage.');
+    } finally {
+      _starting = false;
+    }
+  }
+
+  void showRecovery(String message) {
+    if (_disposed) return;
+    _startupState = LauncherStartupState.recovery;
+    _startupMessage = message;
+    notifyListeners();
+  }
+
+  Future<void> setPermissionGranted(bool granted) async {
+    if (_disposed) return;
     _permissionGranted = granted;
     notifyListeners();
     if (granted) {
-      loadFolder(_currentPath);
+      await loadFolder(_currentPath);
     }
   }
 
@@ -71,7 +161,12 @@ class FileBrowserController extends ChangeNotifier {
   /// [resetPage] defaults to true (navigating into a different folder should
   /// start at page 1). [reloadAfterMutation] passes false so a rename/delete/
   /// paste in the current folder doesn't bump the user back to page 1.
-  Future<void> loadFolder(String path, {bool resetPage = true}) async {
+  Future<void> loadFolder(
+    String path, {
+    bool resetPage = true,
+    bool propagateError = false,
+  }) async {
+    if (_disposed) return;
     final token = ++_loadToken;
     _currentPath = path;
     _status = 'Loading…';
@@ -80,8 +175,9 @@ class FileBrowserController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final entries = await FolderLoaderService.instance.loadFolder(path);
-      if (token != _loadToken) return;
+      final entries = await _listFolder(path)
+          .timeout(const Duration(seconds: 15));
+      if (_disposed || token != _loadToken) return;
 
       _entries = entries;
       if (resetPage) {
@@ -100,11 +196,12 @@ class FileBrowserController extends ChangeNotifier {
 
       loadStatsForCurrentPage();
     } catch (e) {
-      if (token != _loadToken) return;
+      if (_disposed || token != _loadToken) return;
       _entries = [];
       _currentPage = 0;
-      _status = 'Error reading folder: $e';
+      _status = 'Could not read this folder';
       notifyListeners();
+      if (propagateError) rethrow;
     }
   }
 
@@ -114,6 +211,7 @@ class FileBrowserController extends ChangeNotifier {
   /// (first layout, rotation, keyboard open/close) so the caller knows to
   /// re-trigger stat loading for the now-differently-sized page.
   bool setItemsPerPageHint(int itemsPerPage) {
+    if (_disposed) return false;
     if (_itemsPerPage == itemsPerPage) return false;
     _itemsPerPage = itemsPerPage;
     return true;
@@ -126,7 +224,7 @@ class FileBrowserController extends ChangeNotifier {
   /// No-ops until the real page size is known (see [setItemsPerPageHint]);
   /// there's nothing meaningful to scope to before then.
   Future<void> loadStatsForCurrentPage() async {
-    if (_itemsPerPage <= 0) return;
+    if (_disposed || _itemsPerPage <= 0) return;
     final token = _loadToken;
     final start = _currentPage * _itemsPerPage;
     if (start >= _entries.length) return;
@@ -137,10 +235,15 @@ class FileBrowserController extends ChangeNotifier {
         .toList();
     if (toStat.isEmpty) return;
 
-    final stats = await FolderLoaderService.instance.loadStats(
-      toStat.map((e) => e.path).toList(),
-    );
-    if (token != _loadToken) return;
+    Map<String, FileStat> stats;
+    try {
+      stats = await FolderLoaderService.instance.loadStats(
+        toStat.map((e) => e.path).toList(),
+      );
+    } catch (_) {
+      return; // File metadata is optional; listing and navigation stay usable.
+    }
+    if (_disposed || token != _loadToken) return;
 
     for (final entry in _entries) {
       if (stats.containsKey(entry.path)) {
@@ -289,5 +392,12 @@ class FileBrowserController extends ChangeNotifier {
     var parent = idx <= 0 ? kStorageRoot : path.substring(0, idx);
     if (parent.length < kStorageRoot.length) parent = kStorageRoot;
     return parent;
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _loadToken++;
+    super.dispose();
   }
 }

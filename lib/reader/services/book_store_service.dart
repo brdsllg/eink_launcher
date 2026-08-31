@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../../services/startup_health_service.dart';
+
 import '../models/book_state.dart';
 import '../models/reader_settings.dart';
 
@@ -22,12 +24,32 @@ class BookStoreService {
   Timer? _debounceTimer;
   Future<void> _pendingFlush = Future<void>.value();
   File? _storageFile;
+  Future<void>? _initialization;
+  bool _writesBlocked = false;
+  String? _recoveryWarning;
+
+  String? get recoveryWarning => _recoveryWarning;
+  bool get writesBlocked => _writesBlocked;
 
   ReaderSettings get globalSettings => _globalSettings;
   Map<String, BookState> get books => Map.unmodifiable(_books);
 
-  Future<void> init({File? customFile}) async {
-    if (_isLoaded && customFile == null) return;
+  Future<void> init({File? customFile}) {
+    if (_initialization != null) return _initialization!;
+    if (_isLoaded && customFile == null) return Future<void>.value();
+    return _initialization = _load(customFile).whenComplete(() {
+      _initialization = null;
+    });
+  }
+
+  Future<void> _load(File? customFile) async {
+    _debounceTimer?.cancel();
+    await _pendingFlush;
+    _isLoaded = false;
+    _writesBlocked = false;
+    _recoveryWarning = null;
+    _books.clear();
+    _globalSettings = const ReaderSettings();
 
     if (customFile != null) {
       _storageFile = customFile;
@@ -36,31 +58,55 @@ class BookStoreService {
       _storageFile = File('${docDir.path}/$_libraryFileName');
     }
 
-    if (await _storageFile!.exists()) {
-      try {
+    try {
+      if (await _storageFile!.exists()) {
         final content = await _storageFile!.readAsString();
-        final jsonMap = json.decode(content) as Map<String, dynamic>;
+        try {
+          final jsonMap = json.decode(content) as Map<String, dynamic>;
 
-        if (jsonMap.containsKey('globalSettings')) {
-          _globalSettings = ReaderSettings.fromJson(
-            jsonMap['globalSettings'] as Map<String, dynamic>,
-          );
-        }
+          if (jsonMap.containsKey('globalSettings')) {
+            _globalSettings = ReaderSettings.fromJson(
+              jsonMap['globalSettings'] as Map<String, dynamic>,
+            );
+          }
 
-        if (jsonMap.containsKey('books')) {
-          final booksMap = jsonMap['books'] as Map<String, dynamic>;
+          if (jsonMap.containsKey('books')) {
+            final booksMap = jsonMap['books'] as Map<String, dynamic>;
+            _books.clear();
+            booksMap.forEach((key, value) {
+              _books[key] = BookState.fromJson(value as Map<String, dynamic>);
+            });
+          }
+        } catch (error, stack) {
           _books.clear();
-          booksMap.forEach((key, value) {
-            _books[key] = BookState.fromJson(value as Map<String, dynamic>);
-          });
+          _globalSettings = const ReaderSettings();
+          await _preserveCorruptFile();
+          StartupHealthService.instance.recordError(error, stack);
         }
-      } catch (e) {
-        // Fallback to empty if corrupted
-        _books.clear();
-        _globalSettings = const ReaderSettings();
       }
+    } catch (error, stack) {
+      // Unreadable is not the same as corrupt. Do not replace a file we could
+      // not read, or one we could not safely move to a backup.
+      _writesBlocked = true;
+      _recoveryWarning = 'Reading state could not be preserved. Saving is disabled for this launch.';
+      StartupHealthService.instance.recordError(error, stack);
     }
     _isLoaded = true;
+  }
+
+  Future<void> _preserveCorruptFile() async {
+    // At most three complete backups. Never truncate a user's recoverable
+    // reading state and never replace an earlier backup to make room.
+    for (var slot = 0; slot < 3; slot++) {
+      final suffix = slot == 0 ? '.corrupt' : '.corrupt.$slot';
+      final backup = File('${_storageFile!.path}$suffix');
+      if (await backup.exists()) continue;
+      await _storageFile!.rename(backup.path);
+      _recoveryWarning = 'Damaged reading state was backed up. New reading state will be saved separately.';
+      return;
+    }
+    _writesBlocked = true;
+    _recoveryWarning = 'Reading-state backups are full. The original is untouched; saving is disabled for this launch.';
   }
 
   BookState? getBookState(String docId) => _books[docId];
@@ -96,7 +142,7 @@ class BookStoreService {
   }
 
   Future<void> _writeLatestState() async {
-    if (_storageFile == null) return;
+    if (_storageFile == null || !_isLoaded || _writesBlocked) return;
 
     final data = {
       'version': 1,

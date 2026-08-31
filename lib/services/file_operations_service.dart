@@ -5,10 +5,8 @@ import '../models/clipboard_state.dart';
 // All filesystem mutation for the file browser lives here so the screen stays
 // about layout/interaction. Uses only dart:io — no new packages.
 //
-// Paths throughout are absolute 'Unix-style' paths. On the Android target
-// Dart's File/Directory always report '/'-separated absolute paths, and the
-// rest of the codebase (constants.dart, main.dart) hardcodes '/' too, so we
-// stay consistent with that rather than mixing in Platform.pathSeparator.
+// Android paths use '/'. Host verification on Windows also receives native
+// backslashes from directory listings; normalize those only on Windows.
 //
 // Every mutation is wrapped so a permission error on one item can't abort the
 // rest; failing items are reported back as human-readable messages rather than
@@ -238,6 +236,7 @@ class FileOperationsService {
   // ---------------------------------------------------------------------------
 
   String _basename(String path) {
+    if (Platform.isWindows) path = path.replaceAll('\\', '/');
     final trimmed = path.endsWith('/')
         ? path.substring(0, path.length - 1)
         : path;
@@ -245,6 +244,7 @@ class FileOperationsService {
   }
 
   String _parentOf(String path) {
+    if (Platform.isWindows) path = path.replaceAll('\\', '/');
     final trimmed = path.endsWith('/')
         ? path.substring(0, path.length - 1)
         : path;

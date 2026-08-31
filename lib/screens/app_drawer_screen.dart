@@ -19,6 +19,8 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
   int _currentPage = 0;
   bool _includeSystemApps = false;
   bool _searchOpen = false;
+  String? _error;
+  int _loadGeneration = 0;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -34,15 +36,40 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
   }
 
   Future<void> _loadApps({bool forceRefresh = false}) async {
-    final apps = await AppListService.getLaunchableApps(
-      forceRefresh: forceRefresh,
-      includeSystemApps: _includeSystemApps,
-    );
-    if (!mounted) return;
-    setState(() {
-      _apps = apps;
-      _filterApps(_searchController.text);
-    });
+    final generation = ++_loadGeneration;
+    try {
+      final apps = await AppListService.getLaunchableApps(
+        forceRefresh: forceRefresh,
+        includeSystemApps: _includeSystemApps,
+      );
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _error = null;
+        _apps = apps;
+        _filterApps(_searchController.text);
+      });
+    } catch (_) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _apps = const [];
+        _filteredApps = null;
+        _error = 'Could not load apps. Tap Refresh to retry.';
+      });
+    }
+  }
+
+  Future<void> _launchApp(String packageName) async {
+    try {
+      await AppListService.launch(packageName);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open this app.'),
+          animation: AlwaysStoppedAnimation(1.0),
+        ),
+      );
+    }
   }
 
   void _refresh() {
@@ -104,7 +131,7 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
         border: Border(bottom: BorderSide(color: Colors.black, width: 0.5)),
       ),
       child: InkWell(
-        onTap: () => AppListService.launch(app.packageName),
+        onTap: () => _launchApp(app.packageName),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Align(
@@ -263,11 +290,13 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
       body: _buildAppGrid(
         barHeight: barHeight,
         appRowCount: appRowCount,
-        message: loading
-            ? 'Loading…'
-            : _displayedApps.isEmpty
-            ? 'No matching apps'
-            : null,
+        message:
+            _error ??
+            (loading
+                ? 'Loading…'
+                : _displayedApps.isEmpty
+                ? 'No matching apps'
+                : null),
       ),
     );
   }

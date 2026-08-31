@@ -6,9 +6,9 @@ This plan keeps the Flutter UI and improves the parts that matter for an Android
 
 | Priority | Improvement | Expected payoff | Status |
 | --- | --- | --- | --- |
-| P0 | Establish device baselines and fix startup ordering | Reliable measurements and deterministic home-folder startup | [ ] Not started |
+| P0 | Establish device baselines and fix startup ordering | Reliable measurements and deterministic home-folder startup | [x] Startup ordering implemented; device baselines pending |
 | P1 | Defer PDF runtime initialization | Removes PDF setup from launcher cold start | [x] Implemented; device timing pending |
-| P1 | Launcher crash resilience (safe mode, corrupt-state recovery) | Prevents the device from becoming unusable if the launcher crashes repeatedly | [ ] Not started |
+| P1 | Launcher crash resilience (safe mode, corrupt-state recovery) | Preserves access to recovery controls and the app drawer | [x] Implemented; device restart verification pending |
 | P2 | Compare Impeller with the legacy renderer on the Bigme | Select the renderer with the least ghosting and best response | [ ] Not started |
 | P2 | Reduce rebuild/repaint scope only where profiling proves useful | Less unnecessary rendering work | [ ] Conditional |
 | P3 | Add Bigme refresh controls only if a supported API is available | Direct partial/full e-ink refresh control | [ ] Conditional |
@@ -16,7 +16,7 @@ This plan keeps the Flutter UI and improves the parts that matter for an Android
 | Done | Native Android battery broadcast bridge | Event-driven battery updates with no `battery_plus` dependency | [x] Implemented |
 | Done | Preserve simple personal-sideload signing | Directly installable APKs that upgrade on the owned device | [x] Documented current workflow |
 
-## 1. Measure the Current App First — Not Started
+## 1. Measure the Current App First — Startup Ordering Implemented; Device Baselines Pending
 
 Use a release or profile build on the actual Bigme device. Debug APK size and timing are not representative.
 
@@ -59,15 +59,22 @@ Keep the results in a dated section at the bottom of this file. Repeat the same 
 
 ### Fix startup ordering before comparing results
 
-`FileBrowserScreen.initState()` currently starts `_controller.init()` and `_checkPermission()` independently. Permission handling can therefore load the storage root before the saved home folder has finished loading.
+`FileBrowserScreen.initState()` now calls one guarded `_initialize()` flow.
+`FileBrowserController.initialize()` waits for preferences before checking
+permissions, then awaits the initial directory listing. A normal startup lists
+the saved home once. Missing/unreadable home folders fall back to internal storage
+with a dismissible warning and remove only the invalid home-folder key.
 
-Implementation:
+Implemented on 2026-08-31:
 
-1. Add a private `_initialize()` method in `lib/screens/file_browser_screen.dart`.
-2. Await `_controller.init()` first.
-3. Check `mounted`.
-4. Then await `_checkPermission()`.
-5. Call `_initialize()` from `initState()` without separately calling the two operations.
+1. Native startup-health status is checked before preferences or file access.
+2. Preferences load before permission requests; directory validity is checked by
+   listing only after permission is granted, so denial cannot erase a valid home.
+3. Preference loads time out after five seconds; directory listings after fifteen.
+   Interactive permission prompts are not timed out.
+4. Duplicate initialization is suppressed, and disposal invalidates late work.
+5. Loading and recovery views keep **Open app drawer** accessible. The normal
+   file browser retains its 15/12 equal bands, including when showing a warning.
 
 Acceptance criteria:
 
@@ -150,7 +157,8 @@ This already provides the desired low-work behavior: there is no polling, and th
 
 Remaining verification:
 
-- Add a widget test for valid, malformed, and unavailable battery events.
+- [x] `battery_status_test.dart` covers valid/malformed/unavailable stream events,
+  charging transitions, clamping, and subscription cancellation.
 - Confirm charging transitions and receiver reattachment after an activity/engine restart on the Bigme.
 
 ## 5. Replace `installed_apps` with Android `PackageManager` — Implemented
@@ -232,18 +240,45 @@ Acceptance criteria for the current personal workflow:
 - The package ID stays stable so Android retains app data across sideloaded updates.
 - Distribution signing remains explicitly out of scope until distribution is planned.
 
-## 7. Launcher Crash Resilience — Not Started
+## 7. Launcher Crash Resilience — Implemented; Device Verification Pending
 
 Because this app is registered as the device's Home launcher, startup recovery matters more than it would for an ordinary app. The goal is not to hide every error; it is to ensure a bad saved folder, corrupt state file, or repeated startup failure still leaves a usable route to the app drawer and recovery controls without requiring ADB.
 
-Implementation:
+Implemented on 2026-08-31:
 
-1. Make startup an explicit state machine (loading, ready, and recovery) instead of letting unawaited initialization errors escape. Catch failures from shared preferences, permission checks, and the first folder load.
-2. If the saved home folder is missing or unreadable, fall back to `/storage/emulated/0`, clear only the invalid home-folder preference, and show a concise warning. Do not clear unrelated settings.
-3. `BookStoreService` already falls back to empty reader state when `library.json` cannot be decoded. Before that fallback, preserve the bad file as a bounded `.corrupt` backup and record a useful error; never repeatedly overwrite the only copy of the user's reading state.
-4. Add a minimal recovery screen that does not initialize the reader. It must offer **Retry startup**, **Use storage root**, and **Open app drawer**. A reset-reading-state action may be included, but it must require confirmation and preserve or rename the old file rather than silently deleting it.
-5. Add a small native startup-health marker. Mark a launch as healthy only after Flutter has rendered a usable file browser or recovery screen. If three launches fail before that point within a short window, start in recovery mode and ignore the saved home folder for that launch.
-6. Install top-level Flutter error handlers for diagnostics and a bounded local crash record. Treat these as evidence for recovery, not as a substitute for the guarded startup flow.
+1. `FileBrowserController` owns explicit loading, ready, and recovery states.
+   Preferences, permission, and initial-listing failures enter recovery rather
+   than escaping from unawaited initialization. Unavailable metadata is nonfatal.
+2. Invalid home values and failed home listings clear only `home_folder_path`,
+   try `/storage/emulated/0`, and explain the fallback. A failed root listing
+   leaves recovery available. Permission denial does not clear the saved home.
+3. `BookStoreService` shares concurrent initialization and preserves malformed
+   state before replacement, in `library.json.corrupt`, `.corrupt.1`, and
+   `.corrupt.2`. Backups are never overwritten or truncated. Once all three slots
+   are occupied, or preservation/read access fails, the source remains untouched
+   and saving is disabled for that launch. The reader displays an explanatory
+   dialog. Backup retention is bounded by count, not by truncating user data.
+4. `LauncherRecoveryScreen` offers **Retry startup**, **Use storage root**, and
+   **Open app drawer**, without initializing the reader. Use storage root bypasses
+   preferences for that attempt, so a broken preferences plugin cannot trap the
+   user. It does not erase unrelated settings or the saved home. App-list and
+   app-launch failures are caught, with Refresh or a static error message.
+5. `StartupHealthHandler` synchronously writes a tiny native marker before
+   `MainActivity` calls Flutter's `onCreate`. Three unfinished cold launches in
+   one ten-minute window put the fourth in recovery. Activity/engine recreation
+   in the same process does not increment the count. A usable browser or recovery
+   frame acknowledges health in a post-frame callback; intervening reported
+   errors prevent that frame from acknowledging success. Healthy acknowledgement
+   clears the failure count. Missing/broken native health queries lead to recovery.
+6. `LauncherErrorService` chains Flutter and platform error handlers on Android.
+   `StartupHealthService` bounds/coalesces diagnostics and never reports channel
+   failures recursively. Native app-private preferences retain at most two error
+   records of 8,192 characters each. These records stay local; nothing is uploaded.
+
+The marker identifies unfinished launches, which can include an early OS kill;
+it is not proof of a crash. Native health decisions have JVM tests, and recovery
+controls have widget tests. Real process restarts, storage prompts, and recovery
+on the Bigme remain pending; no device was connected for this work.
 
 Acceptance criteria:
 
@@ -315,17 +350,20 @@ Do not use undocumented reflection or hard-coded service calls that could break 
 
 ## 11. Expand Regression Coverage Around the Android-Only Features — Ongoing
 
-Add tests as each refactor lands:
+Implemented regression coverage:
 
-- Startup sequencing: saved home folder loads before the first directory request.
-- File intent payloads: correct MIME type and chooser flag.
-- App query mapping, filtering, sorting, caching, and launch errors.
-- Selection actions: **Open with** and Rename appear only when applicable; Paste never appears.
-- Equal-band layout: 15 portrait bands and 12 landscape bands on both screens.
-- Live app search filters on each edit and resets to page one.
-- Battery event parsing and charging-icon selection.
-- Startup recovery: invalid home folder, corrupt reader state, and crash-loop safe mode.
-- Opening feedback inverts a row before invoking the opener.
+- [x] Startup sequencing, permission denial/failure, home fallback, retry, and disposal (`launcher_startup_test.dart`).
+- [x] Chooser method, exact path, and MIME payload (`file_browser_screen_test.dart`); native chooser UI still needs a device check.
+- [x] App query mapping/sorting/caching plus query/launch failure recovery (`app_list_service_test.dart`, `app_drawer_screen_test.dart`).
+- [x] Selection actions: **Open with** and Rename applicability; no Paste in selection mode (`file_browser_screen_test.dart`).
+- [x] 15 portrait / 12 landscape band heights on both screens and live search/page reset (`file_browser_screen_test.dart`, `app_drawer_screen_test.dart`).
+- [x] Battery event parsing, charging icon, unavailable stream, and cancellation (`battery_status_test.dart`).
+- [x] Recovery UI, corrupt-state backup capacity/preservation, native health channel failure, error-handler chaining, and native crash-loop policy tests.
+- [x] Opening feedback inverts a row before the folder opener runs (`file_browser_screen_test.dart`).
+
+The two previously documented Windows folder-copy failures are fixed: basename
+and parent-path helpers normalize native backslashes on Windows only, preserving
+Android path semantics. Existing recursive-copy and collision tests now pass.
 
 Keep the standard completion checks:
 
@@ -334,6 +372,18 @@ flutter analyze
 flutter test
 flutter build apk --debug
 ```
+
+Native policy tests run with `android/gradlew.bat -p android :app:testDebugUnitTest`
+on Windows (or `./android/gradlew -p android :app:testDebugUnitTest` elsewhere).
+JUnit 4.13.2 is a test-only dependency; it is not packaged in the installed app.
+
+2026-08-31 hardening verification: **201 Flutter tests passed**, with one opt-in
+native PDFium smoke test skipped and no failures; **5 native JVM policy tests
+passed**. `flutter analyze --no-pub` is clean. Both debug and release APK builds
+succeeded; the universal release APK is 77.4 MB. These results include a regression
+preventing Back from listing folders while storage permission is pending or denied.
+Device baselines, real restart/recovery checks, battery receiver reattachment,
+chooser UI, PDF memory tuning, and renderer comparisons remain pending.
 
 Also perform a short on-device smoke test for battery events, MIME resolution, Android chooser behavior, app discovery, app launching, rotation, and e-ink ghosting.
 
@@ -348,9 +398,9 @@ Also perform a short on-device smoke test for battery events, MIME resolution, A
 
 ## Recommended Execution Order
 
-1. Capture the baseline and fix startup sequencing.
+1. Capture Bigme baselines; startup sequencing is implemented.
 2. Defer PDF initialization (implemented; device timing/first-open verification pending).
-3. Add launcher startup recovery and crash-loop safe mode.
+3. Verify implemented startup recovery and crash-loop safe mode on the Bigme.
 4. Keep the current `open_filex` and native battery implementations; only perform their remaining tests.
 5. Keep using the documented personal-sideload signing workflow.
 6. Compare Impeller on/off.
@@ -358,6 +408,13 @@ Also perform a short on-device smoke test for battery events, MIME resolution, A
 8. Add Bigme-specific refresh control only if a supported API exists.
 
 ## Measurement Log
+
+2026-08-31 manual HiBreak follow-up: the user reports tests 1–8 complete, with all
+other checks passing apart from the three open PDF responsiveness/blanking issues
+in [the device test log](BIGME_TEST_LOG.md). This updates the earlier pending
+manual-check status, but does not supply memory/timing measurements, renderer
+comparisons, or advanced crash-loop/corrupt-state fault-injection results.
+No code or device changes were made to address this report.
 
 Add dated before/after measurements here as work is completed.
 

@@ -10,6 +10,7 @@ import '../reader/screens/reader_screen.dart';
 import '../reader/services/doc_identity_service.dart';
 import '../services/file_mime_type_service.dart';
 import '../services/open_with_service.dart';
+import '../services/startup_health_service.dart';
 import '../widgets/battery_status.dart';
 import '../widgets/clock_text.dart';
 import '../widgets/file_action_dialogs.dart';
@@ -17,6 +18,7 @@ import '../widgets/file_entry_tile.dart';
 import '../widgets/paginated_list.dart';
 import '../widgets/search_overlay.dart';
 import 'app_drawer_screen.dart';
+import 'launcher_recovery_screen.dart';
 
 /// Home-screen file browser.
 ///
@@ -24,7 +26,16 @@ import 'app_drawer_screen.dart';
 /// The screen only wires controller state to widgets and orchestrates
 /// BuildContext-dependent interactions (dialogs, snackbars, launching).
 class FileBrowserScreen extends StatefulWidget {
-  const FileBrowserScreen({super.key});
+  final FileBrowserController? controller;
+  final StartupHealthService? startupHealth;
+  final Future<bool> Function()? checkPermission;
+
+  const FileBrowserScreen({
+    super.key,
+    this.controller,
+    this.startupHealth,
+    this.checkPermission,
+  });
 
   @override
   State<FileBrowserScreen> createState() => _FileBrowserScreenState();
@@ -32,14 +43,17 @@ class FileBrowserScreen extends StatefulWidget {
 
 class _FileBrowserScreenState extends State<FileBrowserScreen> {
   late final FileBrowserController _controller;
+  late final StartupHealthService _startupHealth;
+  bool _healthChecked = false;
+  bool _initializing = false;
   String? _openingPath;
 
   @override
   void initState() {
     super.initState();
-    _controller = FileBrowserController();
-    _controller.init();
-    _checkPermission();
+    _controller = widget.controller ?? FileBrowserController();
+    _startupHealth = widget.startupHealth ?? StartupHealthService.instance;
+    _initialize();
   }
 
   @override
@@ -48,24 +62,43 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
     super.dispose();
   }
 
-  Future<void> _checkPermission() async {
-    final status = await Permission.manageExternalStorage.status;
-    if (status.isGranted) {
-      _controller.setPermissionGranted(true);
-    } else {
-      final result = await Permission.manageExternalStorage.request();
-      if (result.isGranted) {
-        _controller.setPermissionGranted(true);
-      } else {
-        final storageStatus = await Permission.storage.status;
-        if (storageStatus.isGranted) {
-          _controller.setPermissionGranted(true);
-        } else {
-          final storageResult = await Permission.storage.request();
-          _controller.setPermissionGranted(storageResult.isGranted);
+  Future<void> _initialize({bool useStorageRoot = false}) async {
+    if (_initializing) return;
+    _initializing = true;
+    try {
+      if (!_healthChecked) {
+        final recover = await _startupHealth.shouldRecover();
+        if (!mounted) return;
+        _healthChecked = true;
+        if (recover) {
+          _controller.showRecovery(
+            'Startup safety checks need attention. Your settings have not been changed.',
+          );
+          return;
         }
       }
+      if (!mounted) return;
+      await _controller.initialize(
+        checkPermission: widget.checkPermission ?? _checkPermission,
+        useStorageRoot: useStorageRoot,
+        onError: _startupHealth.recordError,
+      );
+    } finally {
+      _initializing = false;
     }
+  }
+
+  Future<bool> _checkPermission() async {
+    final status = await Permission.manageExternalStorage.status;
+    if (!mounted) return false;
+    if (status.isGranted) return true;
+    final result = await Permission.manageExternalStorage.request();
+    if (!mounted) return false;
+    if (result.isGranted) return true;
+    final storageStatus = await Permission.storage.status;
+    if (!mounted) return false;
+    if (storageStatus.isGranted) return true;
+    return (await Permission.storage.request()).isGranted;
   }
 
   // Zero-animation SnackBar (e-ink: no slide-in). Used for all new feedback.
@@ -267,6 +300,19 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
   }
 
   Widget _buildTopBar(double barHeight) {
+    if (_controller.startupMessage != null) {
+      return Row(
+        children: [
+          const SizedBox(width: 8),
+          Expanded(child: Text(_controller.startupMessage!, maxLines: 2)),
+          IconButton(
+            onPressed: _controller.dismissStartupMessage,
+            tooltip: 'Dismiss warning',
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      );
+    }
     final textSize = (barHeight * 0.44).clamp(16.0, 26.0).toDouble();
     final iconSize = (barHeight * 0.48).clamp(22.0, 30.0).toDouble();
     if (!_controller.permissionGranted) {
@@ -280,7 +326,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
               borderRadius: BorderRadius.zero,
             ),
           ),
-          onPressed: _checkPermission,
+          onPressed: _initialize,
           icon: Icon(Icons.folder_open, size: iconSize),
           label: Text(
             'Grant storage access',
@@ -535,6 +581,10 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
+        if (_controller.startupState != LauncherStartupState.ready ||
+            !_controller.permissionGranted) {
+          return;
+        }
         if (_controller.selecting) {
           _controller.exitSelection();
           return;
@@ -550,6 +600,26 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
       child: ListenableBuilder(
         listenable: _controller,
         builder: (context, _) {
+          final state = _controller.startupState;
+          if (state != LauncherStartupState.loading) {
+            final errorEpoch = _startupHealth.errorEpoch;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted &&
+                  _controller.startupState != LauncherStartupState.loading &&
+                  errorEpoch == _startupHealth.errorEpoch) {
+                _startupHealth.markHealthy();
+              }
+            });
+          }
+          if (state != LauncherStartupState.ready) {
+            return LauncherRecoveryScreen(
+              loading: state == LauncherStartupState.loading,
+              message: _controller.startupMessage,
+              onRetry: _initialize,
+              onUseRoot: () => _initialize(useStorageRoot: true),
+              onOpenApps: _openAppDrawer,
+            );
+          }
           final mediaQuery = MediaQuery.of(context);
           final totalBars = mediaQuery.orientation == Orientation.portrait
               ? kPortraitBarCount

@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.BatteryManager
 import android.os.Build
+import android.os.Bundle
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -19,11 +20,17 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private var batteryReceiver: BroadcastReceiver? = null
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        StartupHealthHandler.beginLaunch(this)
+        super.onCreate(savedInstanceState)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
         InstalledAppsHandler(this, flutterEngine.dartExecutor.binaryMessenger)
         PdfMemoryHandler(this, flutterEngine.dartExecutor.binaryMessenger)
+        StartupHealthHandler.register(this, flutterEngine.dartExecutor.binaryMessenger)
 
         EventChannel(
             flutterEngine.dartExecutor.binaryMessenger,

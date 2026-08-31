@@ -65,6 +65,66 @@ void main() {
     expect(resolved.lineHeight, equals(1.8));
   });
 
+  for (final invalid in ['{broken json', '[]', '{"books":{"bad":false}}']) {
+    test(
+      'backs up corrupt state before permitting replacement: $invalid',
+      () async {
+        await libraryFile.writeAsString(invalid);
+        final store = BookStoreService.instance;
+        await Future.wait([
+          store.init(customFile: libraryFile),
+          store.init(customFile: libraryFile),
+        ]);
+        expect(store.books, isEmpty);
+        expect(store.recoveryWarning, contains('backed up'));
+        expect(store.writesBlocked, isFalse);
+        final backup = File('${libraryFile.path}.corrupt');
+        expect(await backup.readAsString(), invalid);
+        expect(await File('${libraryFile.path}.corrupt.1').exists(), isFalse);
+        await store.flush();
+        expect(await backup.readAsString(), invalid);
+        expect(await libraryFile.readAsString(), contains('"books": {}'));
+      },
+    );
+  }
+
+  test(
+    'backup capacity preserves older copies and blocks destructive replacement',
+    () async {
+      final store = BookStoreService.instance;
+      for (var i = 0; i < 4; i++) {
+        await libraryFile.writeAsString('corrupt-$i');
+        await store.init(customFile: libraryFile);
+        await store.flush();
+      }
+      expect(
+        await File('${libraryFile.path}.corrupt').readAsString(),
+        'corrupt-0',
+      );
+      expect(
+        await File('${libraryFile.path}.corrupt.1').readAsString(),
+        'corrupt-1',
+      );
+      expect(
+        await File('${libraryFile.path}.corrupt.2').readAsString(),
+        'corrupt-2',
+      );
+      expect(await libraryFile.readAsString(), 'corrupt-3');
+      expect(store.writesBlocked, isTrue);
+      expect(store.recoveryWarning, contains('backups are full'));
+    },
+  );
+
+  test('backup failure preserves the source and disables writes', () async {
+    await libraryFile.writeAsString('broken');
+    await Directory('${libraryFile.path}.corrupt').create();
+    final store = BookStoreService.instance;
+    await store.init(customFile: libraryFile);
+    await store.flush();
+    expect(store.writesBlocked, isTrue);
+    expect(await libraryFile.readAsString(), 'broken');
+  });
+
   test('overlapping lifecycle flushes persist the latest state without temp-file races', () async {
     final store = BookStoreService.instance;
     final writes = <Future<void>>[];

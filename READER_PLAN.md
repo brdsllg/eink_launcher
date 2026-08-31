@@ -11,6 +11,16 @@ SDK is used. Distribution is personal sideload only.
 **Environment (verified):** Flutter 3.47.1 stable, Dart 3.13.1, `compileSdk = 37`.
 Native-asset build hooks are already active in this project's build pipeline.
 
+**Latest device findings (2026-08-31):** the current manual run is on a Bigme
+**HiBreak, Android 14**, not the B751C. The user reports all eight manual tests
+complete, with all other checks passing apart from three open PDF issues: rapid
+next-page taps leave Fit Height / Fit Width unresponsive; Zoom / Scroll taps and
+fast scrolling reach unloaded white pages; zoom release causes a brief white
+interval (usually just under one second), followed by content loading segment by
+segment. All PDFs tested are affected, including small files. See
+[the device test log](BIGME_TEST_LOG.md). PDF issue resolution and advanced device
+profiling/fault-injection checks remain outstanding. No fix is included here.
+
 ---
 
 ## 0. Decisions locked in
@@ -647,6 +657,7 @@ Orientation lives in the menu overlay for every format.
   - `ReaderSession.handleMemoryPressure()` (default `suspend()`, overridden by `TextReaderSession` to additionally drop the parsed book and laid-out pages while retaining `percent`/`pageCount` so the UI doesn't flicker) is wired to the OS: `ReaderMemoryPressureObserver` in `lib/main.dart` is registered for the app's whole lifetime and forwards `WidgetsBindingObserver.didHaveMemoryPressure()` to `ReaderSessionRegistry.instance.handleMemoryPressure()`, reaching every open session regardless of which screen is on top. Covered by `test/reader/reader_memory_pressure_observer_test.dart`.
   - The reader screen handles the visible memory-warning fallback without duplicating the app-wide session release. It clears Flutter image caches and waits for Continue reading before reopening. Generation checks discard late loads, pagination, outlines, crop detection, and PDF renders after suspension/disposal; discarded renders cannot repopulate the bitmap cache. Fit-mode images now hold their own cloned image handles, just like continuous tiles.
   - Serialized `BookStoreService.flush()` requests prevent overlapping pause/disposal/memory-warning writes from racing on `library.json.tmp`.
+  - Android hardening follow-up: concurrent library loads now share one initialization. Malformed reader state is preserved in up to three `.corrupt` backups before replacement; backups are never overwritten. If preservation fails or the slots are full, saving is disabled and the source remains untouched. `ReaderScreen` explains recovery or disabled saving before continuing. Launcher startup and its recovery/app-drawer paths never load reader state.
   - Added direct message-mapping tests (`reader_error_service_test.dart`), actual reader-shell Retry/Back/memory-continuation tests (`reader_error_screen_test.dart`), and session/cache/persistence tests for recovery, late completion, cleared image handles, and concurrent saves. Device-level memory-warning and visual recovery checks remain pending; adaptive memory budgets are still Step 5.3.
 - [x] **Step 5.2: DRM-Protected EPUB Detection**
   - `epub_parser_service.dart`'s `_checkEncryption()` inspects `META-INF/encryption.xml` when it exists, before any spine document is read. For each `EncryptedData` entry it resolves the container-rooted `CipherReference` path (not relative to `META-INF` or the OPF — see the code comment citing the EPUB 3.3 spec section) and checks whether the algorithm is one of the two font-obfuscation schemes (idpf / Adobe) *and* every manifest item at that path is a font media type *and* the path is not itself a spine document.
@@ -665,6 +676,7 @@ Orientation lives in the menu overlay for every format.
   - Update `README.md` with new file listings and architectural details.
   - Run full test suite (`flutter test`, `flutter analyze`).
   - 2026-08-31 hardening verification: all 122 reader tests pass (one opt-in native test skipped), and `flutter analyze --no-pub` is clean. Full suite: 141 passed, one opt-in native test skipped, and the same two unrelated Windows folder-copy failures in `file_operations_service_test.dart`.
+  - Later 2026-08-31 Android hardening verification supersedes the earlier full-suite failures: **201 Flutter tests pass**, one opt-in native PDFium smoke test is skipped, and **5 native JVM startup-policy tests pass**. The Windows folder-copy failures are fixed. Analysis is clean; debug and release APKs build. Bigme-only reader verification is still outstanding.
 
 ---
 
@@ -697,5 +709,5 @@ Orientation lives in the menu overlay for every format.
 3. **Hebrew fonts & nikud:** Multiple bundled OFL fonts selectable per-book.
 4. **Memory pressure:** Hard 4-session cap + suspend contract + adaptive per-session LRU bitmap budgets (`PdfMemoryService`), with 2-D tiling so zoom cost stays flat instead of growing with scale. The cache limit excludes UI-held/in-flight/native allocations and is not a process-wide cap; Step 5.3 Bigme profiling remains required.
 5. **Zoom / Scroll on a ~30 fps panel:** A fling only gets a dozen or so frames, so momentum must never be interrupted. Mitigated by owning the transform, driving the fling from a `Ticker` that rebuilds cannot cancel, deferring re-rasterisation until the glide ends, and rendering ~0.75 screens of look-ahead. Tunable via `kPdfFlingFriction` (lower = longer glide) and `kPdfMinFlingVelocity`.
-6. **PDFium renders on the UI isolate:** PDF tile rasterisation and screen updates currently compete for the app's main Flutter worker. Bounded tiles, deferred re-rasterisation, and look-ahead mitigate this. As of 2026-08-30, flinging is smooth on the Bigme B751C, so no redesign is justified now. Revisit only if measured stutter appears with heavier PDFs, higher zoom, or different hardware; first try direction-biased pre-rendering, and investigate a separate rendering worker only if the simpler mitigation is insufficient.
+6. **PDF rendering responsiveness:** The earlier 2026-08-30 note described smooth flinging on the B751C. That does not establish acceptable behavior on the HiBreak: the 2026-08-31 user report records rapid-page-tap freezing and white screens during zooming/fast scrolling ([device test log](BIGME_TEST_LOG.md)). Existing bounded tiles, deferred re-rasterisation, and look-ahead do not close these reported issues. Their causes remain unconfirmed; document-specific reproduction and profiling are still needed before selecting a fix.
 7. **Custom EPUB parser maintenance:** The direct `archive` + `xml` parser was built because `epubx` had incompatible transitive `image` version constraints with `pdfrx`. If `epubx` or a fork resolves that conflict in the future, consider switching back to reduce the maintenance surface of container/OPF/NCX/nav parsing. The current parser is tested against an in-memory EPUB fixture, but real-world EPUBs vary widely and may expose edge cases over time.

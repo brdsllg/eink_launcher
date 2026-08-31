@@ -46,6 +46,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   bool _navigating = false;
   bool _loadingSession = false;
   bool _memoryPaused = false;
+  bool _shownStateWarning = false;
 
   @override
   void initState() {
@@ -62,6 +63,26 @@ class _ReaderScreenState extends State<ReaderScreen>
     });
     try {
       await BookStoreService.instance.init();
+      if (!mounted) return;
+      final warning = BookStoreService.instance.recoveryWarning;
+      if (warning != null && !_shownStateWarning) {
+        _shownStateWarning = true;
+        await showDialog<void>(
+          context: context,
+          animationStyle: AnimationStyle.noAnimation,
+          builder: (context) => AlertDialog(
+            title: const Text('Reading state'),
+            content: Text(warning),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Continue'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+      }
       final session = await widget.registry.obtain(widget.doc);
       if (!mounted) return;
       setState(() {

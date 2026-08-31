@@ -20,6 +20,37 @@ This project is tailored for E-Ink displays around five core architectural pilla
 4. **Isolate-Based Background I/O:** Heavy filesystem listings, recursive searches, and metadata statting run on long-lived background isolates to keep the UI thread responsive.
 5. **Minute-Aligned Timers:** UI timers (such as the clock readout) align strictly to minute boundaries to prevent unneeded per-second display refreshes.
 
+Startup now uses explicit loading, ready, and recovery states. Saved preferences
+load before storage permission handling and the first folder listing. An invalid
+or unreadable home folder falls back to internal storage, removes only that home
+preference, and shows a dismissible warning without changing the equal-band layout.
+Preference/listing failures offer **Retry startup**, **Use storage root**, and
+**Open app drawer**. The root option bypasses preferences for that attempt;
+it does not clear unrelated settings. The app drawer remains available during
+loading and handles app-query/launch errors itself.
+
+Android records an unfinished launch before initializing Flutter. Three such
+launches in one ten-minute window send the fourth to recovery; activity/engine
+recreation in the same process is not counted again. A usable browser or recovery
+frame acknowledges startup health. Flutter error handlers retain normal logging
+and keep two bounded diagnostics records in app-private native preferences, with
+no upload. Advanced crash-loop/corrupt-state fault injection, renderer comparisons,
+and memory/timing measurements remain pending; see
+[the hardening plan](ANDROID_HARDENING_PLAN.md).
+
+2026-08-31 verification: **201 Flutter tests and 5 native JVM tests pass**;
+one optional native PDFium smoke test is skipped. Static analysis is clean and
+both debug/release APKs build successfully. The previously recorded Windows
+folder-copy test failures are fixed.
+
+2026-08-31 device testing on the **Bigme HiBreak (Android 14)**: the user reports
+all eight manual tests complete, with all other checks passing apart from the
+open PDF issues. Rapid next-page taps leave Fit Height / Fit Width unresponsive;
+Zoom / Scroll taps and fast scrolling reach unloaded white pages, and zoom release
+briefly blanks content before it reappears segment by segment (usually just under
+one second). This affects all PDFs tested, including small files. See
+[the device test log](BIGME_TEST_LOG.md). These issues are recorded, not fixed.
+
 ---
 
 ## 🗂️ Project Directory & File Guide
@@ -92,9 +123,12 @@ eink_launcher/
 │   │       └── text_page_view.dart       # Full-bleed laid-out EPUB/TXT/Markdown page
 │   ├── screens/
 │   │   ├── app_drawer_screen.dart        # Paginated application drawer & search screen
+│   │   ├── launcher_recovery_screen.dart # Static startup/recovery controls and app-drawer access
 │   │   └── file_browser_screen.dart      # Main home file manager screen
 │   ├── services/
 │   │   ├── app_list_service.dart         # Installed app discovery & launch service
+│   │   ├── launcher_error_service.dart   # Chains Flutter error handlers into local diagnostics
+│   │   ├── startup_health_service.dart   # Native startup-health status, acknowledgement & diagnostics
 │   │   ├── file_mime_type_service.dart   # Precise MIME mapping for common file formats
 │   │   ├── file_operations_service.dart  # File mutation logic (create, rename, delete, paste)
 │   │   ├── folder_loader_service.dart    # Isolate-backed folder listing & lazy stat loader
@@ -110,6 +144,12 @@ eink_launcher/
 │       └── search_overlay.dart           # Floating filename search bar with streaming matches
 ├── test/
 │   ├── app_list_service_test.dart        # Native app-channel mapping and cache tests
+│   ├── app_drawer_screen_test.dart       # App errors, live search, page reset & orientation bands
+│   ├── battery_status_test.dart          # Battery events, malformed data, charging & cancellation
+│   ├── file_browser_screen_test.dart     # Chooser payloads, selection actions, opening feedback & bands
+│   ├── launcher_startup_test.dart        # Startup ordering, fallback, permissions, retry & disposal
+│   ├── launcher_recovery_screen_test.dart # Safe mode, recovery controls & app-drawer access
+│   ├── startup_health_service_test.dart  # Health-channel failures, bounds & error-handler chaining
 │   ├── file_action_dialogs_test.dart     # Widget tests for input dialog validation
 │   ├── file_mime_type_service_test.dart  # Common and fallback MIME mapping tests
 │   ├── file_operations_service_test.dart # Unit tests for filesystem mutations & edge cases
@@ -170,6 +210,7 @@ eink_launcher/
 #### Top-Level
 - **[`lib/main.dart`](lib/main.dart)**:
   - Initializes Flutter bindings without starting PDFium; the PDF runtime initializes only when a PDF is first opened.
+  - On Android, installs chained Flutter/platform error handlers that retain bounded local diagnostics without replacing the guarded startup flow.
   - Registers `ReaderMemoryPressureObserver` for the app's whole lifetime, which forwards Android's `onTrimMemory`/`onLowMemory` signal to `ReaderSessionRegistry.instance.handleMemoryPressure()` so every open reader session releases what it can — wherever they sit in navigation, since a session can outlive its `ReaderScreen` once the tab system arrives.
   - Applies no global orientation preference; the reader is the only screen that locks orientation, and only through its manual portrait/landscape toggle (never sensor-driven).
   - Enables `SystemUiMode.immersiveSticky` to keep Android system status and navigation bars hidden.
@@ -307,6 +348,7 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 - **[`lib/reader/services/book_store_service.dart`](lib/reader/services/book_store_service.dart)**:
   - Manages `library.json` using atomic write-to-temp-then-rename and 2-second debounced background flushing.
   - Serializes overlapping flush requests so pause, disposal, and memory warnings cannot overwrite or remove each other's temporary file.
+  - Shares concurrent loads and preserves malformed state as `library.json.corrupt`, `.corrupt.1`, or `.corrupt.2`. It never overwrites a backup. If backup capacity is exhausted or preservation/read access fails, it keeps the source untouched and disables saving for that launch. The reader explains this before continuing. Backup count is bounded to three; files are never truncated to enforce a byte limit.
 - **[`lib/reader/services/bidi_service.dart`](lib/reader/services/bidi_service.dart)**:
   - Applies Unicode P2/P3 first-strong scanning to choose each block's LTR or RTL base direction.
 - **[`lib/reader/services/hyphenation_service.dart`](lib/reader/services/hyphenation_service.dart)**:
@@ -382,10 +424,15 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 #### Controllers (`lib/controllers/`)
 - **[`lib/controllers/file_browser_controller.dart`](lib/controllers/file_browser_controller.dart)**:
   - Central state manager for the file manager interface, handling navigation, selections, and filesystem mutations.
+  - Owns loading/ready/recovery states; serializes preferences → permission → initial listing, handles home fallback, and ignores work completed after disposal. Preferences time out after five seconds and listings after fifteen; interactive permission prompts are not timed out.
 
 #### Services (`lib/services/`)
 - **[`lib/services/app_list_service.dart`](lib/services/app_list_service.dart)**:
   - Queries and launches applications through the launcher-owned Android `PackageManager` channel, with separately cached user-only and system-inclusive lists.
+- **[`lib/services/startup_health_service.dart`](lib/services/startup_health_service.dart)**:
+  - Queries the native launch marker with a two-second timeout, acknowledges a usable frame, and bounds/coalesces local error reports. Broken Android health queries enter recovery; non-Android hosts do not invoke the channel.
+- **[`lib/services/launcher_error_service.dart`](lib/services/launcher_error_service.dart)**:
+  - Chains existing Flutter/platform handlers so normal diagnostics still run; errors are recorded locally, not uploaded.
 - **[`lib/services/file_mime_type_service.dart`](lib/services/file_mime_type_service.dart)**:
   - Maps common document, ebook, text, media, archive, font, and interchange extensions to precise MIME types so Android only offers relevant apps.
 - **[`lib/services/file_operations_service.dart`](lib/services/file_operations_service.dart)**:
@@ -402,6 +449,9 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
   - Primary equal-band file browser with inverted opening feedback, live clock/battery status, MIME-aware opening, and a responsive selection bar that shows only applicable actions and expands to two rows when needed.
 - **[`lib/screens/app_drawer_screen.dart`](lib/screens/app_drawer_screen.dart)**:
   - Application drawer with the same equal-band styling as the file browser, discrete pagination, and live as-you-type search.
+  - Handles native app-list/launch failures and ignores stale query completions, so recovery remains usable even when an Android operation fails.
+- **[`lib/screens/launcher_recovery_screen.dart`](lib/screens/launcher_recovery_screen.dart)**:
+  - Static loading/recovery UI with app-drawer access and explicit Retry startup / Use storage root controls. It does not initialize reader state or PDFium.
 
 #### Widgets (`lib/widgets/`)
 - **[`lib/widgets/battery_status.dart`](lib/widgets/battery_status.dart)**:
@@ -424,6 +474,10 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 ### Test Suite (`test/`)
 
 - **[`test/app_list_service_test.dart`](test/app_list_service_test.dart)**: Unit tests for native app-channel mapping, sorting, caching, query flags, and launch payloads.
+- **[`test/launcher_startup_test.dart`](test/launcher_startup_test.dart)** and **[`test/launcher_recovery_screen_test.dart`](test/launcher_recovery_screen_test.dart)**: Startup ordering, permission errors/denial, invalid/unreadable home fallback, safe mode, recovery actions, and late-work disposal.
+- **[`test/startup_health_service_test.dart`](test/startup_health_service_test.dart)**: Native health timeouts/failures, healthy-write deduplication, bounded diagnostics, and chained/restored error handlers.
+- **[`test/battery_status_test.dart`](test/battery_status_test.dart)**: Battery stream parsing, charging, malformed/unavailable data, and cancellation.
+- **[`test/app_drawer_screen_test.dart`](test/app_drawer_screen_test.dart)** and **[`test/file_browser_screen_test.dart`](test/file_browser_screen_test.dart)**: App-query/launch recovery, live search/page reset, orientation bands, selection actions, chooser path/MIME payloads, and opening feedback before folder I/O.
 - **[`test/file_action_dialogs_test.dart`](test/file_action_dialogs_test.dart)**: Widget tests verifying validation handling in dialogs.
 - **[`test/file_mime_type_service_test.dart`](test/file_mime_type_service_test.dart)**: Unit tests for precise common types, case-insensitive extensions, and the non-wildcard fallback.
 - **[`test/file_operations_service_test.dart`](test/file_operations_service_test.dart)**: Unit tests for filesystem mutations.
@@ -474,5 +528,7 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
   - Queries launcher activities and starts selected packages directly through Android `PackageManager`.
 - **[`android/app/src/main/kotlin/com/example/eink_launcher/PdfMemoryHandler.kt`](android/app/src/main/kotlin/com/example/eink_launcher/PdfMemoryHandler.kt)**:
   - Serves the PDF reader's on-demand `ActivityManager.getMemoryClass()` query without doing memory work during handler registration.
+- **[`android/app/src/main/kotlin/com/example/eink_launcher/StartupHealthHandler.kt`](android/app/src/main/kotlin/com/example/eink_launcher/StartupHealthHandler.kt)** and **[`StartupHealthPolicy.kt`](android/app/src/main/kotlin/com/example/eink_launcher/StartupHealthPolicy.kt)**:
+  - Write the startup marker before Flutter initializes, track unfinished launches within ten minutes, and retain at most two 8,192-character diagnostics records in separate app-private preferences. `StartupHealthPolicyTest.kt` under `android/app/src/test/kotlin/com/example/eink_launcher/` covers failure thresholds, healthy resets, clock changes, bounds, and window expiry.
 - **[`android/app/src/main/res/values/styles.xml`](android/app/src/main/res/values/styles.xml)**:
   - Window theme definitions configuring white background and fullscreen flags.
