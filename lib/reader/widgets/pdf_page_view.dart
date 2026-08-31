@@ -25,8 +25,48 @@ class PdfPageView extends StatefulWidget {
 }
 
 class _PdfPageViewState extends State<PdfPageView> {
-  Future<ui.Image>? _renderFuture;
+  ui.Image? _fitImage;
+  Object? _fitError;
+  int _fitRequestToken = 0;
   Object? _renderSignature;
+
+  @override
+  void dispose() {
+    _fitRequestToken++;
+    _fitImage?.dispose();
+    super.dispose();
+  }
+
+  void _replaceFitImage(ui.Image? image) {
+    final previous = _fitImage;
+    _fitImage = image;
+    if (previous != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+    }
+  }
+
+  void _requestFitImage(Size viewport, double devicePixelRatio) {
+    final token = ++_fitRequestToken;
+    _fitError = null;
+    widget.session
+        .renderCurrentView(viewport, devicePixelRatio: devicePixelRatio)
+        .then(
+          (image) {
+            if (!mounted || token != _fitRequestToken) {
+              image.dispose();
+              return;
+            }
+            setState(() => _replaceFitImage(image));
+          },
+          onError: (Object error) {
+            if (!mounted || token != _fitRequestToken) return;
+            setState(() {
+              _fitError = error;
+              _replaceFitImage(null);
+            });
+          },
+        );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +80,12 @@ class _PdfPageViewState extends State<PdfPageView> {
 
           final settings = widget.session.settings;
           if (settings.fitMode == PdfFitMode.zoom) {
+            if (_renderSignature != null) {
+              _renderSignature = null;
+              _fitRequestToken++;
+              _replaceFitImage(null);
+              _fitError = null;
+            }
             return _ContinuousPdfView(
               session: widget.session,
               viewport: viewport,
@@ -50,6 +96,8 @@ class _PdfPageViewState extends State<PdfPageView> {
 
           final position = widget.session.position;
           final signature = Object.hash(
+            widget.session,
+            widget.session.navigationEpoch,
             viewport.width,
             viewport.height,
             position,
@@ -60,82 +108,32 @@ class _PdfPageViewState extends State<PdfPageView> {
           );
           if (_renderSignature != signature) {
             _renderSignature = signature;
-            _renderFuture = widget.session.renderCurrentView(
-              viewport,
-              devicePixelRatio: devicePixelRatio,
-            );
+            _requestFitImage(viewport, devicePixelRatio);
           }
 
-          return FutureBuilder<ui.Image>(
-            future: _renderFuture,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return ReaderErrorView(
-                  message: readerErrorMessage(
-                    snapshot.error!,
-                    widget.session.doc.format,
-                  ),
-                  onRetry:
-                      widget.onRetry ??
-                      () => setState(() => _renderSignature = null),
-                );
-              }
-              final image = snapshot.data;
-              if (image == null) {
-                // A plain page is intentional: animated progress indicators
-                // generate needless refreshes and ghosting on e-ink.
-                return const ColoredBox(color: Colors.white);
-              }
-              return Center(child: _OwnedPdfImage(image: image));
-            },
+          if (_fitError != null) {
+            return ReaderErrorView(
+              message: readerErrorMessage(
+                _fitError!,
+                widget.session.doc.format,
+              ),
+              onRetry:
+                  widget.onRetry ??
+                  () => setState(() => _renderSignature = null),
+            );
+          }
+          // A plain page while loading avoids animated e-ink refreshes.
+          return Center(
+            child: RawImage(
+              image: _fitImage,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.none,
+            ),
           );
         },
       ),
     );
   }
-}
-
-/// A fit-mode page also needs its own image handle: suspension or cache
-/// eviction must not dispose the handle currently being painted by RawImage.
-class _OwnedPdfImage extends StatefulWidget {
-  final ui.Image image;
-
-  const _OwnedPdfImage({required this.image});
-
-  @override
-  State<_OwnedPdfImage> createState() => _OwnedPdfImageState();
-}
-
-class _OwnedPdfImageState extends State<_OwnedPdfImage> {
-  late ui.Image _image;
-
-  @override
-  void initState() {
-    super.initState();
-    _image = widget.image.clone();
-  }
-
-  @override
-  void didUpdateWidget(covariant _OwnedPdfImage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (identical(oldWidget.image, widget.image)) return;
-    final previous = _image;
-    _image = widget.image.clone();
-    WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
-  }
-
-  @override
-  void dispose() {
-    _image.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => RawImage(
-    image: _image,
-    fit: BoxFit.contain,
-    filterQuality: FilterQuality.none,
-  );
 }
 
 /// One continuous, always-zoomable document canvas with real momentum.
@@ -636,10 +634,9 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
 
 /// One rendered tile of one page.
 ///
-/// The bitmap is a [ui.Image.clone] of the cached image: the shared
-/// bitmap cache may evict and dispose its copy at any time, and a disposed
-/// image that is still on screen crashes the rasteriser. Cloning is
-/// refcounted, so the pixels are shared and released once both copies go.
+/// The session transfers an owned handle (a [ui.Image.clone] when cached).
+/// Eviction cannot invalidate it, and oversized, uncached images use the same
+/// disposal path. Cloning is refcounted: pixels are released once all handles go.
 class _ContinuousPdfTile extends StatefulWidget {
   final PdfReaderSession session;
   final PdfContinuousLayout layout;
@@ -707,8 +704,11 @@ class _ContinuousPdfTileState extends State<_ContinuousPdfTile> {
         )
         .then(
           (image) {
-            if (!mounted || token != _requestToken) return;
-            _adopt(image.clone(), failed: false);
+            if (!mounted || token != _requestToken) {
+              image.dispose();
+              return;
+            }
+            _adopt(image, failed: false);
           },
           onError: (Object _) {
             if (!mounted || token != _requestToken) return;

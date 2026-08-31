@@ -8,6 +8,7 @@ import '../../constants.dart';
 import '../models/reading_position.dart';
 import '../models/toc_entry.dart';
 import 'pdf_crop_service.dart';
+import 'pdf_runtime_service.dart';
 
 typedef PdfDocumentOpener = Future<PdfDocument> Function(
   String filePath,
@@ -201,6 +202,7 @@ class PdfDocumentService {
         const OSError('PDF file is missing.', 2),
       );
     }
+    await PdfRuntimeService.ensureInitialized();
     return PdfDocument.openFile(filePath, passwordProvider: passwordProvider);
   }
 }

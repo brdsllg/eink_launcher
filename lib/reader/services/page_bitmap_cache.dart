@@ -60,11 +60,22 @@ class PdfBitmapCacheKey {
 class PageBitmapCache {
   static const int defaultMaxBytes = 40 * 1024 * 1024;
 
-  final int maxBytes;
+  int _maxBytes;
   final LinkedHashMap<PdfBitmapCacheKey, Image> _images = LinkedHashMap();
   int _currentBytes = 0;
 
-  PageBitmapCache({this.maxBytes = defaultMaxBytes}) : assert(maxBytes > 0);
+  PageBitmapCache({int maxBytes = defaultMaxBytes})
+    : assert(maxBytes > 0),
+      _maxBytes = maxBytes;
+
+  int get maxBytes => _maxBytes;
+
+  /// Applies a runtime budget, immediately releasing least-recently-used images.
+  void resize(int maxBytes) {
+    if (maxBytes <= 0) throw ArgumentError.value(maxBytes, 'maxBytes');
+    _maxBytes = maxBytes;
+    _evictToBudget();
+  }
 
   int get currentBytes => _currentBytes;
   int get length => _images.length;

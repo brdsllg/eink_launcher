@@ -34,7 +34,7 @@ eink_launcher/
 ├── analysis_options.yaml                 # Dart static analysis & lint rules
 ├── pubspec.yaml                          # Package metadata, assets & dependencies
 ├── lib/
-│   ├── main.dart                         # Application entry point, pdfrx init & theme configuration
+│   ├── main.dart                         # Application entry point, lifecycle & theme configuration
 │   ├── constants.dart                    # Shared global constants, reader constants & route utilities
 │   ├── controllers/
 │   │   └── file_browser_controller.dart  # Business logic & state management for file browser
@@ -71,6 +71,8 @@ eink_launcher/
 │   │   │   ├── pagination_cache_service.dart # Disk cache for text page geometry
 │   │   │   ├── pdf_crop_service.dart     # Isolate-backed PDF ink-bound detection
 │   │   │   ├── pdf_document_service.dart # pdfrx document open/render/outline wrapper
+│   │   │   ├── pdf_memory_service.dart   # Lazy Android heap-class lookup & cache policy
+│   │   │   ├── pdf_runtime_service.dart  # Shared PDFium initialization on first PDF open
 │   │   │   ├── epub_paginator_service.dart # Exact TextPainter line-boundary pagination
 │   │   │   ├── reader_error_service.dart # Maps document/IO/OOM failures to safe fallback text
 │   │   │   ├── text_block_parser.dart    # TXT encodings and Markdown semantic parsing
@@ -125,6 +127,8 @@ eink_launcher/
 │       ├── pdf_continuous_layout_test.dart # Exact scroll geometry mapping tests
 │       ├── pdf_crop_service_test.dart    # Unit tests for crop bounds & noise filtering
 │       ├── pdf_document_service_test.dart# PDF service unit tests & opt-in native smoke test
+│       ├── pdf_memory_service_test.dart # Adaptive budget, lazy channel & failure tests
+│       ├── pdf_runtime_service_test.dart # Lazy startup, concurrent opens & cancellation
 │       ├── pdf_reader_session_test.dart  # PDF navigation, tiling, momentum & lifecycle tests
 │       ├── pagination_cache_service_test.dart # Text page cache round-trip tests
 │       ├── phase2_verification_test.dart # Bilingual font/layout/resize verification
@@ -165,7 +169,7 @@ eink_launcher/
 
 #### Top-Level
 - **[`lib/main.dart`](lib/main.dart)**:
-  - Initializes Flutter bindings and native plugins, including `pdfrxFlutterInitialize()`.
+  - Initializes Flutter bindings without starting PDFium; the PDF runtime initializes only when a PDF is first opened.
   - Registers `ReaderMemoryPressureObserver` for the app's whole lifetime, which forwards Android's `onTrimMemory`/`onLowMemory` signal to `ReaderSessionRegistry.instance.handleMemoryPressure()` so every open reader session releases what it can — wherever they sit in navigation, since a session can outlive its `ReaderScreen` once the tab system arrives.
   - Applies no global orientation preference; the reader is the only screen that locks orientation, and only through its manual portrait/landscape toggle (never sensor-driven).
   - Enables `SystemUiMode.immersiveSticky` to keep Android system status and navigation bars hidden.
@@ -185,7 +189,7 @@ eink_launcher/
   - `kPdfZoomRenderScales`: Discrete zoom rungs at which pages are re-rasterised through PDFium, so zoomed vector content stays crisp instead of being magnified.
   - `kPdfTileSidePixels` / `kPdfMaxTileDimension`: Target and hard-cap device-pixel side lengths for one Zoom / Scroll tile; tiles are built to stay under the target so the cap never silently downscales output.
   - `kPdfFlingFriction` / `kPdfMinFlingVelocity`: Momentum tuning for the Zoom / Scroll fling. Friction is fed to `ClampingScrollSimulation`, where **lower means a longer glide**; releases slower than the velocity threshold are treated as a stop.
-  - `kPdfBitmapCacheBytes`: Memory budget for rendered PDF bitmaps (`96 MB`), sized for a zoomed tile grid plus look-ahead.
+  - PDF bitmap budgets are runtime values selected by `PdfMemoryService`, not a fixed constant in this file.
   - `kPdfInkLuminanceThreshold`: Bounding box detection ink luminance cutoff (`245`).
   - `kReaderFontSizeSteps` / `kReaderMarginSteps`: Step tables for typography and margin configuration.
 
@@ -222,6 +226,24 @@ and overlapping lifecycle saves are serialized. EPUB encryption metadata is
 checked before reading chapter content: unsupported encryption is reported
 clearly, while IDPF/Adobe-obfuscated publisher fonts are skipped in favor of the
 bundled reader fonts.
+
+PDF bitmap caches now use a provisional **25% of Android's normal per-app heap
+class**, clamped to **4–128 MiB**, with a **32 MiB fallback**. The memory query runs
+only on the first PDF open (not launcher startup), is shared across sessions and
+resumes, and times out after one second. A 256 MiB heap class selects a 64 MiB
+cache. These limits apply per session to retained cache entries, not total app
+memory: PDFium, in-flight renders, and widget-owned images require additional
+headroom. Bigme `dumpsys meminfo` measurements are still required before the
+fraction and bounds are considered tuned.
+
+PDFium initialization also runs lazily: the default `PdfDocumentService` opener
+awaits `PdfRuntimeService.ensureInitialized()` immediately before opening an
+existing PDF. Concurrent opens and later resumes share the same future; launcher
+startup, text reading, missing files, and injected test openers do not initialize
+PDFium. Native initialization errors reach the reader's error view instead of
+preventing the launcher from starting. The initialization future, including a
+failure, is retained for the app lifetime; restart the app to retry a failed
+native initialization. Bigme cold-start timing and first-open checks remain pending.
 
 PDFs offer three per-document display modes. **Fit Height** and **Fit Width** are
 purely tap-driven, with optional per-page auto-crop and (for Fit Width) an
@@ -295,7 +317,13 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
   - Parses EPUB ZIP containers directly with `archive` and `xml`, extracting metadata, OPF manifest/spine, resources, EPUB 3 nav or EPUB 2 NCX, and anchor positions without the incompatible `epubx` dependency.
   - Checks `META-INF/encryption.xml` before parsing the spine; only recognized font-obfuscation entries on actual non-spine font resources are permitted. The encryption-file distinction follows the [EPUB 3.3 specification](https://www.w3.org/TR/epub-33/#sec-container-metainf-encryption.xml).
 - **[`lib/reader/services/page_bitmap_cache.dart`](lib/reader/services/page_bitmap_cache.dart)**:
-  - Owns rendered Flutter images in a least-recently-used cache bounded by `kPdfBitmapCacheBytes` (96 MB) and disposes replaced or evicted bitmaps. Both fit-mode and Zoom / Scroll widgets hold `clone()`s so cache clearing cannot invalidate an on-screen image handle.
+  - Owns rendered Flutter images in a least-recently-used cache with a runtime budget and immediate eviction when resized downward. PDF sessions configure the budget before opening the document; injected caches retain their explicit limits.
+  - Session render methods return caller-owned handles (cloned before cache insertion/eviction), so even concurrent renders and tiny caches cannot invalidate pending UI images. Oversized bitmaps bypass the cache; the UI and prefetch paths dispose their handles, including late completions after unmount.
+- **[`lib/reader/services/pdf_memory_service.dart`](lib/reader/services/pdf_memory_service.dart)**:
+  - Lazily memoizes `eink_launcher/pdf_memory.getMemoryClass`, validates the reply, and selects a provisional quarter-heap budget bounded to 4–128 MiB. Missing plugins, native failures, malformed replies, timeouts, and non-Android hosts use 32 MiB.
+  - Uses Android's normal [per-app memory class](https://developer.android.com/reference/android/app/ActivityManager#getMemoryClass()), not total/free RAM or `largeHeap`; this is a cache-sizing hint, not a bound on native/GPU allocations.
+- **[`lib/reader/services/pdf_runtime_service.dart`](lib/reader/services/pdf_runtime_service.dart)**:
+  - Memoizes `pdfrxFlutterInitialize()` on the first real PDF open, keeping PDFium work out of launcher startup and sharing initialization across opens and resumes.
 - **[`lib/reader/services/pagination_cache_service.dart`](lib/reader/services/pagination_cache_service.dart)**:
   - Atomically caches text page geometry by document, chapter, fractional viewport geometry, and typography settings using versioned entries and collision-free temporary writes.
 - **[`lib/reader/services/epub_paginator_service.dart`](lib/reader/services/epub_paginator_service.dart)**:
@@ -311,6 +339,7 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 - **[`lib/reader/services/pdf_document_service.dart`](lib/reader/services/pdf_document_service.dart)**:
   - Owns the `pdfrx` document handle and provides page geometry, PDF-outline conversion, and crop-rect rendering with a caller-supplied dimension cap (2048 px for whole pages, a tile-specific cap for Zoom / Scroll).
   - Rejects missing files, empty PDFs, and invalid page geometry; closes documents that finish opening after cancellation.
+  - Awaits the shared runtime initialization only in its default opener, after checking file existence; injected document openers bypass native setup.
 
 ##### Screens and Widgets
 
@@ -405,9 +434,11 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 - **[`test/reader/reader_error_service_test.dart`](test/reader/reader_error_service_test.dart)**: Missing/access-denied files, memory failures, encrypted EPUBs, and suppression of internal error details.
 - **[`test/reader/reader_error_screen_test.dart`](test/reader/reader_error_screen_test.dart)**: Real reader-shell recovery after a failed open, encrypted-book exit, and explicit continuation after an OS memory warning.
 - **[`test/reader/page_bitmap_cache_test.dart`](test/reader/page_bitmap_cache_test.dart)**: Unit tests for memory budgeting and LRU eviction.
+- **[`test/reader/pdf_memory_service_test.dart`](test/reader/pdf_memory_service_test.dart)**: Budget fractions and clamps, malformed replies, lazy/concurrent lookup, unsupported hosts, missing channels, failures, and late responses after timeout. PDF session tests additionally cover adaptive open/resume, cancellation during lookup, explicit cache overrides, and caller-owned image lifetimes under rejection/eviction.
 - **[`test/reader/pdf_continuous_layout_test.dart`](test/reader/pdf_continuous_layout_test.dart)**: Unit tests for exact extents, offset mapping, dominant-page selection, and boundary clamping.
 - **[`test/reader/pdf_crop_service_test.dart`](test/reader/pdf_crop_service_test.dart)**: Unit tests for ink bounds, blank pages, alpha compositing, and noise filtering.
 - **[`test/reader/pdf_document_service_test.dart`](test/reader/pdf_document_service_test.dart)**: Unit tests for PDF lifecycle/rendering and an opt-in native PDFium smoke test.
+- **[`test/reader/pdf_runtime_service_test.dart`](test/reader/pdf_runtime_service_test.dart)**: Calls the actual app entry point and exercises the default PDF opener with a delayed native backend; verifies lazy startup, missing/injected opener bypass, shared concurrent initialization, password forwarding, cancellation cleanup, and reuse after close/reopen.
 - **[`test/reader/pdf_reader_session_test.dart`](test/reader/pdf_reader_session_test.dart)**: Unit and widget tests for fit-mode navigation and sub-screens, whole-page cache reuse and physical-pixel sizing, the refusal to render whole pages in Zoom / Scroll, per-density and per-region tile re-rasterisation, navigation-epoch semantics, persistence, suspension/resumption, bookmark add/remove/cross-session persistence, and a fling that keeps gliding after release while respecting the end of the document.
 - **[`test/reader/reader_bookmarks_screen_test.dart`](test/reader/reader_bookmarks_screen_test.dart)**: Widget tests for adding a bookmark with the default label, listing, tap-to-select, and delete-with-confirmation.
 - **[`test/reader/reader_menu_overlay_test.dart`](test/reader/reader_menu_overlay_test.dart)**: Widget tests for reader-menu controls, the bookmarks entry point, and mode-specific actions.
@@ -441,5 +472,7 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
   - Provides the native Android `Open with` chooser and event-driven battery-status channels.
 - **[`android/app/src/main/kotlin/com/example/eink_launcher/InstalledAppsHandler.kt`](android/app/src/main/kotlin/com/example/eink_launcher/InstalledAppsHandler.kt)**:
   - Queries launcher activities and starts selected packages directly through Android `PackageManager`.
+- **[`android/app/src/main/kotlin/com/example/eink_launcher/PdfMemoryHandler.kt`](android/app/src/main/kotlin/com/example/eink_launcher/PdfMemoryHandler.kt)**:
+  - Serves the PDF reader's on-demand `ActivityManager.getMemoryClass()` query without doing memory work during handler registration.
 - **[`android/app/src/main/res/values/styles.xml`](android/app/src/main/res/values/styles.xml)**:
   - Window theme definitions configuring white background and fullscreen flags.

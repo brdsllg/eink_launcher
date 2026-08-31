@@ -6,6 +6,38 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test(
+    'runtime shrinking evicts in LRU order and growing retains images',
+    () async {
+      final cache = PageBitmapCache(maxBytes: 1200);
+      addTearDown(cache.clear);
+      const keys = [
+        PdfBitmapCacheKey(pageIndex: 0, pixelWidth: 10, pixelHeight: 10),
+        PdfBitmapCacheKey(pageIndex: 1, pixelWidth: 10, pixelHeight: 10),
+        PdfBitmapCacheKey(pageIndex: 2, pixelWidth: 10, pixelHeight: 10),
+      ];
+      for (final key in keys) {
+        cache.put(key, await _makeImage(10, 10));
+      }
+      final owned = cache.get(keys.first)!.clone();
+      addTearDown(owned.dispose);
+      cache.resize(800);
+      expect(cache.maxBytes, 800);
+      expect(cache.currentBytes, 800);
+      expect(cache.containsKey(keys[1]), isFalse);
+      expect(cache.containsKey(keys.first), isTrue);
+      cache.resize(1600);
+      expect(cache.length, 2);
+      cache.resize(100);
+      expect(cache.isEmpty, isTrue);
+      expect(cache.currentBytes, 0);
+      owned.clone().dispose(); // Caller-owned handles survive eviction.
+      expect(() => cache.resize(0), throwsArgumentError);
+      expect(() => cache.resize(-1), throwsArgumentError);
+      expect(cache.maxBytes, 100);
+    },
+  );
+
   test('evicts the least recently used bitmap to stay within budget', () async {
     final cache = PageBitmapCache(maxBytes: 800);
     const firstKey = PdfBitmapCacheKey(

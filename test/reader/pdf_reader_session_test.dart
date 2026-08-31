@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:eink_launcher/reader/controllers/pdf_reader_session.dart';
 import 'package:eink_launcher/reader/models/doc_ref.dart';
@@ -10,8 +10,10 @@ import 'package:eink_launcher/reader/services/book_store_service.dart';
 import 'package:eink_launcher/reader/services/page_bitmap_cache.dart';
 import 'package:eink_launcher/reader/services/pdf_crop_service.dart';
 import 'package:eink_launcher/reader/services/pdf_document_service.dart';
+import 'package:eink_launcher/reader/services/pdf_memory_service.dart';
 import 'package:eink_launcher/reader/widgets/pdf_page_view.dart' as reader;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -52,6 +54,230 @@ void main() {
           PdfDocumentService(path, documentOpener: (p, pw) async => fakeDoc),
     );
   }
+
+  group('adaptive cache initialization', () {
+    const channel = MethodChannel('eink_launcher/pdf_memory');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    late PdfMemoryService memory;
+    var queries = 0;
+    var opens = 0;
+
+    PdfReaderSession adaptiveSession({PageBitmapCache? cache}) =>
+        PdfReaderSession(
+          doc: doc,
+          memoryService: memory,
+          bitmapCache: cache,
+          documentServiceFactory: (path) => PdfDocumentService(
+            path,
+            documentOpener: (_, _) async {
+              opens++;
+              return _FakePdfDocument(
+                pageCount: 3,
+                pageWidth: 200,
+                pageHeight: 300,
+              );
+            },
+          ),
+        );
+
+    setUp(() {
+      queries = 0;
+      opens = 0;
+      memory = PdfMemoryService(isAndroid: true);
+      messenger.setMockMethodCallHandler(channel, (_) async {
+        queries++;
+        return 256;
+      });
+    });
+    tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    test(
+      'first open sizes the cache; other sessions and resumes reuse lookup',
+      () async {
+        final first = adaptiveSession();
+        final second = adaptiveSession();
+        addTearDown(first.dispose);
+        addTearDown(second.dispose);
+        expect(queries, 0);
+        expect(opens, 0);
+        await Future.wait([first.open(), second.open()]);
+        expect(first.bitmapCacheBudgetBytes, 64 * 1024 * 1024);
+        expect(second.bitmapCacheBudgetBytes, first.bitmapCacheBudgetBytes);
+        await first.goToPage(2);
+        first.suspend();
+        await first.resume();
+        expect(first.isReady, isTrue);
+        expect(first.currentPage, 2);
+        expect(first.bitmapCacheBudgetBytes, 64 * 1024 * 1024);
+        expect(queries, 1);
+        expect(opens, 3);
+      },
+    );
+
+    test(
+      'native query failure uses fallback without failing the reader',
+      () async {
+        messenger.setMockMethodCallHandler(channel, (_) async {
+          throw PlatformException(code: 'memory_unavailable');
+        });
+        final session = adaptiveSession();
+        addTearDown(session.dispose);
+        await session.open();
+        expect(session.isReady, isTrue);
+        expect(session.error, isNull);
+        expect(
+          session.bitmapCacheBudgetBytes,
+          PdfMemoryService.fallbackCacheBytes,
+        );
+      },
+    );
+
+    test('an injected cache retains its budget and skips the query', () async {
+      final session = adaptiveSession(cache: PageBitmapCache(maxBytes: 800));
+      addTearDown(session.dispose);
+      await session.open();
+      session.suspend();
+      await session.resume();
+      expect(session.bitmapCacheBudgetBytes, 800);
+      expect(queries, 0);
+    });
+
+    for (final dispose in [false, true]) {
+      test(
+        'late lookup cannot open or resize a ${dispose ? 'disposed' : 'suspended'} session',
+        () async {
+          final gate = Completer<int>();
+          final started = Completer<void>();
+          messenger.setMockMethodCallHandler(channel, (_) {
+            queries++;
+            started.complete();
+            return gate.future;
+          });
+          final session = adaptiveSession();
+          final opening = session.open();
+          await started.future;
+          if (dispose) {
+            session.dispose();
+          } else {
+            session.suspend();
+          }
+          gate.complete(512);
+          await opening;
+          expect(opens, 0);
+          expect(session.isReady, isFalse);
+          expect(
+            session.bitmapCacheBudgetBytes,
+            PdfMemoryService.fallbackCacheBytes,
+          );
+          if (!dispose) {
+            await session.resume();
+            expect(session.isReady, isTrue);
+            expect(session.bitmapCacheBudgetBytes, 128 * 1024 * 1024);
+            expect(queries, 1);
+            session.dispose();
+          }
+        },
+      );
+    }
+  });
+
+  for (final zoom in [false, true]) {
+    for (final budget in [100, 240000]) {
+      test(
+        '${zoom ? 'tiles' : 'pages'} own handles after cache rejection/eviction ($budget bytes)',
+        () async {
+          final cache = PageBitmapCache(maxBytes: budget);
+          final session = PdfReaderSession(
+            doc: doc,
+            bitmapCache: cache,
+            documentServiceFactory: (path) => PdfDocumentService(
+              path,
+              documentOpener: (_, _) async => _FakePdfDocument(
+                pageCount: 1,
+                pageWidth: 200,
+                pageHeight: 300,
+              ),
+            ),
+          );
+          addTearDown(session.dispose);
+          await session.open();
+          await session.applySettings(
+            session.settings.copyWith(
+              autoCrop: false,
+              fitMode: zoom ? PdfFitMode.zoom : PdfFitMode.fitHeight,
+            ),
+          );
+          final layout = zoom
+              ? await session.continuousLayoutForViewport(const Size(200, 300))
+              : null;
+          Future<ui.Image> render() => zoom
+              ? session.renderContinuousTile(0, layout!)
+              : session.renderCurrentView(const Size(200, 300));
+          final images = await Future.wait([render(), render()]);
+          expect(cache.currentBytes, lessThanOrEqualTo(budget));
+          if (budget == 100) expect(cache.isEmpty, isTrue);
+          cache.clear();
+          for (final image in images) {
+            image.clone().dispose();
+            // Exactly the caller's handle remains, including rejected bitmaps.
+            expect(image.debugGetOpenHandleStackTraces(), hasLength(1));
+            image.dispose();
+          }
+        },
+      );
+    }
+  }
+
+  testWidgets('fit view releases oversized images completed after unmount', (
+    tester,
+  ) async {
+    final gate = Completer<void>();
+    final created = <ui.Image>[];
+    final previousCallback = ui.Image.onCreate;
+    ui.Image.onCreate = (image) {
+      created.add(image);
+      previousCallback?.call(image);
+    };
+    addTearDown(() => ui.Image.onCreate = previousCallback);
+    final cache = PageBitmapCache(maxBytes: 100);
+    final session = PdfReaderSession(
+      doc: doc,
+      bitmapCache: cache,
+      documentServiceFactory: (path) => PdfDocumentService(
+        path,
+        documentOpener: (_, _) async => _FakePdfDocument(
+          pageCount: 1,
+          pageWidth: 200,
+          pageHeight: 300,
+          renderGate: gate.future,
+        ),
+      ),
+    );
+    addTearDown(session.dispose);
+    await session.open();
+    await session.applySettings(session.settings.copyWith(autoCrop: false));
+    await tester.pumpWidget(
+      MaterialApp(home: reader.PdfPageView(session: session)),
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(() async {
+      gate.complete();
+      // Allow the native test renderer and the stale completion handler to finish.
+      for (var attempt = 0; attempt < 100; attempt++) {
+        if (created.isNotEmpty) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    });
+    await tester.pump();
+    expect(created, isNotEmpty);
+    expect(created.every((image) => image.debugDisposed), isTrue);
+    expect(cache.isEmpty, isTrue);
+    expect(tester.takeException(), isNull);
+    BookStoreService.instance.dispose();
+  });
 
   test('open loads page count and defaults to the first page', () async {
     final session = makeSession(
@@ -370,7 +596,8 @@ void main() {
       2,
       reason: 'crop is cached and geometry is unchanged: no new render',
     );
-    expect(identical(first, second), isTrue);
+    expect(identical(first, second), isFalse);
+    expect(first.isCloneOf(second), isTrue);
 
     final third = await session.renderCurrentView(const Size(100, 150));
     expect(
@@ -380,6 +607,10 @@ void main() {
     );
     expect(third.width, 100);
     expect(third.height, 150);
+    first.dispose();
+    second.dispose();
+    third.dispose();
+    session.dispose();
   });
 
   test(
@@ -400,6 +631,8 @@ void main() {
 
       expect(image.width, 500);
       expect(image.height, 750);
+      image.dispose();
+      session.dispose();
     },
   );
 
@@ -468,6 +701,10 @@ void main() {
       );
       expect(quadrant.width, 800);
       expect(quadrant.height, 600);
+      base.dispose();
+      zoomed.dispose();
+      quadrant.dispose();
+      session.dispose();
     },
   );
 
@@ -551,7 +788,7 @@ void main() {
     await tester.runAsync(() async {
       await session.open();
       await session.applySettings(session.settings.copyWith(autoCrop: false));
-      await session.renderCurrentView(const Size(200, 300));
+      (await session.renderCurrentView(const Size(200, 300))).dispose();
     });
     await tester.pumpWidget(
       MaterialApp(

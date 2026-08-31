@@ -19,6 +19,7 @@ import '../services/book_store_service.dart';
 import '../services/page_bitmap_cache.dart';
 import '../services/pdf_crop_service.dart';
 import '../services/pdf_document_service.dart';
+import '../services/pdf_memory_service.dart';
 import '../services/reader_error_service.dart';
 import 'reader_session.dart';
 
@@ -39,6 +40,8 @@ class PdfReaderSession extends ReaderSession {
   final BookStoreService _bookStore;
   final PdfCropService _cropService;
   final PageBitmapCache _bitmapCache;
+  final PdfMemoryService _memoryService;
+  final bool _adaptiveCache;
   final PdfDocumentServiceFactory _serviceFactory;
 
   PdfDocumentService? _documentService;
@@ -79,11 +82,15 @@ class PdfReaderSession extends ReaderSession {
     BookStoreService? bookStore,
     PdfCropService? cropService,
     PageBitmapCache? bitmapCache,
+    PdfMemoryService? memoryService,
     PdfDocumentServiceFactory? documentServiceFactory,
   }) : _bookStore = bookStore ?? BookStoreService.instance,
        _cropService = cropService ?? PdfCropService(),
        _bitmapCache =
-           bitmapCache ?? PageBitmapCache(maxBytes: kPdfBitmapCacheBytes),
+           bitmapCache ??
+           PageBitmapCache(maxBytes: PdfMemoryService.fallbackCacheBytes),
+       _memoryService = memoryService ?? PdfMemoryService.instance,
+       _adaptiveCache = bitmapCache == null,
        _serviceFactory = documentServiceFactory ?? PdfDocumentService.new;
 
   @override
@@ -124,6 +131,9 @@ class PdfReaderSession extends ReaderSession {
   /// [_navigationEpoch].
   int get navigationEpoch => _navigationEpoch;
 
+  /// Retained bitmap budget only; excludes UI handles and native render memory.
+  int get bitmapCacheBudgetBytes => _bitmapCache.maxBytes;
+
   bool get _isContinuous => _settings.fitMode == PdfFitMode.zoom;
 
   // ---------------------------------------------------------------------
@@ -137,6 +147,8 @@ class PdfReaderSession extends ReaderSession {
     _isReady = false;
     try {
       await _closing;
+      if (_disposed || generation != _generation) return;
+      await _configureCache(generation);
       if (_disposed || generation != _generation) return;
       _documentService ??= _serviceFactory(doc.path);
       await _documentService!.open();
@@ -178,6 +190,8 @@ class PdfReaderSession extends ReaderSession {
     try {
       await _closing;
       if (_disposed || generation != _generation) return;
+      await _configureCache(generation);
+      if (_disposed || generation != _generation) return;
       _documentService ??= _serviceFactory(doc.path);
       await _documentService!.open();
       if (_disposed || generation != _generation) return;
@@ -215,6 +229,14 @@ class PdfReaderSession extends ReaderSession {
     } catch (_) {
       // Cleanup must not produce an unhandled async error during suspension.
     }
+  }
+
+  Future<void> _configureCache(int generation) async {
+    // Explicitly injected caches retain their caller-selected budgets.
+    if (!_adaptiveCache) return;
+    final budget = await _memoryService.cacheBudgetBytes();
+    if (_disposed || generation != _generation) return;
+    _bitmapCache.resize(budget);
   }
 
   // ---------------------------------------------------------------------
@@ -459,6 +481,7 @@ class PdfReaderSession extends ReaderSession {
   /// [viewport]. Used by the tap-driven fit-height and fit-width modes only:
   /// Zoom / Scroll is always continuous and renders through
   /// [renderContinuousTile].
+  /// The caller owns the returned image handle and must dispose it.
   Future<Image> renderCurrentView(
     Size viewport, {
     double devicePixelRatio = 1.0,
@@ -481,6 +504,7 @@ class PdfReaderSession extends ReaderSession {
   }
 
   /// Rasterises one tile of [pageIndex] for the continuous view.
+  /// The caller owns the returned image handle and must dispose it.
   ///
   /// [region] is the tile's rectangle within the page, expressed as fractions
   /// of the page's laid-out size (`0..1` on both axes). Tiling in *two*
@@ -541,7 +565,7 @@ class PdfReaderSession extends ReaderSession {
       cropBottom: tileCrop.bottom,
     );
     final cached = _bitmapCache.get(key);
-    if (cached != null) return cached;
+    if (cached != null) return cached.clone();
     final image = await _documentService!.renderPage(
       pageIndex: pageIndex,
       pixelWidth: pixelWidth,
@@ -553,8 +577,7 @@ class PdfReaderSession extends ReaderSession {
       image.dispose();
       throw StateError('PDF rendering was cancelled.');
     }
-    _bitmapCache.put(key, image);
-    return image;
+    return _cacheAndOwn(key, image);
   }
 
   Future<Image> _renderPageAt(
@@ -585,7 +608,7 @@ class PdfReaderSession extends ReaderSession {
       cropBottom: geometry.crop.bottom,
     );
     final cached = _bitmapCache.get(key);
-    if (cached != null) return cached;
+    if (cached != null) return cached.clone();
 
     final image = await _documentService!.renderPage(
       pageIndex: pageIndex,
@@ -597,7 +620,16 @@ class PdfReaderSession extends ReaderSession {
       image.dispose();
       throw StateError('PDF rendering was cancelled.');
     }
-    _bitmapCache.put(key, image);
+    return _cacheAndOwn(key, image);
+  }
+
+  Image _cacheAndOwn(PdfBitmapCacheKey key, Image image) {
+    // Clone before insertion: concurrent render completion can replace/evict
+    // an entry before the widget receives its Future. Oversized bitmaps are
+    // not cached; their original handle transfers to the caller instead.
+    final owned = image.clone();
+    if (_bitmapCache.put(key, image)) return owned;
+    owned.dispose();
     return image;
   }
 
@@ -749,12 +781,13 @@ class PdfReaderSession extends ReaderSession {
     if (viewport == null || pageIndex < 0 || pageIndex >= _pageCount) return;
     if (!_isReady || _isSuspended || _isContinuous) return;
     try {
-      await _renderPageAt(
+      final image = await _renderPageAt(
         pageIndex,
         0.0,
         viewport,
         devicePixelRatio: _lastDevicePixelRatio,
       );
+      image.dispose();
     } catch (_) {
       // Best-effort: a failed prefetch must never surface to the reader UI.
     }

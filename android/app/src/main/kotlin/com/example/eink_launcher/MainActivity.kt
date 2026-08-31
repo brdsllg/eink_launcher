@@ -23,6 +23,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
 
         InstalledAppsHandler(this, flutterEngine.dartExecutor.binaryMessenger)
+        PdfMemoryHandler(this, flutterEngine.dartExecutor.binaryMessenger)
 
         EventChannel(
             flutterEngine.dartExecutor.binaryMessenger,

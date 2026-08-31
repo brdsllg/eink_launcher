@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:pdfrx/pdfrx.dart';
 
 import 'reader/controllers/reader_session_registry.dart';
 import 'screens/file_browser_screen.dart';
 
-void main() async {
+void main() {
   // Required before any SystemChrome/plugin calls in main().
   WidgetsFlutterBinding.ensureInitialized();
-  await pdfrxFlutterInitialize();
   // Reader sessions can stay alive (with native PDF handles / parsed books)
   // in ReaderSessionRegistry even while the file browser, not the reader, is
   // on screen, so this is registered once for the whole app lifetime rather

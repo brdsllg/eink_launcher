@@ -94,7 +94,7 @@ features don't tangle.
 ```
 lib/
   constants.dart                          MODIFY  add reader constants
-  main.dart                               MODIFY  pdfrxFlutterInitialize()
+  main.dart                               MODIFY  keep PDFium off startup path
   screens/file_browser_screen.dart        MODIFY  route readable files; "Open with…"
   reader/
     models/
@@ -115,6 +115,8 @@ lib/
       pagination_cache_service.dart       disk cache keyed by geometry+typography
       page_bitmap_cache.dart              in-memory LRU of rendered PDF bitmaps
       pdf_document_service.dart           pdfrx wrapper: open / render / outline
+      pdf_memory_service.dart             lazy Android heap-class query + cache budget
+      pdf_runtime_service.dart            shared PDFium initialization on first PDF open
       pdf_crop_service.dart               ink-bbox detection (isolate)
       epub_parser_service.dart            archive/XML EPUB parser → ParsedBook (isolate)
       html_block_parser.dart              XHTML → List<ContentBlock> (isolate)
@@ -214,13 +216,16 @@ Crop has **two strategies**, chosen by view mode:
 deliberately **throws** in Zoom / Scroll, so nothing can silently fall back to
 magnifying a single whole-page bitmap.
 
-**Lazy PDF runtime initialization.** Launcher startup must not initialize
-PDFium. As specified in [Android-Only Hardening Plan §2](ANDROID_HARDENING_PLAN.md#2-defer-pdf-runtime-initialization--not-started),
+**Lazy PDF runtime initialization (implemented).** Launcher startup does not initialize
+PDFium. As specified in [Android-Only Hardening Plan §2](ANDROID_HARDENING_PLAN.md#2-defer-pdf-runtime-initialization--implemented-device-verification-pending),
 `PdfReaderSession.open()` and `resume()` own the reader lifecycle and call
-`PdfDocumentService.open()`. The service's default document opener must await
+`PdfDocumentService.open()`. The service's default document opener awaits
 the memoized `PdfRuntimeService.ensureInitialized()` immediately before
 `PdfDocument.openFile()`. Keeping the check in the default opener means tests
 that inject a fake `PdfDocumentOpener` do not try to initialize native PDFium.
+Missing files are rejected before initialization. The shared future retains both
+success and failure for the app lifetime; an initialization failure reaches the
+reader error boundary and requires an app restart to retry native setup.
 
 #### 4.1.1 Zoom / Scroll mode
 
@@ -320,9 +325,14 @@ pixels capped at `kPdfMaxRenderDimension` (2048 px) on the long edge; one page a
 ~1264×1680 RGBA ≈ 8.5 MB, and after displaying page N the session pre-renders
 N+1 and N−1 in the background, which is what makes turns feel instant. Zoom /
 Scroll instead keeps a grid of tiles plus look-ahead resident, so the shared LRU
-budget is `kPdfBitmapCacheBytes` (96 MB). Tiles handed to widgets are
-`ui.Image.clone()`s, so a cache eviction can never dispose a bitmap that is
-still on screen.
+budget is selected lazily by `PdfMemoryService`: provisionally 25% of the normal
+Android heap class, clamped to 4–128 MiB (32 MiB fallback). The query runs at the
+first PDF open, not during launcher startup. These are per-session retained-cache
+limits, not a bound on PDFium, in-flight rendering, or widget-owned memory.
+Render methods hand out caller-owned image handles, cloned before cache insertion
+so even immediate eviction cannot invalidate them. Oversized bitmaps bypass the
+cache and are disposed by their UI/prefetch callers. See Step 5.3 for measurement
+work that remains before locking in this policy.
 
 ### 4.2 EPUB / TXT / Markdown
 
@@ -446,8 +456,9 @@ Orientation lives in the menu overlay for every format.
 **Objective:** Prove `pdfrx` and PDFium build and render cleanly on target hardware.
 - [x] **Step 0.1: Add dependencies & init pdfrx**
   - Add `pdfrx: ^2.4.7`, `path_provider: ^2.1.4`, `crypto: ^3.0.5` to `pubspec.yaml`.
-  - Initial native verification used `await pdfrxFlutterInitialize();` in `lib/main.dart`. This remains the currently implemented state, but Android hardening §2 will move it into the default PDF document-opening path so launcher startup stays lazy.
+  - Initial native verification used `await pdfrxFlutterInitialize();` in `lib/main.dart`. Android hardening §2 now moves it into the default PDF document-opening path through `PdfRuntimeService`, so launcher startup stays lazy. Concurrent opens and resumes share initialization; injected openers bypass it.
   - Add `kReadableExtensions` and reader constants in `lib/constants.dart`.
+  - 2026-08-31 lazy-startup verification: the actual app entry point and delayed PDF backend regression pass; all reader tests pass within the full suite (166 passed, one opt-in native smoke test skipped, two existing Windows folder-copy failures). `flutter analyze --no-pub` is clean and the release APK build succeeds. Bigme startup timing and native first-open checks remain pending.
 - [ ] **Step 0.2: Smoke test PDF render on device**
   - Create minimal verification widget/test calling `PdfDocument.openFile` and rendering page 0.
   - Run release build on the Bigme B751C device to confirm native asset loading.
@@ -476,7 +487,7 @@ Orientation lives in the menu overlay for every format.
 
 - [x] **Step 1.3: PDF Services & Auto-Crop**
   - Create `lib/reader/services/pdf_document_service.dart` (pdfrx open, page count, capped crop-rect rendering, outline parser).
-  - Create `lib/reader/services/page_bitmap_cache.dart` (LRU memory cache bounded by `kPdfBitmapCacheBytes`).
+  - Create `lib/reader/services/page_bitmap_cache.dart` (LRU memory cache; runtime budget added in Step 5.3).
   - Create `lib/reader/services/pdf_crop_service.dart` (isolate-backed ink bbox detection, minimum-run filtering).
   - Add unit tests in `test/reader/pdf_crop_service_test.dart`.
 
@@ -643,11 +654,13 @@ Orientation lives in the menu overlay for every format.
   - Fixtures for all three cases — no `encryption.xml`, an idpf-obfuscated font excluded from `book.resources` without error, and an encrypted spine document throwing `EncryptedEpubException` with the right path and algorithm — are in `test/reader/epub_parser_service_test.dart`'s `META-INF/encryption.xml` group.
   - Additional fixtures cover Adobe obfuscation, percent-encoded container-root paths, encryption of image/font resources, a font-obfuscation algorithm incorrectly applied to spine content, and malformed encryption metadata.
 - [ ] **Step 5.3: Adaptive PDF Bitmap Cache Size**
-  - Query Android's `ActivityManager.getMemoryClass()` through a platform channel when the PDF runtime is first needed, rather than adding work to launcher startup.
-  - Size the PDF bitmap cache from the reported per-app heap class instead of always using the current hard-coded 96 MB. Start with a conservative fraction (for example 20–25%) and clamp it to measured minimum and maximum limits so unusually small or large reports cannot produce a harmful cache size.
-  - This prevents the cache from being too large on low-memory devices or too conservative on devices with more RAM.
-  - Keep a safe fixed fallback if the Android query fails, and verify the chosen fraction on the Bigme with `adb shell dumpsys meminfo` before locking it in.
-  - Requires a small Kotlin handler plus changes to make the cache budget a runtime value rather than a compile-time constant.
+  - [x] Added `PdfMemoryHandler.kt` and `pdf_memory_service.dart`. The `eink_launcher/pdf_memory` channel queries normal `ActivityManager.getMemoryClass()` only on the first PDF open, with one shared lookup across concurrent sessions, retries, and resumes. Registering the native handler does not query memory. Lazy PDFium initialization itself is implemented separately in Android hardening §2 through `PdfRuntimeService`.
+  - [x] Replaced the fixed 96 MiB session cache with a provisional **25% heap-class budget, clamped to 4–128 MiB**. Examples: 64 MiB heap → 16 MiB cache; 256 → 64; 512+ → 128. Invalid/nonpositive replies, missing native handlers, platform failures, non-Android hosts, and a one-second timeout use a **32 MiB fallback**. Clamp before multiplication to avoid overflow on extreme reports.
+  - [x] Configure the runtime budget before opening a PDF, preserving explicit injected-cache limits. Generation checks prevent delayed queries from resizing or opening suspended/disposed sessions. `PageBitmapCache.resize()` immediately evicts in LRU order.
+  - [x] Make session render methods return caller-owned handles, safe from cache replacement/eviction before the UI sees them. Oversized images bypass the cache without leaking; fit/zoom views and prefetch release handles, including late completions after unmount. Tests cover budget/clamp/fallback cases, query lifecycle, session suspension/resumption, LRU resizing, and image ownership under small budgets.
+  - [ ] **Bigme measurement remains pending; fraction and bounds are not yet device-tuned.** No device was attached on 2026-08-31. Connect the Bigme and record `adb shell getprop dalvik.vm.heapgrowthlimit`, `adb shell getprop dalvik.vm.heapsize`, and `adb shell dumpsys meminfo com.example.eink_launcher` at launcher idle, after opening representative scan/vector PDFs, after repeated page turns/zoom/flings, and after leaving the reader. Use the channel's actual `getMemoryClass` result for the chosen budget; the properties only provide context. Compare native/graphics/total PSS and page-turn behaviour, then adjust the policy if needed.
+  - The budget covers **retained entries per session**, not the app's total memory. Visible/look-ahead widget handles, in-flight render buffers, and PDFium allocations remain outside it; active-session count also matters. The existing suspend/memory-pressure paths are retained.
+  - 2026-08-31 software verification: all **146 reader tests passed** (one opt-in native test skipped), `flutter analyze --no-pub` was clean, and `flutter build apk --release --no-pub` succeeded. Full suite: **165 passed**, one skipped, and the two previously documented Windows folder-copy failures in `file_operations_service_test.dart`.
 - [x] **Step 5.4: Update Documentation & Tests**
   - Update `README.md` with new file listings and architectural details.
   - Run full test suite (`flutter test`, `flutter analyze`).
@@ -668,6 +681,8 @@ Orientation lives in the menu overlay for every format.
 - `text_search_service_test.dart` — shared EPUB/TXT/Markdown search, Hebrew marks, original UTF-16 offsets, whitespace and inline boundaries, literal punctuation, bounded results, and previews.
 - `reader_search_screen_test.dart` — submission, paginated selection, queued/stale queries, clear/retry/dispose handling, and RTL/narrow-screen layout.
 - `pdf_crop_service_test.dart` — bbox bounding math, noise filtering, uniform crop sampling.
+- `pdf_memory_service_test.dart` — lazy Android memory lookup, bounded budgets, fallback handling, concurrent callers, and timeout recovery.
+- `pdf_runtime_service_test.dart` — actual launcher startup without PDFium, default-opener ordering, shared concurrent initialization, injected/missing-file bypass, and cancellation/reopen cleanup.
 - `pdf_continuous_layout_test.dart` — offset-to-page and page-to-offset mapping, dominant page, boundary clamping.
 - `pdf_reader_session_test.dart` — fit-mode navigation and sub-screens, whole-page cache reuse, refusal to render whole pages in Zoom / Scroll, per-density tile re-rasterisation, navigation-epoch semantics, and a widget test proving a fling keeps gliding after release.
 - `reader_settings_screen_test.dart` — mode-scoped control visibility, no duplicated fit-mode selector, zoom-out default and JSON round-trip.
@@ -680,7 +695,7 @@ Orientation lives in the menu overlay for every format.
 1. **`epubx` dependency conflict (resolved):** Phase 2 validation found incompatible transitive `image` constraints with `pdfrx`; the direct `archive` + `xml` fallback is implemented and covered by an in-memory EPUB fixture.
 2. **UI-isolate pagination load:** Mitigated via current-chapter priority pagination + progressive frame slicing + disk caching.
 3. **Hebrew fonts & nikud:** Multiple bundled OFL fonts selectable per-book.
-4. **Memory pressure:** Hard 4-session cap + suspend contract + LRU bitmap cache bounded by `kPdfBitmapCacheBytes`, with 2-D tiling so zoom cost stays flat instead of growing with scale.
+4. **Memory pressure:** Hard 4-session cap + suspend contract + adaptive per-session LRU bitmap budgets (`PdfMemoryService`), with 2-D tiling so zoom cost stays flat instead of growing with scale. The cache limit excludes UI-held/in-flight/native allocations and is not a process-wide cap; Step 5.3 Bigme profiling remains required.
 5. **Zoom / Scroll on a ~30 fps panel:** A fling only gets a dozen or so frames, so momentum must never be interrupted. Mitigated by owning the transform, driving the fling from a `Ticker` that rebuilds cannot cancel, deferring re-rasterisation until the glide ends, and rendering ~0.75 screens of look-ahead. Tunable via `kPdfFlingFriction` (lower = longer glide) and `kPdfMinFlingVelocity`.
 6. **PDFium renders on the UI isolate:** PDF tile rasterisation and screen updates currently compete for the app's main Flutter worker. Bounded tiles, deferred re-rasterisation, and look-ahead mitigate this. As of 2026-08-30, flinging is smooth on the Bigme B751C, so no redesign is justified now. Revisit only if measured stutter appears with heavier PDFs, higher zoom, or different hardware; first try direction-biased pre-rendering, and investigate a separate rendering worker only if the simpler mitigation is insufficient.
 7. **Custom EPUB parser maintenance:** The direct `archive` + `xml` parser was built because `epubx` had incompatible transitive `image` version constraints with `pdfrx`. If `epubx` or a fork resolves that conflict in the future, consider switching back to reduce the maintenance surface of container/OPF/NCX/nav parsing. The current parser is tested against an in-memory EPUB fixture, but real-world EPUBs vary widely and may expose edge cases over time.

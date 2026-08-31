@@ -101,10 +101,6 @@ const double kPdfFlingFriction = 0.006;
 /// rather than a fling, so resting a finger doesn't drift the page.
 const double kPdfMinFlingVelocity = 60.0;
 
-/// Memory budget for rendered PDF bitmaps. Zoom / Scroll keeps a grid of
-/// zoomed tiles plus look-ahead resident at once.
-const int kPdfBitmapCacheBytes = 96 * 1024 * 1024;
-
 /// Auto-crop threshold: pixel luminance below this value is considered ink/content.
 const int kPdfInkLuminanceThreshold = 245;
 

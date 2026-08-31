@@ -7,7 +7,7 @@ This plan keeps the Flutter UI and improves the parts that matter for an Android
 | Priority | Improvement | Expected payoff | Status |
 | --- | --- | --- | --- |
 | P0 | Establish device baselines and fix startup ordering | Reliable measurements and deterministic home-folder startup | [ ] Not started |
-| P1 | Defer PDF runtime initialization | Faster launcher cold start | [ ] Not started |
+| P1 | Defer PDF runtime initialization | Removes PDF setup from launcher cold start | [x] Implemented; device timing pending |
 | P1 | Launcher crash resilience (safe mode, corrupt-state recovery) | Prevents the device from becoming unusable if the launcher crashes repeatedly | [ ] Not started |
 | P2 | Compare Impeller with the legacy renderer on the Bigme | Select the renderer with the least ghosting and best response | [ ] Not started |
 | P2 | Reduce rebuild/repaint scope only where profiling proves useful | Less unnecessary rendering work | [ ] Conditional |
@@ -75,9 +75,9 @@ Acceptance criteria:
 - Permission prompts still work on a fresh install.
 - No folder is loaded twice during normal startup.
 
-## 2. Defer PDF Runtime Initialization — Not Started
+## 2. Defer PDF Runtime Initialization — Implemented; Device Verification Pending
 
-`lib/main.dart` currently awaits `pdfrxFlutterInitialize()` before `runApp()`, although most launcher sessions do not open a PDF. Move that work off the launcher startup path.
+`lib/main.dart` no longer awaits `pdfrxFlutterInitialize()` before `runApp()`. PDF setup now runs only when the reader's default document opener first needs it.
 
 This step is the startup side of the reader lifecycle described in
 [E-Ink Reader Plan §4.1](READER_PLAN.md#41-pdf). `PdfReaderSession.open()` and
@@ -86,12 +86,12 @@ opener is the precise place where lazy initialization belongs. This preserves
 the session's suspend/resume architecture without making the launcher aware of
 PDFium.
 
-Implementation:
+Implemented on 2026-08-31:
 
-1. Add `lib/reader/services/pdf_runtime_service.dart` with a memoized `Future<void>`:
+1. Added `lib/reader/services/pdf_runtime_service.dart` with a memoized `Future<void>`:
 
    ```dart
-   class PdfRuntimeService {
+   abstract final class PdfRuntimeService {
      static Future<void>? _initialization;
 
      static Future<void> ensureInitialized() {
@@ -100,10 +100,15 @@ Implementation:
    }
    ```
 
-2. Remove the `pdfrxFlutterInitialize()` call and `pdfrx` import from `lib/main.dart`.
-3. In `PdfDocumentService._openPdfDocument()`, await `PdfRuntimeService.ensureInitialized()` immediately before `PdfDocument.openFile()`.
-4. Leave `PdfReaderSession.open()` and `resume()` calling `PdfDocumentService.open()`; both lifecycle paths will therefore use the same memoized initialization.
-5. Preserve injected PDF openers in tests so unit tests do not require native PDFium initialization.
+2. Removed the `pdfrxFlutterInitialize()` call and `pdfrx` import from `lib/main.dart`.
+3. `PdfDocumentService._openPdfDocument()` awaits `PdfRuntimeService.ensureInitialized()` immediately before `PdfDocument.openFile()`, after rejecting missing files.
+4. `PdfReaderSession.open()` and `resume()` still call `PdfDocumentService.open()`; both lifecycle paths therefore use the same memoized initialization.
+5. Injected PDF openers bypass native initialization. The opt-in native smoke test now supplies only host configuration, so it exercises lazy initialization through the production opener.
+
+The initialization future retains both success and failure for the app lifetime.
+Native setup failures now reach the reader's error boundary rather than blocking
+launcher startup; restarting the app is required to retry native initialization.
+Existing generation checks dispose documents that finish opening after closure.
 
 Acceptance criteria:
 
@@ -111,6 +116,20 @@ Acceptance criteria:
 - The first PDF opens normally.
 - Later PDFs reuse the same initialization future.
 - All reader tests continue to pass.
+
+Automated regression coverage in `test/reader/pdf_runtime_service_test.dart`
+calls the actual app entry point, then exercises the default document opener
+against a delayed pdfrx backend. It checks no initialization at launcher startup,
+missing-file and injected-opener bypass, one shared initialization across
+concurrent opens/reopens, password forwarding, and late-document disposal.
+On-device first-PDF rendering and before/after cold-start measurements remain
+pending: no Android device was attached on 2026-08-31.
+
+2026-08-31 software verification: `flutter analyze --no-pub` found no issues,
+and `flutter build apk --release --no-pub` succeeded (77.3 MB universal APK).
+The full suite passed 166 tests, skipped the opt-in native smoke test, and had
+only the two previously documented Windows folder-copy failures in
+`file_operations_service_test.dart`. All reader tests passed.
 
 ## 3. Keep `open_filex` — Decision Complete
 
@@ -330,7 +349,7 @@ Also perform a short on-device smoke test for battery events, MIME resolution, A
 ## Recommended Execution Order
 
 1. Capture the baseline and fix startup sequencing.
-2. Defer PDF initialization.
+2. Defer PDF initialization (implemented; device timing/first-open verification pending).
 3. Add launcher startup recovery and crash-loop safe mode.
 4. Keep the current `open_filex` and native battery implementations; only perform their remaining tests.
 5. Keep using the documented personal-sideload signing workflow.

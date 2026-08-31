@@ -56,7 +56,9 @@ void main() {
   test(
     'native PDFium smoke: opens a real file and renders page zero',
     () async {
-      await pdfrxInitialize(tmpPath: Directory.systemTemp.path);
+      // Supply host configuration without pre-initializing PDFium: opening
+      // through the production service must initialize the runtime itself.
+      Pdfrx.cacheDirectoryPath = Directory.systemTemp.path;
       final fixturePath = Platform.environment['PDF_SMOKE_FILE']!;
       final service = PdfDocumentService(fixturePath);
       addTearDown(service.close);
