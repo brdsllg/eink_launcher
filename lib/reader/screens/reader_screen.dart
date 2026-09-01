@@ -14,6 +14,7 @@ import '../models/reader_settings.dart';
 import '../models/toc_entry.dart';
 import '../services/book_store_service.dart';
 import '../services/reader_error_service.dart';
+import '../services/pdf_render_scheduler.dart';
 import '../services/text_search_service.dart';
 import '../widgets/pdf_page_view.dart';
 import '../widgets/reader_menu_overlay.dart';
@@ -142,17 +143,27 @@ class _ReaderScreenState extends State<ReaderScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    final session = _session;
+    if (session is PdfReaderSession) session.cancelPendingWork();
     unawaited(BookStoreService.instance.flush());
     unawaited(SystemChrome.setPreferredOrientations(const []));
     super.dispose();
   }
 
-  Future<void> _navigate(Future<void> Function() operation) async {
-    if (_navigating) return;
-    _navigating = true;
+  Future<void> _navigate(
+    Future<void> Function() operation, {
+    bool orderedPdfTurn = false,
+  }) async {
+    // PDF sessions preserve ordered turn intent themselves. Locking here drops
+    // taps while Fit Width waits for crop geometry, and blocks superseding jumps.
+    final lockNavigation = !orderedPdfTurn;
+    if (lockNavigation && _navigating) return;
+    if (lockNavigation) _navigating = true;
     try {
       await operation();
       if (mounted) setState(() => _loadError = null);
+    } on PdfRenderCancelledException {
+      // Normal supersession from navigation, settings, or suspension.
     } catch (error) {
       if (mounted) {
         setState(
@@ -160,7 +171,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         );
       }
     } finally {
-      _navigating = false;
+      if (lockNavigation) _navigating = false;
     }
   }
 
@@ -380,9 +391,9 @@ class _ReaderScreenState extends State<ReaderScreen>
       children: [
         TapZoneLayer(
           zoomMode: isPdf && session.settings.fitMode == PdfFitMode.zoom,
-          onPrevious: () => _navigate(session.prevPage),
+          onPrevious: () => _navigate(session.prevPage, orderedPdfTurn: isPdf),
           onMenu: () => setState(() => _menuVisible = !_menuVisible),
-          onNext: () => _navigate(session.nextPage),
+          onNext: () => _navigate(session.nextPage, orderedPdfTurn: isPdf),
           child: isPdf
               ? PdfPageView(session: session, onRetry: _retry)
               : TextPageView(session: session as TextReaderSession),

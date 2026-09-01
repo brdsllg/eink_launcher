@@ -49,7 +49,24 @@ open PDF issues. Rapid next-page taps leave Fit Height / Fit Width unresponsive;
 Zoom / Scroll taps and fast scrolling reach unloaded white pages, and zoom release
 briefly blanks content before it reappears segment by segment (usually just under
 one second). This affects all PDFs tested, including small files. See
-[the device test log](BIGME_TEST_LOG.md). These issues are recorded, not fixed.
+[the device test log](BIGME_TEST_LOG.md). The subsequent software changes below
+target these issues; resolution on the HiBreak has not yet been verified.
+
+**PDF responsiveness follow-up:** render requests now pass through a bounded,
+priority-ordered scheduler before PDFium allocates their buffers. Current content
+takes precedence over speculative prefetch, duplicate pending requests share work,
+and superseded requests can be withdrawn. Rapid PDF page turns retain their input
+order through asynchronous crop calculations. Zoom / Scroll uses small page
+previews during movement and keeps available old detail until replacement visible
+tiles are ready, instead of expiring the fallback after 500 ms. Sharp refinement
+starts after a short idle interval, not a mandatory one-second page-turn delay.
+See [PDF responsiveness verification](PDF_RESPONSIVENESS.md) for the changes,
+software checks, limitations, and the short remaining device checklist.
+
+2026-09-01 follow-up verification: **234 Flutter tests pass**, including the
+generated-document native PDFium check; one older optional external-PDF smoke
+test is skipped. Static analysis reports no issues. The follow-up is version
+**1.0.1 (build 2)**; HiBreak testing remains pending.
 
 ---
 
@@ -62,6 +79,7 @@ eink_launcher/
 ├── ANDROID_HARDENING_PLAN.md             # Practical Android-only optimization roadmap
 ├── README.md                              # Project documentation & file guide
 ├── READER_PLAN.md                        # Blueprint & implementation plan for built-in reader
+├── PDF_RESPONSIVENESS.md                 # PDF fixes, software verification & remaining device checks
 ├── analysis_options.yaml                 # Dart static analysis & lint rules
 ├── pubspec.yaml                          # Package metadata, assets & dependencies
 ├── lib/
@@ -104,6 +122,7 @@ eink_launcher/
 │   │   │   ├── pdf_document_service.dart # pdfrx document open/render/outline wrapper
 │   │   │   ├── pdf_memory_service.dart   # Lazy Android heap-class lookup & cache policy
 │   │   │   ├── pdf_runtime_service.dart  # Shared PDFium initialization on first PDF open
+│   │   │   ├── pdf_render_scheduler.dart # Bounded, prioritized native-render admission
 │   │   │   ├── epub_paginator_service.dart # Exact TextPainter line-boundary pagination
 │   │   │   ├── reader_error_service.dart # Maps document/IO/OOM failures to safe fallback text
 │   │   │   ├── text_block_parser.dart    # TXT encodings and Markdown semantic parsing
@@ -170,6 +189,10 @@ eink_launcher/
 │       ├── pdf_memory_service_test.dart # Adaptive budget, lazy channel & failure tests
 │       ├── pdf_runtime_service_test.dart # Lazy startup, concurrent opens & cancellation
 │       ├── pdf_reader_session_test.dart  # PDF navigation, tiling, momentum & lifecycle tests
+│       ├── pdf_navigation_concurrency_test.dart # Rapid taps, request sharing & cancellation
+│       ├── pdf_page_view_rendering_test.dart # Delayed nonwhite tiles, zoom handoff & retry
+│       ├── pdf_render_scheduler_test.dart # Priority, queue limits & obsolete-work disposal
+│       ├── pdf_native_render_stress_test.dart # Optional real-PDFium generated-document check
 │       ├── pagination_cache_service_test.dart # Text page cache round-trip tests
 │       ├── phase2_verification_test.dart # Bilingual font/layout/resize verification
 │       ├── reader_bookmarks_screen_test.dart # Add/list/navigate/delete bookmark widget tests
@@ -294,7 +317,9 @@ document-uniform crop so page extents are exact before anything renders. It owns
 its own transform rather than using `InteractiveViewer`, pushes the quantised
 zoom level down into PDFium through a two-dimensional tile grid so zoomed vector
 content is genuinely re-rasterised, and defers re-rasterisation until a gesture
-and its fling have both finished so a glide never blanks the screen.
+and its fling have both finished. Small previews and retained detail provide
+coverage while replacement tiles load; actual HiBreak presentation still needs
+verification.
 
 Phase 2's automated verification covers every bundled font, English and Hebrew
 with nikud, mixed first-strong directions, exact portrait/landscape slice
@@ -361,6 +386,8 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
 - **[`lib/reader/services/page_bitmap_cache.dart`](lib/reader/services/page_bitmap_cache.dart)**:
   - Owns rendered Flutter images in a least-recently-used cache with a runtime budget and immediate eviction when resized downward. PDF sessions configure the budget before opening the document; injected caches retain their explicit limits.
   - Session render methods return caller-owned handles (cloned before cache insertion/eviction), so even concurrent renders and tiny caches cannot invalidate pending UI images. Oversized bitmaps bypass the cache; the UI and prefetch paths dispose their handles, including late completions after unmount.
+- **[`lib/reader/services/pdf_render_scheduler.dart`](lib/reader/services/pdf_render_scheduler.dart)**:
+  - Admits one PDF render/crop operation at a time across sessions, before native buffer allocation. Queued demand is bounded, can change priority, and can be cancelled without treating navigation as a document failure. An active operation retains its slot until it really completes.
 - **[`lib/reader/services/pdf_memory_service.dart`](lib/reader/services/pdf_memory_service.dart)**:
   - Lazily memoizes `eink_launcher/pdf_memory.getMemoryClass`, validates the reply, and selects a provisional quarter-heap budget bounded to 4–128 MiB. Missing plugins, native failures, malformed replies, timeouts, and non-Android hosts use 32 MiB.
   - Uses Android's normal [per-app memory class](https://developer.android.com/reference/android/app/ActivityManager#getMemoryClass()), not total/free RAM or `largeHeap`; this is a cache-sizing hint, not a bound on native/GPU allocations.
@@ -405,7 +432,7 @@ bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
   - Presents tap-driven Fit Height/Width bitmaps, or the continuous Zoom / Scroll surface.
   - That surface owns its transform as a `scale` plus a scene-space `origin`, handles pans and pinches through a single scale `GestureDetector`, clamps exactly (centring content smaller than the viewport), and flings with per-axis `ClampingScrollSimulation` — Flutter's port of the AOSP `OverScroller` curve — driven from a bare `Ticker` so no rebuild can cancel momentum.
   - `InteractiveViewer` was removed deliberately: it fires `onInteractionEnd` *before* starting its fling (so reacting to the gesture blanked every tile exactly as the glide began), its `FrictionSimulation` curve decayed within a few frames on a ~30 fps panel, and its scale floor ignored `minScale` unless given `boundaryMargin` slack that then allowed panning into empty space.
-  - Builds a two-dimensional tile grid bounded by `kPdfTileSidePixels`, positions tiles in screen pixels, requests each at the quantised zoom density, and settles the render scale only after both the gesture and any fling finish. Tiles awaiting bitmaps paint plain white at the correct size, never a spinner.
+  - Builds a two-dimensional tile grid bounded by `kPdfTileSidePixels`, positions tiles in screen pixels, and requests each at the quantised zoom density. Small correct-page previews stay beneath detail; already displayed detail survives density changes until the visible replacement batch is ready. A short idle interval avoids expensive refinement during repeated gestures. Pending work leaving the demand region is cancelled; no animated loading spinner is used.
 - **[`lib/reader/widgets/reader_menu_overlay.dart`](lib/reader/widgets/reader_menu_overlay.dart)**:
   - Supplies title, bookmarks, text search, page status, page and percent jumps, contents, fit-mode selection, orientation, settings, and exit controls in high-contrast top and bottom bars. Text navigation buttons wrap on narrow screens.
 - **[`lib/reader/widgets/tap_zone_layer.dart`](lib/reader/widgets/tap_zone_layer.dart)**:

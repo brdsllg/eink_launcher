@@ -11,6 +11,7 @@ import 'package:eink_launcher/reader/services/page_bitmap_cache.dart';
 import 'package:eink_launcher/reader/services/pdf_crop_service.dart';
 import 'package:eink_launcher/reader/services/pdf_document_service.dart';
 import 'package:eink_launcher/reader/services/pdf_memory_service.dart';
+import 'package:eink_launcher/reader/services/pdf_render_scheduler.dart';
 import 'package:eink_launcher/reader/widgets/pdf_page_view.dart' as reader;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -218,11 +219,17 @@ void main() {
           expect(cache.currentBytes, lessThanOrEqualTo(budget));
           if (budget == 100) expect(cache.isEmpty, isTrue);
           cache.clear();
+          var remainingHandles = images.length;
           for (final image in images) {
+            // Each caller owns a live handle even when identical requests share
+            // the underlying raster. Disposing one must not invalidate another.
             image.clone().dispose();
-            // Exactly the caller's handle remains, including rejected bitmaps.
-            expect(image.debugGetOpenHandleStackTraces(), hasLength(1));
+            expect(
+              image.debugGetOpenHandleStackTraces(),
+              hasLength(remainingHandles),
+            );
             image.dispose();
+            remainingHandles--;
           }
         },
       );
@@ -384,7 +391,10 @@ void main() {
       await session.open();
       await session.applySettings(session.settings.copyWith(autoCrop: false));
       final rendering = session.renderCurrentView(const Size(200, 300));
-      final rejected = expectLater(rendering, throwsStateError);
+      final rejected = expectLater(
+        rendering,
+        throwsA(isA<PdfRenderCancelledException>()),
+      );
       await Future<void>.delayed(Duration.zero);
       session.handleMemoryPressure();
       gate.complete();

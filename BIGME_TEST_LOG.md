@@ -94,3 +94,14 @@ No code investigation or fix was performed as part of recording this report.
 
 No additional manual test or code change is required to record this follow-up.
 The issues remain open; no cause or fix has been confirmed.
+
+## Subsequent software follow-up — 2026-08-31
+
+The user subsequently authorized implementing the pre-device-test improvements
+and useful supporting changes while unavailable for manual testing. This
+supersedes the earlier recording-only scope for the new work, not for the original
+observations above. The implementation and software validation are documented in
+[PDF_RESPONSIVENESS.md](PDF_RESPONSIVENESS.md).
+
+PDF-001, PDF-002, and PDF-003 remain open for HiBreak verification. No new device
+test result is implied by the code changes or automated tests.

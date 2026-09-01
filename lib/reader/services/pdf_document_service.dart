@@ -9,6 +9,7 @@ import '../models/reading_position.dart';
 import '../models/toc_entry.dart';
 import 'pdf_crop_service.dart';
 import 'pdf_runtime_service.dart';
+import 'pdf_render_scheduler.dart';
 
 typedef PdfDocumentOpener = Future<PdfDocument> Function(
   String filePath,
@@ -35,6 +36,7 @@ class PdfDocumentService {
   final PdfDocumentOpener _documentOpener;
   PdfDocument? _document;
   int _generation = 0;
+  final Set<PdfRenderRequest> _renders = {};
 
   PdfDocumentService(this.filePath, {PdfDocumentOpener? documentOpener})
     : _documentOpener = documentOpener ?? _openPdfDocument;
@@ -95,6 +97,42 @@ class PdfDocumentService {
     PdfCropRect crop = PdfCropRect.fullPage,
     PdfPageRotation? rotationOverride,
     double maxDimension = kPdfMaxRenderDimension,
+    PdfRenderRequest? request,
+  }) async {
+    final generation = _generation;
+    final demand = request ?? PdfRenderRequest();
+    _renders.add(demand);
+    try {
+      return await PdfRenderScheduler.instance.schedule<Image>(
+        () async {
+          demand.throwIfCancelled();
+          if (generation != _generation) {
+            throw const PdfRenderCancelledException();
+          }
+          return _renderPageNow(
+            pageIndex: pageIndex,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
+            crop: crop,
+            rotationOverride: rotationOverride,
+            maxDimension: maxDimension,
+          );
+        },
+        request: demand,
+        discard: (image) => image.dispose(),
+      );
+    } finally {
+      _renders.remove(demand);
+    }
+  }
+
+  Future<Image> _renderPageNow({
+    required int pageIndex,
+    required int pixelWidth,
+    required int pixelHeight,
+    required PdfCropRect crop,
+    required PdfPageRotation? rotationOverride,
+    required double maxDimension,
   }) async {
     final dimensions = constrainedRenderSize(
       pixelWidth,
@@ -133,6 +171,9 @@ class PdfDocumentService {
 
   Future<void> close() async {
     _generation++;
+    for (final request in _renders.toList(growable: false)) {
+      request.cancel();
+    }
     final document = _document;
     _document = null;
     await document?.dispose();

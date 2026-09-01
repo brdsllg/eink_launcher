@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../constants.dart';
+import 'pdf_render_scheduler.dart';
 
 /// A normalized PDF crop rectangle. All edges are fractions of page size.
 class PdfCropRect {
@@ -53,6 +54,7 @@ class PdfCropDetection {
 /// Detects PDF content bounds from low-resolution BGRA page renders.
 class PdfCropService {
   static const int defaultSampleWidth = 200;
+  static const int maxSampleDimension = 512;
   static const int defaultMinimumInkRun = 3;
   static const double defaultPaddingFraction = 0.015;
 
@@ -63,6 +65,7 @@ class PdfCropService {
     int luminanceThreshold = kPdfInkLuminanceThreshold,
     int minimumInkRun = defaultMinimumInkRun,
     double paddingFraction = defaultPaddingFraction,
+    PdfRenderRequest? request,
   }) async {
     return (await detectPageCropResult(
       page,
@@ -70,6 +73,7 @@ class PdfCropService {
       luminanceThreshold: luminanceThreshold,
       minimumInkRun: minimumInkRun,
       paddingFraction: paddingFraction,
+      request: request,
     )).rect;
   }
 
@@ -81,18 +85,56 @@ class PdfCropService {
     int luminanceThreshold = kPdfInkLuminanceThreshold,
     int minimumInkRun = defaultMinimumInkRun,
     double paddingFraction = defaultPaddingFraction,
+    PdfRenderRequest? request,
+  }) {
+    return PdfRenderScheduler.instance.schedule(
+      () => _detectPageCropResultNow(
+        page,
+        sampleWidth: sampleWidth,
+        luminanceThreshold: luminanceThreshold,
+        minimumInkRun: minimumInkRun,
+        paddingFraction: paddingFraction,
+      ),
+      request: request,
+    );
+  }
+
+  Future<PdfCropDetection> _detectPageCropResultNow(
+    PdfPage page, {
+    required int sampleWidth,
+    required int luminanceThreshold,
+    required int minimumInkRun,
+    required double paddingFraction,
   }) async {
     if (sampleWidth <= 0) {
       throw ArgumentError.value(sampleWidth, 'sampleWidth', 'Must be positive');
     }
+    if (!page.width.isFinite ||
+        !page.height.isFinite ||
+        page.width <= 0 ||
+        page.height <= 0) {
+      throw const FormatException('PDF contains invalid page geometry.');
+    }
+    final ratio = page.width / page.height;
+    // Cap both dimensions BEFORE page.render allocates its native buffer.
+    // This also handles very tall/narrow pages without rounding infinity.
+    final outputWidth = math.max(
+      1,
+      math
+          .min(
+            sampleWidth.toDouble(),
+            math.min(maxSampleDimension.toDouble(), maxSampleDimension * ratio),
+          )
+          .round(),
+    );
     final sampleHeight = math.max(
       1,
-      (sampleWidth * page.height / page.width).round(),
+      math.min(maxSampleDimension.toDouble(), outputWidth / ratio).round(),
     );
     final rendered = await page.render(
-      fullWidth: sampleWidth.toDouble(),
+      fullWidth: outputWidth.toDouble(),
       fullHeight: sampleHeight.toDouble(),
-      width: sampleWidth,
+      width: outputWidth,
       height: sampleHeight,
       flags:
           PdfPageRenderFlags.grayscale | PdfPageRenderFlags.limitedImageCache,
@@ -195,6 +237,7 @@ class PdfCropService {
     required int pageCount,
     required PdfPage Function(int pageIndex) pageAt,
     int maxSamples = 10,
+    PdfRenderRequest? request,
   }) async {
     if (pageCount <= 0) return PdfCropRect.fullPage;
     final crops = <PdfCropRect>[];
@@ -203,8 +246,14 @@ class PdfCropService {
       maxSamples: maxSamples,
     )) {
       try {
-        final detection = await detectPageCropResult(pageAt(pageIndex));
+        request?.throwIfCancelled();
+        final detection = await detectPageCropResult(
+          pageAt(pageIndex),
+          request: request,
+        );
         if (detection.hasInk) crops.add(detection.rect);
+      } on PdfRenderCancelledException {
+        rethrow;
       } catch (_) {
         // One malformed page should not disable continuous mode for the book.
       }

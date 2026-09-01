@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:eink_launcher/reader/services/pdf_crop_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 void main() {
   const width = 10;
@@ -11,6 +12,33 @@ void main() {
   setUp(() {
     service = PdfCropService();
   });
+
+  test('caps crop samples before rendering extreme page geometry', () async {
+    for (final size in [
+      (width: 1.0, height: 1e100),
+      (width: 1e100, height: 1.0),
+      (width: 1e-300, height: 1e300),
+    ]) {
+      final page = _RecordingCropPage(size.width, size.height);
+      await service.detectPageCrop(page);
+      expect(page.renderWidth, inInclusiveRange(1, 512));
+      expect(page.renderHeight, inInclusiveRange(1, 512));
+    }
+    final ordinary = _RecordingCropPage(200, 300);
+    await service.detectPageCrop(ordinary);
+    expect((ordinary.renderWidth, ordinary.renderHeight), (200, 300));
+  });
+
+  test(
+    'rejects invalid crop geometry before submitting a native render',
+    () async {
+      for (final width in [0.0, -1.0, double.nan, double.infinity]) {
+        final page = _RecordingCropPage(width, 300);
+        await expectLater(service.detectPageCrop(page), throwsFormatException);
+        expect(page.renderWidth, isNull);
+      }
+    },
+  );
 
   test('finds normalized ink bounds', () async {
     final pixels = _whiteBgra(width, height);
@@ -110,6 +138,41 @@ void main() {
       PdfCropRect.fullPage.toList(),
     );
   });
+}
+
+class _RecordingCropPage implements PdfPage {
+  @override
+  final double width;
+  @override
+  final double height;
+  int? renderWidth;
+  int? renderHeight;
+
+  _RecordingCropPage(this.width, this.height);
+
+  @override
+  Future<PdfImage?> render({
+    int x = 0,
+    int y = 0,
+    int? width,
+    int? height,
+    double? fullWidth,
+    double? fullHeight,
+    int? backgroundColor,
+    PdfPageRotation? rotationOverride,
+    PdfAnnotationRenderingMode annotationRenderingMode =
+        PdfAnnotationRenderingMode.annotationAndForms,
+    int flags = PdfPageRenderFlags.none,
+    PdfPageRenderCancellationToken? cancellationToken,
+  }) async {
+    renderWidth = width;
+    renderHeight = height;
+    // Capture dimensions without allocating the very buffer this test protects.
+    return null;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 Uint8List _whiteBgra(int width, int height) {

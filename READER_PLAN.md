@@ -19,7 +19,14 @@ fast scrolling reach unloaded white pages; zoom release causes a brief white
 interval (usually just under one second), followed by content loading segment by
 segment. All PDFs tested are affected, including small files. See
 [the device test log](BIGME_TEST_LOG.md). PDF issue resolution and advanced device
-profiling/fault-injection checks remain outstanding. No fix is included here.
+profiling/fault-injection checks remain outstanding. The subsequent software
+implementation targets these symptoms; see [PDF responsiveness follow-up](PDF_RESPONSIVENESS.md).
+The issues remain open for HiBreak verification, not declared resolved by host tests.
+
+**Software verification (2026-09-01):** version 1.0.1 (build 2) passes 234 Flutter
+tests, including a generated-document native PDFium check, with one older optional
+external-PDF smoke test skipped. Static analysis reports no issues. This completes
+the software checks for the follow-up; device confirmation is still outstanding.
 
 ---
 
@@ -189,16 +196,19 @@ file path
   → PdfRuntimeService.ensureInitialized()        once, on first real PDF open
   → PdfDocument.openFile()                        pdfrx / PDFium
   → per page: crop rect?                          pdf_crop_service (cached)
-  → PdfPage.render(x, y, width, height, full*)    UI isolate
+  → bounded prioritized admission queue          app-side, before buffer allocation
+  → PdfPage.render(x, y, width, height, full*)    pdfrx's shared PDFium worker
   → ui.Image → RawImage widget                    pdf_page_view
 ```
 
 **Crop detection.** Render the page small (~200 px wide, ~5–15 ms), then ship the
 **byte array** to a background isolate to scan for the bounding box of non-white
 pixels (luminance < 245), with a minimum-run filter so scanner specks and stray
-marks don't defeat the crop. Detection runs off the UI isolate; PDFium rendering
-stays *on* it — FFI handles are not safely shared across isolates. Crop rects are
-cached in memory and persisted per document as a compact array.
+marks don't defeat the crop. Detection runs off the UI isolate. The pinned pdfrx
+engine already owns a shared background worker for PDFium; the app does not move
+its handles to additional isolates. App-side scheduling is still necessary because
+the engine allocates render buffers before dispatching work to its worker. Crop
+rects are cached in memory and persisted per document as a compact array.
 
 Crop has **two strategies**, chosen by view mode:
 
@@ -306,22 +316,27 @@ pixels is constant regardless of zoom, so is the cost and the memory — and no
 request ever reaches `kPdfMaxTileDimension`, which is what used to silently
 downscale full-width strips and make deep zoom look blurry.
 
-**Deferred re-rasterisation.** The render scale is settled only once the gesture
-*and* any subsequent fling have finished. Re-rendering mid-pinch would thrash
-PDFium; re-rendering mid-fling would swap every tile for a blank one. During a
-pinch the existing bitmaps are scaled (briefly soft, `FilterQuality.low`), then
-snap crisp when the gesture settles.
+**Deferred re-rasterisation and image handoff.** Expensive detail requests wait
+until the gesture, fling, and a short idle interval finish. Existing images scale
+during movement, with small correct-page previews underneath. A density change
+retains a bounded set of already displayed detail; it does not start a second old
+tile grid. The new visible detail is presented together when its coverage is ready.
+There is no fixed deadline that removes usable fallback pixels. Repeated gestures
+withdraw obsolete demand. This is implemented behavior, not yet a HiBreak visual
+sign-off.
 
 **Tap zones still work.** Left/right taps move by one currently visible viewport
 height — so at 2× zoom a tap advances half a base screen. The fit-width overlap
 setting does not apply here and is only shown when Fit Width is selected. Centre
 still toggles the menu.
 
-**Look-ahead.** Tiles are built for the visible rect plus ~0.75 screens above and
-below (and ~0.35 screens each side), so a fling glides over rendered content
-instead of running into white. A tile with no bitmap yet paints a plain white box
-of the correct size — never a spinner, since spinners animate. Because extents
-are known, nothing shifts when its bitmap arrives.
+**Look-ahead.** Small previews cover visible and nearby pages, favoring the
+direction of movement. Detail has a smaller look-ahead region and is lower
+priority than visible coverage. Demand leaving the region is withdrawn; pending
+duplicates share one render. Empty detail regions expose previews or retained
+pixels instead of painting over them. A new uncached destination still requires
+some rendering time; the app cannot guarantee instant content for arbitrary jumps.
+Because extents are known, nothing shifts when an image arrives.
 
 **Current page.** In this mode "current page" is whichever page occupies the most
 viewport area, computed from the scroll offset against the cumulative height
@@ -332,8 +347,8 @@ epoch, so the view never fights the user's own pan; only programmatic moves
 
 **Resolution and memory.** Tap-driven modes render whole pages at native device
 pixels capped at `kPdfMaxRenderDimension` (2048 px) on the long edge; one page at
-~1264×1680 RGBA ≈ 8.5 MB, and after displaying page N the session pre-renders
-N+1 and N−1 in the background, which is what makes turns feel instant. Zoom /
+~1264×1680 RGBA ≈ 8.5 MB. Neighbor prefetch starts at lower priority after the
+current render completes and favors the direction of navigation. Zoom /
 Scroll instead keeps a grid of tiles plus look-ahead resident, so the shared LRU
 budget is selected lazily by `PdfMemoryService`: provisionally 25% of the normal
 Android heap class, clamped to 4–128 MiB (32 MiB fallback). The query runs at the
@@ -709,5 +724,5 @@ Orientation lives in the menu overlay for every format.
 3. **Hebrew fonts & nikud:** Multiple bundled OFL fonts selectable per-book.
 4. **Memory pressure:** Hard 4-session cap + suspend contract + adaptive per-session LRU bitmap budgets (`PdfMemoryService`), with 2-D tiling so zoom cost stays flat instead of growing with scale. The cache limit excludes UI-held/in-flight/native allocations and is not a process-wide cap; Step 5.3 Bigme profiling remains required.
 5. **Zoom / Scroll on a ~30 fps panel:** A fling only gets a dozen or so frames, so momentum must never be interrupted. Mitigated by owning the transform, driving the fling from a `Ticker` that rebuilds cannot cancel, deferring re-rasterisation until the glide ends, and rendering ~0.75 screens of look-ahead. Tunable via `kPdfFlingFriction` (lower = longer glide) and `kPdfMinFlingVelocity`.
-6. **PDF rendering responsiveness:** The earlier 2026-08-30 note described smooth flinging on the B751C. That does not establish acceptable behavior on the HiBreak: the 2026-08-31 user report records rapid-page-tap freezing and white screens during zooming/fast scrolling ([device test log](BIGME_TEST_LOG.md)). Existing bounded tiles, deferred re-rasterisation, and look-ahead do not close these reported issues. Their causes remain unconfirmed; document-specific reproduction and profiling are still needed before selecting a fix.
+6. **PDF rendering responsiveness:** The earlier B751C note does not establish acceptable HiBreak behavior. The 2026-08-31 report records rapid-tap freezing and white screens during zooming/fast scrolling ([device test log](BIGME_TEST_LOG.md)). A subsequent implementation adds bounded scheduling, input preservation, previews, and readiness-based detail handoff; [verification and remaining device checks](PDF_RESPONSIVENESS.md) distinguish tested software behavior from unresolved device observations.
 7. **Custom EPUB parser maintenance:** The direct `archive` + `xml` parser was built because `epubx` had incompatible transitive `image` version constraints with `pdfrx`. If `epubx` or a fork resolves that conflict in the future, consider switching back to reduce the maintenance surface of container/OPF/NCX/nav parsing. The current parser is tested against an in-memory EPUB fixture, but real-world EPUBs vary widely and may expose edge cases over time.

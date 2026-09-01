@@ -9,6 +9,7 @@ import '../../constants.dart';
 import '../controllers/pdf_reader_session.dart';
 import '../models/pdf_continuous_layout.dart';
 import '../models/reader_settings.dart';
+import '../services/pdf_render_scheduler.dart';
 import '../services/reader_error_service.dart';
 import 'reader_error_view.dart';
 
@@ -29,10 +30,14 @@ class _PdfPageViewState extends State<PdfPageView> {
   Object? _fitError;
   int _fitRequestToken = 0;
   Object? _renderSignature;
+  PdfRenderRequest? _fitRequest;
+  Timer? _fitRetryTimer;
 
   @override
   void dispose() {
     _fitRequestToken++;
+    _fitRequest?.cancel();
+    _fitRetryTimer?.cancel();
     _fitImage?.dispose();
     super.dispose();
   }
@@ -47,9 +52,16 @@ class _PdfPageViewState extends State<PdfPageView> {
 
   void _requestFitImage(Size viewport, double devicePixelRatio) {
     final token = ++_fitRequestToken;
+    _fitRequest?.cancel();
+    _fitRetryTimer?.cancel();
+    final request = _fitRequest = PdfRenderRequest();
     _fitError = null;
     widget.session
-        .renderCurrentView(viewport, devicePixelRatio: devicePixelRatio)
+        .renderCurrentView(
+          viewport,
+          devicePixelRatio: devicePixelRatio,
+          request: request,
+        )
         .then(
           (image) {
             if (!mounted || token != _fitRequestToken) {
@@ -60,6 +72,16 @@ class _PdfPageViewState extends State<PdfPageView> {
           },
           onError: (Object error) {
             if (!mounted || token != _fitRequestToken) return;
+            if (error is PdfRenderCancelledException) {
+              if (!request.isCancelled) {
+                _fitRetryTimer = Timer(const Duration(milliseconds: 100), () {
+                  if (mounted && token == _fitRequestToken) {
+                    setState(() => _renderSignature = null);
+                  }
+                });
+              }
+              return;
+            }
             setState(() {
               _fitError = error;
               _replaceFitImage(null);
@@ -83,6 +105,7 @@ class _PdfPageViewState extends State<PdfPageView> {
             if (_renderSignature != null) {
               _renderSignature = null;
               _fitRequestToken++;
+              _fitRequest?.cancel();
               _replaceFitImage(null);
               _fitError = null;
             }
@@ -181,6 +204,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   Object? _layoutSignature;
   PdfContinuousLayout? _syncedLayout;
   int _syncedEpoch = -1;
+  int _observedNavigationEpoch = -1;
   bool? _syncedAllowZoomOut;
 
   /// Current view transform: `screen = (scene - origin) * scale`.
@@ -191,8 +215,20 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   /// Zoom rung the tiles are currently rasterised at. Changes are deferred
   /// until a gesture *and* its fling are over, so a glide never blanks tiles.
   double _renderScale = 1.0;
-  double? _oldRenderScale;
-  Timer? _oldScaleTimer;
+  Timer? _refinementTimer;
+  Timer? _retryTimer;
+  bool _waitingForIdle = false;
+  bool _refiningScale = false;
+  double _scrollDirection = 1.0;
+  final Map<String, _PdfRaster> _tiles = {};
+  final Map<int, _PdfRaster> _previews = {};
+  List<_PdfTileSpec> _tileSpecs = const [];
+  final List<_PdfFallbackTile> _fallbackTiles = [];
+
+  // One bounded set of already displayed pixels, never a second active grid.
+  // Previews cover any region omitted when this limit is reached.
+  static const _maxFallbackBytes = 16 * 1024 * 1024;
+  static const _refinementDelay = Duration(milliseconds: 200);
 
   late final Ticker _flingTicker;
   Simulation? _flingX;
@@ -209,13 +245,67 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   void initState() {
     super.initState();
     _flingTicker = createTicker(_onFlingTick);
+    _observedNavigationEpoch = widget.session.navigationEpoch;
+    widget.session.addListener(_onSessionNavigation);
   }
 
   @override
   void dispose() {
+    widget.session.removeListener(_onSessionNavigation);
     _flingTicker.dispose();
-    _oldScaleTimer?.cancel();
+    _refinementTimer?.cancel();
+    _retryTimer?.cancel();
+    _releaseRasters();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ContinuousPdfView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session != widget.session) {
+      oldWidget.session.removeListener(_onSessionNavigation);
+      widget.session.addListener(_onSessionNavigation);
+      _observedNavigationEpoch = widget.session.navigationEpoch;
+    }
+    if (oldWidget.session != widget.session ||
+        oldWidget.viewport != widget.viewport ||
+        oldWidget.devicePixelRatio != widget.devicePixelRatio) {
+      _refinementTimer?.cancel();
+      _retryTimer?.cancel();
+      _waitingForIdle = false;
+      _releaseRasters();
+      _layoutSignature = null;
+      _refiningScale = false;
+      _renderFailed = false;
+    }
+  }
+
+  void _onSessionNavigation() {
+    final epoch = widget.session.navigationEpoch;
+    if (epoch == _observedNavigationEpoch) return;
+    _observedNavigationEpoch = epoch;
+    // Stop synchronously at notification: the next ticker callback otherwise
+    // overwrites the requested logical position before the widget can build.
+    _stopFling();
+    _refinementTimer?.cancel();
+    if (mounted) setState(() => _waitingForIdle = false);
+  }
+
+  void _releaseRasters() {
+    for (final raster in [..._tiles.values, ..._previews.values]) {
+      raster.release();
+    }
+    _tiles.clear();
+    _previews.clear();
+    _tileSpecs = const [];
+    _releaseFallback();
+  }
+
+  void _releaseFallback() {
+    for (final tile in _fallbackTiles) {
+      _releaseAfterFrame(tile.image);
+    }
+    _fallbackTiles.clear();
   }
 
   // ---------------------------------------------------------------------
@@ -263,6 +353,9 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   /// session. Returns true when the origin actually moved.
   bool _setOrigin(double x, double y, PdfContinuousLayout layout) {
     final clamped = _clampOrigin(x, y, layout);
+    if ((clamped.y - _originY).abs() > 0.01) {
+      _scrollDirection = clamped.y > _originY ? 1 : -1;
+    }
     final moved =
         (clamped.x - _originX).abs() > 0.01 ||
         (clamped.y - _originY).abs() > 0.01;
@@ -289,6 +382,8 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
 
   void _onScaleStart(ScaleStartDetails details) {
     _stopFling();
+    _refinementTimer?.cancel();
+    _waitingForIdle = false;
     final layout = _layout;
     if (layout == null) return;
     _interacting = true;
@@ -399,23 +494,57 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   /// mid-fling would swap every tile for a blank one and destroy the illusion
   /// of momentum, which is precisely what used to happen.
   void _settleRenderScale() {
-    final quantized = _quantizeRenderScale(_scale);
-    if (quantized == _renderScale || !mounted) return;
-
-    final previousScale = _renderScale;
-    setState(() {
-      _oldRenderScale = previousScale;
-      _renderScale = quantized;
+    if (!mounted) return;
+    _refinementTimer?.cancel();
+    setState(() => _waitingForIdle = true);
+    _refinementTimer = Timer(_refinementDelay, () {
+      if (!mounted || _interacting || _flingTicker.isTicking) return;
+      final quantized = _quantizeRenderScale(_scale);
+      setState(() {
+        _waitingForIdle = false;
+        if (quantized != _renderScale) {
+          _captureFallback();
+          _renderScale = quantized;
+          _refiningScale = true;
+        }
+      });
     });
+  }
 
-    _oldScaleTimer?.cancel();
-    _oldScaleTimer = Timer(const Duration(milliseconds: 500), () {
-      if (mounted && _oldRenderScale == previousScale) {
-        setState(() {
-          _oldRenderScale = null;
-        });
-      }
-    });
+  Rect get _visibleRect => Rect.fromLTWH(
+    _originX,
+    _originY,
+    widget.viewport.width / _scale,
+    widget.viewport.height / _scale,
+  );
+
+  void _captureFallback() {
+    // A second pinch must not replace a complete fallback with the few tiles
+    // that happened to finish in the interrupted refinement.
+    if (_refiningScale && _fallbackTiles.isNotEmpty) return;
+    _releaseFallback();
+    var retainedBytes = 0;
+    final visiblePixelBytes =
+        (widget.viewport.width *
+                widget.devicePixelRatio *
+                widget.viewport.height *
+                widget.devicePixelRatio *
+                4 *
+                2)
+            .ceil();
+    final budget = math.min(
+      _maxFallbackBytes,
+      math.min(widget.session.bitmapCacheBudgetBytes, visiblePixelBytes),
+    );
+    for (final spec in _tileSpecs) {
+      if (!spec.bounds.overlaps(_visibleRect)) continue;
+      final image = _tiles[spec.key]?.image;
+      if (image == null) continue;
+      final bytes = image.width * image.height * 4;
+      if (retainedBytes + bytes > budget) continue;
+      _fallbackTiles.add(_PdfFallbackTile(spec.bounds, image.clone()));
+      retainedBytes += bytes;
+    }
   }
 
   static double _quantizeRenderScale(double scale) {
@@ -437,15 +566,26 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     _syncedLayout = layout;
     _syncedEpoch = epoch;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _interacting || _flingTicker.isTicking) return;
+      if (!mounted || _syncedEpoch != epoch) return;
+      if (_interacting) {
+        _syncedEpoch = -1;
+        return;
+      }
+      // User scrolls do not advance the epoch. A new epoch is an explicit
+      // navigation command and must interrupt, rather than be lost to, a fling.
+      _stopFling();
       final desired = widget.session.continuousOffsetForPosition(
         layout,
         widget.viewport.height / _scale,
       );
-      if ((desired - _originY).abs() <= 0.5) return;
       // Horizontal pan is deliberately preserved: a TOC or page jump should
       // not throw away where the reader was looking across the page.
-      _setOrigin(_originX, desired, layout);
+      if ((desired - _originY).abs() > 0.5) {
+        _setOrigin(_originX, desired, layout);
+      }
+      // Even a clamped jump cancels the old refinement timer. Restore it when
+      // the logical target already matches the current viewport.
+      _settleRenderScale();
     });
   }
 
@@ -475,7 +615,13 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
       return ReaderErrorView(
         message:
             'Could not render this PDF page. Try again or choose another file.',
-        onRetry: widget.onRetry ?? () => setState(() => _renderFailed = false),
+        onRetry:
+            widget.onRetry ??
+            () => setState(() {
+              _releaseRasters();
+              _refiningScale = false;
+              _renderFailed = false;
+            }),
       );
     }
     final signature = Object.hash(
@@ -522,11 +668,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
           child: ClipRect(
             child: Stack(
               clipBehavior: Clip.hardEdge,
-              children: [
-                if (_oldRenderScale != null)
-                  ..._buildTiles(layout, _oldRenderScale!),
-                ..._buildTiles(layout, _renderScale),
-              ],
+              children: _buildRasterLayers(layout),
             ),
           ),
         );
@@ -534,220 +676,367 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     );
   }
 
-  List<Widget> _buildTiles(
-    PdfContinuousLayout layout,
-    double targetRenderScale,
-  ) {
+  List<Widget> _buildRasterLayers(PdfContinuousLayout layout) {
     if (layout.pageCount == 0 || layout.totalHeight <= 0) {
       return const [SizedBox.expand()];
     }
+    final visible = _visibleRect;
+    final moving = _interacting || _flingTicker.isTicking || _waitingForIdle;
+    final previewRange = _lookAheadRect(layout, ahead: 1.0, behind: 0.25);
+    final detailRange = moving
+        ? visible
+        : _lookAheadRect(layout, ahead: 0.35, behind: 0.10);
 
-    final visibleWidth = widget.viewport.width / _scale;
-    final visibleHeight = widget.viewport.height / _scale;
-    final visibleLeft = _originX;
-    final visibleTop = _originY;
+    // Coarse coverage gets first use of the renderer. Detail is only requested
+    // at rest; during motion, keep usable pixels and spend work on previews of
+    // the pages being approached instead of abandoned high-density tiles.
+    _syncPreviews(layout, previewRange, visible);
+    final specs = _describeTiles(
+      layout,
+      detailRange,
+    ).where((spec) => !moving || _tiles.containsKey(spec.key)).toList();
+    specs.sort((a, b) {
+      final aVisible = a.bounds.overlaps(visible);
+      final bVisible = b.bounds.overlaps(visible);
+      if (aVisible != bVisible) return aVisible ? -1 : 1;
+      return (a.bounds.center - visible.center).distanceSquared.compareTo(
+        (b.bounds.center - visible.center).distanceSquared,
+      );
+    });
+    _syncTiles(layout, specs, visible);
+    _tileSpecs = specs;
 
-    // Generous vertical look-ahead so a fling glides over rendered content
-    // instead of running into blank tiles.
-    final rangeTop = math.max(0.0, visibleTop - visibleHeight * 0.75);
-    final rangeBottom = math.min(
-      layout.totalHeight,
-      visibleTop + visibleHeight * 1.75,
-    );
-    final rangeLeft = math.max(0.0, visibleLeft - visibleWidth * 0.35);
-    final rangeRight = math.min(
-      layout.viewportWidth,
-      visibleLeft + visibleWidth * 1.35,
-    );
-    if (rangeBottom <= rangeTop || rangeRight <= rangeLeft) {
-      return const [SizedBox.expand()];
+    // Only the current viewport gates the handoff. Offscreen prefetch must not
+    // delay sharp text, and a timer must never discard the last useful pixels.
+    if (_refiningScale && !moving) {
+      final visibleSpecs = _describeTiles(layout, visible);
+      if (visibleSpecs.isNotEmpty &&
+          visibleSpecs.every((spec) => _tiles[spec.key]?.image != null)) {
+        _refiningScale = false;
+        _releaseFallback();
+      }
     }
+    _fallbackTiles.removeWhere((tile) {
+      if (tile.bounds.overlaps(visible)) return false;
+      _releaseAfterFrame(tile.image);
+      return true;
+    });
 
-    // Tile side in document space that maps to at most kPdfTileSidePixels
-    // device pixels. Because the on-screen pixel count is constant, so is the
-    // cost, at every zoom level — and no request ever hits the dimension cap
-    // that used to silently downscale zoomed pages into blurriness.
-    final density = widget.devicePixelRatio * targetRenderScale;
+    return [
+      const SizedBox.expand(),
+      for (final entry in _previews.entries)
+        if (entry.value.image != null)
+          _positionImage(
+            Rect.fromLTWH(
+              0,
+              layout.pageTop(entry.key),
+              layout.viewportWidth,
+              layout.pageHeights[entry.key],
+            ),
+            entry.value.image!,
+            ValueKey('pdf-preview-${entry.key}'),
+          ),
+      for (var index = 0; index < _fallbackTiles.length; index++)
+        _positionImage(
+          _fallbackTiles[index].bounds,
+          _fallbackTiles[index].image,
+          ValueKey('pdf-fallback-$index'),
+        ),
+      if (!_refiningScale)
+        for (final spec in specs)
+          if (_tiles[spec.key]?.image != null)
+            _positionImage(
+              spec.bounds,
+              _tiles[spec.key]!.image!,
+              ValueKey('pdf-detail-${spec.key}'),
+            ),
+    ];
+  }
+
+  Rect _lookAheadRect(
+    PdfContinuousLayout layout, {
+    required double ahead,
+    required double behind,
+  }) {
+    final visible = _visibleRect;
+    final before = _scrollDirection < 0 ? ahead : behind;
+    final after = _scrollDirection < 0 ? behind : ahead;
+    return Rect.fromLTRB(
+      math.max(0, visible.left - visible.width * 0.10),
+      math.max(0, visible.top - visible.height * before),
+      math.min(layout.viewportWidth, visible.right + visible.width * 0.10),
+      math.min(layout.totalHeight, visible.bottom + visible.height * after),
+    );
+  }
+
+  List<_PdfTileSpec> _describeTiles(PdfContinuousLayout layout, Rect range) {
+    final clipped = range.intersect(
+      Rect.fromLTWH(0, 0, layout.viewportWidth, layout.totalHeight),
+    );
+    if (clipped.isEmpty) return const [];
+    final density = widget.devicePixelRatio * _renderScale;
     final maxTileSide = math.max(16.0, kPdfTileSidePixels / density);
-
     final columns = math.max(1, (layout.viewportWidth / maxTileSide).ceil());
     final columnWidth = layout.viewportWidth / columns;
-
-    final tiles = <Widget>[const SizedBox.expand()];
-    final firstPage = layout.pageAtOffset(rangeTop);
+    final firstPage = layout.pageAtOffset(clipped.top);
     final lastPage = layout.pageAtOffset(
-      math.min(rangeBottom, layout.totalHeight - 0.01),
+      math.min(clipped.bottom, layout.totalHeight - 0.01),
     );
-
-    for (var pageIndex = firstPage; pageIndex <= lastPage; pageIndex += 1) {
+    final specs = <_PdfTileSpec>[];
+    for (final pageIndex in _nearestIndices(
+      firstPage,
+      lastPage,
+      layout.pageAtOffset(_visibleRect.center.dy),
+    )) {
       final pageTop = layout.pageTop(pageIndex);
       final pageHeight = layout.pageHeights[pageIndex];
       if (pageHeight <= 0) continue;
       final rows = math.max(1, (pageHeight / maxTileSide).ceil());
       final rowHeight = pageHeight / rows;
-
-      for (var row = 0; row < rows; row += 1) {
+      final firstRow = ((clipped.top - pageTop) / rowHeight)
+          .floor()
+          .clamp(0, rows - 1)
+          .toInt();
+      final lastRow =
+          ((clipped.bottom - pageTop) / rowHeight)
+              .ceil()
+              .clamp(1, rows)
+              .toInt() -
+          1;
+      final firstColumn = (clipped.left / columnWidth)
+          .floor()
+          .clamp(0, columns - 1)
+          .toInt();
+      final lastColumn =
+          (clipped.right / columnWidth).ceil().clamp(1, columns).toInt() - 1;
+      for (final row in _nearestIndices(
+        firstRow,
+        lastRow,
+        ((_visibleRect.center.dy - pageTop) / rowHeight).floor(),
+      )) {
         final tileTop = pageTop + row * rowHeight;
-        if (tileTop + rowHeight <= rangeTop || tileTop >= rangeBottom) continue;
-        for (var column = 0; column < columns; column += 1) {
+        if (tileTop + rowHeight <= clipped.top || tileTop >= clipped.bottom) {
+          continue;
+        }
+        for (final column in _nearestIndices(
+          firstColumn,
+          lastColumn,
+          (_visibleRect.center.dx / columnWidth).floor(),
+        )) {
           final tileLeft = column * columnWidth;
-          if (tileLeft + columnWidth <= rangeLeft || tileLeft >= rangeRight) {
+          if (tileLeft + columnWidth <= clipped.left ||
+              tileLeft >= clipped.right) {
             continue;
           }
-          tiles.add(
-            Positioned(
-              key: ValueKey(
-                '${targetRenderScale.toStringAsFixed(2)}/$pageIndex/$rows.$row/$columns.$column',
+          specs.add(
+            _PdfTileSpec(
+              key:
+                  '${_renderScale.toStringAsFixed(2)}/$pageIndex/'
+                  '$rows.$row/$columns.$column',
+              pageIndex: pageIndex,
+              region: Rect.fromLTRB(
+                column / columns,
+                row / rows,
+                (column + 1) / columns,
+                (row + 1) / rows,
               ),
-              left: (tileLeft - _originX) * _scale,
-              top: (tileTop - _originY) * _scale,
-              // Half a pixel of overdraw hides hairline seams between
-              // adjacent tiles after fractional rounding.
-              width: columnWidth * _scale + 0.5,
-              height: rowHeight * _scale + 0.5,
-              child: _ContinuousPdfTile(
-                session: widget.session,
-                layout: layout,
-                pageIndex: pageIndex,
-                region: Rect.fromLTRB(
-                  column / columns,
-                  row / rows,
-                  (column + 1) / columns,
-                  (row + 1) / rows,
-                ),
-                devicePixelRatio: widget.devicePixelRatio,
-                renderScale: targetRenderScale,
-                onError: () {
-                  if (mounted && !_renderFailed) {
-                    setState(() => _renderFailed = true);
-                  }
-                },
-              ),
+              bounds: Rect.fromLTWH(tileLeft, tileTop, columnWidth, rowHeight),
             ),
           );
+          if (specs.length >= 48) return specs;
         }
       }
     }
-    return tiles;
-  }
-}
-
-/// One rendered tile of one page.
-///
-/// The session transfers an owned handle (a [ui.Image.clone] when cached).
-/// Eviction cannot invalidate it, and oversized, uncached images use the same
-/// disposal path. Cloning is refcounted: pixels are released once all handles go.
-class _ContinuousPdfTile extends StatefulWidget {
-  final PdfReaderSession session;
-  final PdfContinuousLayout layout;
-  final int pageIndex;
-  final Rect region;
-  final double devicePixelRatio;
-  final double renderScale;
-  final VoidCallback onError;
-
-  const _ContinuousPdfTile({
-    required this.session,
-    required this.layout,
-    required this.pageIndex,
-    required this.region,
-    required this.devicePixelRatio,
-    required this.renderScale,
-    required this.onError,
-  });
-
-  @override
-  State<_ContinuousPdfTile> createState() => _ContinuousPdfTileState();
-}
-
-class _ContinuousPdfTileState extends State<_ContinuousPdfTile> {
-  ui.Image? _image;
-  bool _failed = false;
-  int _requestToken = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _requestImage();
+    return specs;
   }
 
-  @override
-  void didUpdateWidget(covariant _ContinuousPdfTile oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.pageIndex != widget.pageIndex ||
-        oldWidget.layout != widget.layout ||
-        oldWidget.session != widget.session ||
-        oldWidget.region != widget.region ||
-        oldWidget.devicePixelRatio != widget.devicePixelRatio ||
-        oldWidget.renderScale != widget.renderScale) {
-      _requestImage();
+  Iterable<int> _nearestIndices(int first, int last, int center) sync* {
+    if (last < first) return;
+    final middle = center.clamp(first, last).toInt();
+    yield middle;
+    for (var offset = 1; offset <= last - first; offset++) {
+      if (middle + offset <= last) yield middle + offset;
+      if (middle - offset >= first) yield middle - offset;
     }
   }
 
-  @override
-  void dispose() {
-    _requestToken += 1;
-    _image?.dispose();
-    _image = null;
-    super.dispose();
-  }
-
-  void _requestImage() {
-    final token = ++_requestToken;
-    widget.session
-        .renderContinuousTile(
-          widget.pageIndex,
-          widget.layout,
-          devicePixelRatio: widget.devicePixelRatio,
-          renderScale: widget.renderScale,
-          region: widget.region,
-        )
-        .then(
-          (image) {
-            if (!mounted || token != _requestToken) {
-              image.dispose();
-              return;
-            }
-            _adopt(image, failed: false);
-          },
-          onError: (Object _) {
-            if (!mounted || token != _requestToken) return;
-            _adopt(null, failed: true);
-            widget.onError();
-          },
-        );
-  }
-
-  void _adopt(ui.Image? next, {required bool failed}) {
-    final previous = _image;
-    setState(() {
-      _image = next;
-      _failed = failed;
-    });
-    if (previous != null) {
-      // Never dispose inside the frame that may still be painting it.
-      WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+  void _syncPreviews(PdfContinuousLayout layout, Rect range, Rect visible) {
+    final first = layout.pageAtOffset(range.top);
+    final last = layout.pageAtOffset(
+      math.min(range.bottom, layout.totalHeight - 0.01),
+    );
+    final pages = _nearestIndices(
+      first,
+      last,
+      layout.pageAtOffset(visible.center.dy),
+    ).take(8).toList();
+    double distance(int page) {
+      final top = layout.pageTop(page);
+      final bottom = top + layout.pageHeights[page];
+      if (bottom > visible.top && top < visible.bottom) return 0;
+      return math.min(
+        (top - visible.bottom).abs(),
+        (bottom - visible.top).abs(),
+      );
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final image = _image;
-    if (image == null) {
-      if (_failed) {
-        return const ColoredBox(
-          color: Colors.white,
-          child: Center(child: Text('Page could not be rendered')),
-        );
+    pages.sort((a, b) => distance(a).compareTo(distance(b)));
+    // Also bound demand for unusual documents containing many tiny pages.
+    // Visible pages precede neighbors, and each preview is capped by session.
+    final desired = pages.take(8).toSet();
+    for (final page in _previews.keys.toList()) {
+      if (!desired.contains(page)) _previews.remove(page)!.release();
+    }
+    for (final page in desired) {
+      final priority = distance(page) == 0
+          ? PdfRenderPriority.visiblePreview
+          : PdfRenderPriority.prefetch;
+      final existing = _previews[page];
+      if (existing != null) {
+        existing.request.priority = priority;
+        continue;
       }
-      return const SizedBox.expand();
+      final raster = _PdfRaster(PdfRenderRequest(priority: priority));
+      _previews[page] = raster;
+      unawaited(
+        widget.session
+            .renderContinuousPreview(page, layout, request: raster.request)
+            .then(
+              (image) {
+                if (!mounted || !identical(_previews[page], raster)) {
+                  image.dispose();
+                  return;
+                }
+                setState(() => raster.image = image);
+              },
+              onError: (Object error) {
+                // A preview is optional. A real detail failure still reaches
+                // the existing Retry/Back UI; cancellation is never an error.
+                if (!mounted || !identical(_previews[page], raster)) return;
+                if (error is PdfRenderCancelledException &&
+                    !raster.request.isCancelled) {
+                  _previews.remove(page)!.release();
+                  _scheduleDemandRetry();
+                }
+              },
+            ),
+      );
     }
-    return RawImage(
-      image: image,
-      fit: BoxFit.fill,
-      // Bilinear only matters mid-pinch, before the tile is re-rasterised at
-      // the settled zoom; nearest-neighbour looks blocky in that window.
-      filterQuality: FilterQuality.low,
+  }
+
+  void _syncTiles(
+    PdfContinuousLayout layout,
+    List<_PdfTileSpec> specs,
+    Rect visible,
+  ) {
+    final desired = specs.map((spec) => spec.key).toSet();
+    for (final key in _tiles.keys.toList()) {
+      if (!desired.contains(key)) _tiles.remove(key)!.release();
+    }
+    for (final spec in specs) {
+      final priority = spec.bounds.overlaps(visible)
+          ? PdfRenderPriority.visible
+          : PdfRenderPriority.prefetch;
+      final existing = _tiles[spec.key];
+      if (existing != null) {
+        existing.request.priority = priority;
+        continue;
+      }
+      final raster = _PdfRaster(PdfRenderRequest(priority: priority));
+      _tiles[spec.key] = raster;
+      unawaited(
+        widget.session
+            .renderContinuousTile(
+              spec.pageIndex,
+              layout,
+              devicePixelRatio: widget.devicePixelRatio,
+              renderScale: _renderScale,
+              region: spec.region,
+              request: raster.request,
+            )
+            .then(
+              (image) {
+                if (!mounted || !identical(_tiles[spec.key], raster)) {
+                  image.dispose();
+                  return;
+                }
+                setState(() => raster.image = image);
+              },
+              onError: (Object error) {
+                if (!mounted || !identical(_tiles[spec.key], raster)) return;
+                if (error is PdfRenderCancelledException) {
+                  if (!raster.request.isCancelled) {
+                    _tiles.remove(spec.key)!.release();
+                    _scheduleDemandRetry();
+                  }
+                  return;
+                }
+                setState(() => _renderFailed = true);
+              },
+            ),
+      );
+    }
+  }
+
+  Widget _positionImage(Rect bounds, ui.Image image, Key key) {
+    return Positioned(
+      key: key,
+      left: (bounds.left - _originX) * _scale,
+      top: (bounds.top - _originY) * _scale,
+      // Half-pixel overdraw avoids seams at fractional transforms.
+      width: bounds.width * _scale + 0.5,
+      height: bounds.height * _scale + 0.5,
+      child: RawImage(
+        image: image,
+        fit: BoxFit.fill,
+        filterQuality: FilterQuality.low,
+      ),
     );
   }
+
+  void _scheduleDemandRetry() {
+    if (_retryTimer?.isActive ?? false) return;
+    _retryTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted) setState(() {});
+    });
+  }
+}
+
+class _PdfTileSpec {
+  final String key;
+  final int pageIndex;
+  final Rect region;
+  final Rect bounds;
+
+  const _PdfTileSpec({
+    required this.key,
+    required this.pageIndex,
+    required this.region,
+    required this.bounds,
+  });
+}
+
+class _PdfRaster {
+  final PdfRenderRequest request;
+  ui.Image? image;
+
+  _PdfRaster(this.request);
+
+  void release() {
+    request.cancel();
+    final previous = image;
+    image = null;
+    if (previous != null) _releaseAfterFrame(previous);
+  }
+}
+
+class _PdfFallbackTile {
+  final Rect bounds;
+  final ui.Image image;
+
+  _PdfFallbackTile(this.bounds, this.image);
+}
+
+void _releaseAfterFrame(ui.Image image) {
+  WidgetsBinding.instance.addPostFrameCallback((_) => image.dispose());
 }
