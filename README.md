@@ -1,561 +1,147 @@
-* this file is ai generated, so skepticism is allowed and even encouraged 
-
-
 # E-Ink Launcher & File Manager
 
-An Android home launcher and file manager built with Flutter, designed specifically for E-Ink devices (such as the Bigme B751C).
+An Android home launcher, file manager, and document reader built with Flutter
+for e-ink devices. The UI uses black and white, instant transitions, fixed-page
+lists, and small bounded caches to limit ghosting and unnecessary work.
 
----
+The app is developed for personal sideloading and has been manually tested on a
+Bigme HiBreak running Android 14. The original target was the Bigme B751C.
 
-## 📖 Overview & Design Principles
+## Current status
 
-Standard Android launchers and file explorers rely heavily on smooth animations, kinetic flings, vibrant colors, and rapid screen updates. On electronic paper displays (E-Ink), these behaviors cause severe ghosting, visual stutter, and battery drain.
+Version **1.0.2 (build 3)** is the latest verified build. The current APK is
+[eink-launcher-1.0.2-scroll-previews.apk](build/app/outputs/flutter-apk/eink-launcher-1.0.2-scroll-previews.apk).
 
-This project is tailored for E-Ink displays around five core architectural pillars:
-1. **High-Contrast Monochrome UI:** Pure black-and-white theme (`#000000` / `#FFFFFF`) with crisp borders and inverse highlighting. No gradients, shadows, or gray-on-gray elements.
-2. **Zero Animation / Instant Transitions:** Standard route animations, splash effects, ripple feedback, and sliding snackbars are completely disabled (`Duration.zero`, `NoSplash.splashFactory`, `noTransitionRoute`).
-3. **Discrete Pagination over Kinetic Scrolling:** Lists (file browser, app drawer) compute exact row fits and paginate screen-by-screen using explicit First/Previous/Next/Last controls, eliminating smooth scrolling ghosting.
-   - The file browser and app drawer use 15 equal-height horizontal bands in portrait and 12 in landscape, including their structural top and bottom bars.
-   - The one deliberate exception is the reader's Zoom / Scroll PDF mode, where continuous panning and momentum are the entire point of the mode; see the reader section below.
-4. **Isolate-Based Background I/O:** Heavy filesystem listings, recursive searches, and metadata statting run on long-lived background isolates to keep the UI thread responsive.
-5. **Minute-Aligned Timers:** UI timers (such as the clock readout) align strictly to minute boundaries to prevent unneeded per-second display refreshes.
+- Rapid PDF page taps now work in the HiBreak test.
+- Zoom / Scroll keeps coarse previews visible while sharp tiles render, stores
+  prepared previews in a 64 MiB disk cache, and looks farther ahead during fast
+  flings.
+- Touching the PDF immediately stops scrolling momentum; no reverse drag is
+  required.
+- Very fast first-pass scrolling at minimum zoom can still outrun PDF rendering.
+  Revisiting prepared pages should be much faster, but version 1.0.2 still needs
+  an on-device comparison.
+- The full suite passes **240 Flutter tests** with the generated native PDFium
+  stress check enabled. The older test that requires an external PDF is skipped.
+  Static analysis is clean.
 
-Startup now uses explicit loading, ready, and recovery states. Saved preferences
-load before storage permission handling and the first folder listing. An invalid
-or unreadable home folder falls back to internal storage, removes only that home
-preference, and shows a dismissible warning without changing the equal-band layout.
-Preference/listing failures offer **Retry startup**, **Use storage root**, and
-**Open app drawer**. The root option bypasses preferences for that attempt;
-it does not clear unrelated settings. The app drawer remains available during
-loading and handles app-query/launch errors itself.
+The APK is an arm64 release build signed with the project's existing personal
+sideload key. Its Android v2 signature and package/version metadata were checked.
+SHA-256:
+`8231F46FF8A086EF84C50AA416EADE9589A64E0599F7EB45CD7F2EA6D0317CAB`.
 
-Android records an unfinished launch before initializing Flutter. Three such
-launches in one ten-minute window send the fourth to recovery; activity/engine
-recreation in the same process is not counted again. A usable browser or recovery
-frame acknowledges startup health. Flutter error handlers retain normal logging
-and keep two bounded diagnostics records in app-private native preferences, with
-no upload. Advanced crash-loop/corrupt-state fault injection, renderer comparisons,
-and memory/timing measurements remain pending; see
-[the hardening plan](ANDROID_HARDENING_PLAN.md).
+## What the app does
 
-2026-08-31 verification: **201 Flutter tests and 5 native JVM tests pass**;
-one optional native PDFium smoke test is skipped. Static analysis is clean and
-both debug/release APKs build successfully. The previously recorded Windows
-folder-copy test failures are fixed.
+### Launcher and file manager
 
-2026-08-31 device testing on the **Bigme HiBreak (Android 14)**: the user reports
-all eight manual tests complete, with all other checks passing apart from the
-open PDF issues. Rapid next-page taps leave Fit Height / Fit Width unresponsive;
-Zoom / Scroll taps and fast scrolling reach unloaded white pages, and zoom release
-briefly blanks content before it reappears segment by segment (usually just under
-one second). This affects all PDFs tested, including small files. See
-[the device test log](BIGME_TEST_LOG.md). The subsequent software changes below
-target these issues; resolution on the HiBreak has not yet been verified.
+- Registers as an Android Home launcher and provides a paginated app drawer.
+- Browses, searches, creates, renames, copies, moves, and deletes files.
+- Uses 15 equal-height screen bands in portrait and 12 in landscape, including
+  the top and bottom controls.
+- Runs folder loading, recursive search, and metadata work outside the UI isolate.
+- Opens ordinary files with Android and provides an explicit **Open with** chooser.
+- Shows event-driven battery status and a minute-aligned clock.
 
-**PDF responsiveness follow-up:** render requests now pass through a bounded,
-priority-ordered scheduler before PDFium allocates their buffers. Current content
-takes precedence over speculative prefetch, duplicate pending requests share work,
-and superseded requests can be withdrawn. Rapid PDF page turns retain their input
-order through asynchronous crop calculations. Zoom / Scroll uses small page
-previews during movement and keeps available old detail until replacement visible
-tiles are ready, instead of expiring the fallback after 500 ms. Sharp refinement
-starts after a short idle interval, not a mandatory one-second page-turn delay.
-See [PDF responsiveness verification](PDF_RESPONSIVENESS.md) for the changes,
-software checks, limitations, and the short remaining device checklist.
+Startup has loading, ready, and recovery states. A bad saved home folder falls
+back to internal storage and clears only that setting. Repeated unfinished
+launches open recovery controls with access to the app drawer. Local diagnostics
+are bounded and are never uploaded.
 
-2026-09-01 follow-up verification: **234 Flutter tests pass**, including the
-generated-document native PDFium check; one older optional external-PDF smoke
-test is skipped. Static analysis reports no issues. The follow-up is version
-**1.0.1 (build 2)**; HiBreak testing remains pending.
+### Built-in reader
 
----
+The reader opens PDF, EPUB, TXT, and Markdown files directly from the browser.
+It provides equal-thirds tap zones, swipes where appropriate, manual rotation,
+per-document positions and settings, bookmarks, tables of contents, and text
+search for text formats.
 
-## 🗂️ Project Directory & File Guide
+PDF has three modes:
 
-Below is an exhaustive description of every significant file and directory in this project.
+- **Fit Height:** one page per screen.
+- **Fit Width:** page-height slices with a small overlap.
+- **Zoom / Scroll:** continuous two-axis pan, pinch zoom, and momentum. Coarse
+  page previews remain beneath sharp PDFium tiles during movement.
 
-```
-eink_launcher/
-├── ANDROID_HARDENING_PLAN.md             # Practical Android-only optimization roadmap
-├── README.md                              # Project documentation & file guide
-├── READER_PLAN.md                        # Blueprint & implementation plan for built-in reader
-├── PDF_RESPONSIVENESS.md                 # PDF fixes, software verification & remaining device checks
-├── analysis_options.yaml                 # Dart static analysis & lint rules
-├── pubspec.yaml                          # Package metadata, assets & dependencies
-├── lib/
-│   ├── main.dart                         # Application entry point, lifecycle & theme configuration
-│   ├── constants.dart                    # Shared global constants, reader constants & route utilities
-│   ├── controllers/
-│   │   └── file_browser_controller.dart  # Business logic & state management for file browser
-│   ├── models/
-│   │   ├── clipboard_state.dart          # In-memory clipboard state (copy/cut operations)
-│   │   ├── file_entry.dart               # File/directory entity model with lazy stats
-│   │   └── launcher_app.dart             # Minimal native launcher-app record
-│   ├── reader/
-│   │   ├── controllers/
-│   │   │   ├── pdf_reader_session.dart   # PDF reader lifecycle, navigation, tiling & rendering
-│   │   │   ├── reader_session.dart       # Shared reader session contract & view models
-│   │   │   ├── reader_session_registry.dart # Open-session lifecycle registry
-│   │   │   └── text_reader_session.dart  # EPUB/TXT/Markdown parsing, pagination & position lifecycle
-│   │   ├── models/
-│   │   │   ├── bookmark.dart             # Reader bookmark data model
-│   │   │   ├── book_state.dart           # Per-document persisted state model
-│   │   │   ├── content_block.dart         # Semantic text blocks and styled inline runs
-│   │   │   ├── doc_ref.dart              # Document format enum & identity model
-│   │   │   ├── laid_out_page.dart         # Exact page block-slice geometry
-│   │   │   ├── parsed_book.dart           # Parsed spine, resources, TOC & char counts
-│   │   │   ├── pdf_continuous_layout.dart # Exact PDF scroll extents & offset mapping
-│   │   │   ├── reader_exception.dart     # Safe-to-display document failure & DRM exception types
-│   │   │   ├── reader_settings.dart      # Typography, display & fit settings model
-│   │   │   ├── reading_position.dart     # Logical reading position (Pdf / Text)
-│   │   │   └── toc_entry.dart            # Table of Contents hierarchy model
-│   │   ├── services/
-│   │   │   ├── bidi_service.dart          # Unicode first-strong block direction
-│   │   │   ├── book_store_service.dart   # library.json atomic persistence service
-│   │   │   ├── doc_identity_service.dart # SHA-1 content fingerprinting service
-│   │   │   ├── epub_parser_service.dart   # Isolate-backed ZIP/OPF/nav/NCX parser
-│   │   │   ├── html_block_parser.dart     # Isolate-backed XHTML semantic DOM walker
-│   │   │   ├── hyphenation_service.dart  # Latin-only discretionary hyphenation
-│   │   │   ├── page_bitmap_cache.dart    # Memory-bounded LRU for rendered PDF bitmaps
-│   │   │   ├── pagination_cache_service.dart # Disk cache for text page geometry
-│   │   │   ├── pdf_crop_service.dart     # Isolate-backed PDF ink-bound detection
-│   │   │   ├── pdf_document_service.dart # pdfrx document open/render/outline wrapper
-│   │   │   ├── pdf_memory_service.dart   # Lazy Android heap-class lookup & cache policy
-│   │   │   ├── pdf_runtime_service.dart  # Shared PDFium initialization on first PDF open
-│   │   │   ├── pdf_render_scheduler.dart # Bounded, prioritized native-render admission
-│   │   │   ├── epub_paginator_service.dart # Exact TextPainter line-boundary pagination
-│   │   │   ├── reader_error_service.dart # Maps document/IO/OOM failures to safe fallback text
-│   │   │   ├── text_block_parser.dart    # TXT encodings and Markdown semantic parsing
-│   │   │   └── text_search_service.dart  # Isolate-backed, nikud-insensitive text search
-│   │   ├── screens/
-│   │   │   ├── reader_screen.dart        # Full-bleed reader shell & lifecycle hooks
-│   │   │   ├── reader_bookmarks_screen.dart # Add, list, navigate to & delete bookmarks
-│   │   │   ├── reader_search_screen.dart # Discretely paginated in-book text search
-│   │   │   ├── reader_settings_screen.dart # Mode-scoped PDF and typography settings
-│   │   │   └── reader_toc_screen.dart    # Paginated PDF/text table of contents
-│   │   └── widgets/
-│   │       ├── reader_error_view.dart   # Static recovery/exit controls for reader failures
-│   │       ├── block_slice_view.dart      # Clip-and-translate semantic block slice renderer
-│   │       ├── pdf_page_view.dart        # Fit-mode bitmaps & the continuous zoom surface
-│   │       ├── reader_menu_overlay.dart  # E-ink reader controls and page status
-│   │       ├── tap_zone_layer.dart       # Invisible equal-thirds tap zones and swipes
-│   │       └── text_page_view.dart       # Full-bleed laid-out EPUB/TXT/Markdown page
-│   ├── screens/
-│   │   ├── app_drawer_screen.dart        # Paginated application drawer & search screen
-│   │   ├── launcher_recovery_screen.dart # Static startup/recovery controls and app-drawer access
-│   │   └── file_browser_screen.dart      # Main home file manager screen
-│   ├── services/
-│   │   ├── app_list_service.dart         # Installed app discovery & launch service
-│   │   ├── launcher_error_service.dart   # Chains Flutter error handlers into local diagnostics
-│   │   ├── startup_health_service.dart   # Native startup-health status, acknowledgement & diagnostics
-│   │   ├── file_mime_type_service.dart   # Precise MIME mapping for common file formats
-│   │   ├── file_operations_service.dart  # File mutation logic (create, rename, delete, paste)
-│   │   ├── folder_loader_service.dart    # Isolate-backed folder listing & lazy stat loader
-│   │   ├── open_with_service.dart        # Android app-chooser bridge for selected files
-│   │   └── search_service.dart           # Isolate-backed streaming filesystem search
-│   └── widgets/
-│       ├── battery_status.dart           # Live percentage, level, and charging indicator
-│       ├── clock_text.dart               # Minute-aligned e-ink digital clock widget
-│       ├── file_action_dialogs.dart      # Modal dialogs for new folder, rename, & delete
-│       ├── file_entry_tile.dart          # High-contrast file/folder list item row
-│       ├── page_nav_bar.dart             # First/previous/next/last pagination footer
-│       ├── paginated_list.dart           # Generic height-calculated paginated list container
-│       └── search_overlay.dart           # Floating filename search bar with streaming matches
-├── test/
-│   ├── app_list_service_test.dart        # Native app-channel mapping and cache tests
-│   ├── app_drawer_screen_test.dart       # App errors, live search, page reset & orientation bands
-│   ├── battery_status_test.dart          # Battery events, malformed data, charging & cancellation
-│   ├── file_browser_screen_test.dart     # Chooser payloads, selection actions, opening feedback & bands
-│   ├── launcher_startup_test.dart        # Startup ordering, fallback, permissions, retry & disposal
-│   ├── launcher_recovery_screen_test.dart # Safe mode, recovery controls & app-drawer access
-│   ├── startup_health_service_test.dart  # Health-channel failures, bounds & error-handler chaining
-│   ├── file_action_dialogs_test.dart     # Widget tests for input dialog validation
-│   ├── file_mime_type_service_test.dart  # Common and fallback MIME mapping tests
-│   ├── file_operations_service_test.dart # Unit tests for filesystem mutations & edge cases
-│   ├── page_nav_bar_test.dart            # Boundary pagination control widget tests
-│   ├── widget_test.dart                  # Basic UI smoke tests
-│   └── reader/
-│       ├── book_store_service_test.dart  # Unit tests for library.json persistence & reload
-│       ├── bidi_service_test.dart        # English/Hebrew first-strong direction tests
-│       ├── doc_identity_service_test.dart# Unit tests for SHA-1 docId generation
-│       ├── epub_parser_service_test.dart # In-memory EPUB parse and error tests
-│       ├── epub_paginator_service_test.dart # Exact line splits and widow/orphan tests
-│       ├── html_block_parser_test.dart   # XHTML blocks, styling, lists & images
-│       ├── hyphenation_service_test.dart # Latin/Hebrew soft-hyphen tests
-│       ├── page_bitmap_cache_test.dart   # Unit tests for PDF bitmap LRU eviction
-│       ├── pdf_continuous_layout_test.dart # Exact scroll geometry mapping tests
-│       ├── pdf_crop_service_test.dart    # Unit tests for crop bounds & noise filtering
-│       ├── pdf_document_service_test.dart# PDF service unit tests & opt-in native smoke test
-│       ├── pdf_memory_service_test.dart # Adaptive budget, lazy channel & failure tests
-│       ├── pdf_runtime_service_test.dart # Lazy startup, concurrent opens & cancellation
-│       ├── pdf_reader_session_test.dart  # PDF navigation, tiling, momentum & lifecycle tests
-│       ├── pdf_navigation_concurrency_test.dart # Rapid taps, request sharing & cancellation
-│       ├── pdf_page_view_rendering_test.dart # Delayed nonwhite tiles, zoom handoff & retry
-│       ├── pdf_render_scheduler_test.dart # Priority, queue limits & obsolete-work disposal
-│       ├── pdf_native_render_stress_test.dart # Optional real-PDFium generated-document check
-│       ├── pagination_cache_service_test.dart # Text page cache round-trip tests
-│       ├── phase2_verification_test.dart # Bilingual font/layout/resize verification
-│       ├── reader_bookmarks_screen_test.dart # Add/list/navigate/delete bookmark widget tests
-│       ├── reader_menu_overlay_test.dart # Reader menu controls widget tests
-│       ├── reader_error_service_test.dart # Safe error message selection
-│       ├── reader_error_screen_test.dart # Retry, encrypted-book errors & memory recovery
-│       ├── reader_search_screen_test.dart # Search results, stale queries, pagination & RTL
-│       ├── reader_toc_screen_test.dart   # Nested TOC selection widget test
-│       ├── reader_session_registry_test.dart # Reader session registry lifecycle tests
-│       ├── reader_memory_pressure_observer_test.dart # OS memory-pressure forwarding test
-│       ├── reader_settings_test.dart     # Settings persistence and migration tests
-│       ├── reader_settings_screen_test.dart # Mode-scoped settings widget tests
-│       ├── text_block_parser_test.dart   # TXT encoding and Markdown parser tests
-│       ├── text_search_service_test.dart # Hebrew normalization and source-offset search tests
-│       ├── text_page_view_test.dart      # Clip-and-offset text page widget test
-│       ├── text_reader_session_test.dart # Text navigation, persistence & repagination tests
-│       ├── text_reader_settings_screen_test.dart # Typography settings widget test
-│       └── tap_zone_layer_test.dart      # Tap boundary and swipe-direction tests
-├── assets/fonts/                         # Bundled OFL Latin and Hebrew fonts
-│   └── licenses/                         # One OFL license copy per font family
-└── android/                              # Native Android platform configuration
+EPUB, TXT, and Markdown share a paginated text pipeline with bundled Latin and
+Hebrew fonts, bidi paragraph handling, exact line-boundary splits, safe publisher
+styles, optional hyphenation, and typography controls.
+
+Reader sessions retain logical positions rather than display page numbers, so
+changes to font size, orientation, crop, or PDF mode keep the user's place. Hidden
+sessions release native PDF handles and bitmaps to control memory.
+
+## E-ink design rules
+
+1. Use pure black and white with strong borders and no gradients or shadows.
+2. Disable route, ripple, splash, and snackbar animations.
+3. Use discrete pagination for the launcher, browser, app drawer, and text reader.
+4. Allow continuous motion only in PDF Zoom / Scroll, where it is the purpose of
+   the mode.
+5. Bound native rendering, prefetch, bitmap memory, and persistent preview storage.
+6. Keep expensive file work and parsing away from the UI isolate where possible.
+
+## Project map
+
+| Location | Purpose |
+| --- | --- |
+| `lib/main.dart` | App startup, theme, lifecycle, and memory-pressure handling |
+| `lib/controllers/`, `lib/screens/`, `lib/widgets/` | File browser and launcher UI |
+| `lib/services/` | File operations, search, app discovery, Android bridges, startup health |
+| `lib/reader/controllers/` | PDF/text sessions and session lifecycle |
+| `lib/reader/services/` | Parsing, pagination, persistence, PDF rendering, scheduling, and caches |
+| `lib/reader/screens/`, `lib/reader/widgets/` | Reader shell, menus, navigation, and document views |
+| `android/app/src/main/` | Android manifest, launcher activity, native channels, and startup marker |
+| `test/` | Flutter unit, widget, integration-style, and optional native PDF tests |
+| `android/app/src/test/` | Native JVM startup-policy tests |
+
+Use `rg --files lib test android/app/src` when a complete file list is needed;
+the source tree is more reliable than a manually maintained catalog.
+
+## Build and verify
+
+From the repository root:
+
+```powershell
+flutter pub get
+flutter analyze --no-pub
+flutter test --no-pub
+flutter build apk --release --target-platform android-arm64 --no-pub
 ```
 
----
+Run the generated native PDFium check on a supported host with:
 
-### Root Configuration & Documentation
+```powershell
+$env:PDF_NATIVE_STRESS = '1'
+flutter test --no-pub test/reader/pdf_native_render_stress_test.dart
+Remove-Item Env:PDF_NATIVE_STRESS
+```
 
-- **[`ANDROID_HARDENING_PLAN.md`](ANDROID_HARDENING_PLAN.md)**: Prioritized, measurement-driven steps for hardening the Flutter launcher as an Android-only e-ink application.
-- **[`README.md`](README.md)**: The primary project documentation file (this document), explaining the app's architecture, listing all files and their roles, and providing maintenance instructions.
-- **[`READER_PLAN.md`](READER_PLAN.md)**: Architectural design blueprint and phased implementation plan for the integrated native document reader (PDF, EPUB, TXT, Markdown) with bidi Hebrew/English support.
-- **[`analysis_options.yaml`](analysis_options.yaml)**: Configures Dart analyzer rules and linter options based on `package:flutter_lints`.
-- **[`pubspec.yaml`](pubspec.yaml)**: Defines Flutter dependencies (including `pdfrx`, `archive`, `xml`, `html`, and `hyphenatorx` for the reader), SDK constraints, and bundled font families.
+Run native Android policy tests on Windows with:
 
----
+```powershell
+android\gradlew.bat -p android :app:testDebugUnitTest
+```
 
-### Core Source Code (`lib/`)
+Personal sideload builds use the existing local signing setup. Do not remove
+`open_filex` without first adding an app-owned `FileProvider`; the custom chooser
+currently uses its provider authority. A private release keystore is needed only
+before distribution or moving the signing identity to another machine.
 
-#### Top-Level
-- **[`lib/main.dart`](lib/main.dart)**:
-  - Initializes Flutter bindings without starting PDFium; the PDF runtime initializes only when a PDF is first opened.
-  - On Android, installs chained Flutter/platform error handlers that retain bounded local diagnostics without replacing the guarded startup flow.
-  - Registers `ReaderMemoryPressureObserver` for the app's whole lifetime, which forwards Android's `onTrimMemory`/`onLowMemory` signal to `ReaderSessionRegistry.instance.handleMemoryPressure()` so every open reader session releases what it can — wherever they sit in navigation, since a session can outlive its `ReaderScreen` once the tab system arrives.
-  - Applies no global orientation preference; the reader is the only screen that locks orientation, and only through its manual portrait/landscape toggle (never sensor-driven).
-  - Enables `SystemUiMode.immersiveSticky` to keep Android system status and navigation bars hidden.
-  - Builds the root `MaterialApp` with an E-Ink-optimized theme (monochrome color scheme, zero splash factory, square outlined buttons, custom popup menus) and boots `FileBrowserScreen`.
-- **[`lib/constants.dart`](lib/constants.dart)**:
-  - `kStorageRoot`: Fallback home directory and Android shared internal storage root (`/storage/emulated/0`).
-  - `kRowHeight`: Default row height (`60.0` px) for generic paginated views; the file browser derives an exact shared height from its orientation band count.
-  - `kNavBarHeight`: Default navigation height (`56.0` px); the file browser bottom bar instead matches its file and Up rows exactly.
-  - `kPortraitBarCount` / `kLandscapeBarCount`: Total equal-height launcher bands in each orientation (`15` / `12`).
-  - `noTransitionRoute()`: Custom `PageRouteBuilder` helper that wraps route transitions with `Duration.zero` to eliminate slide/fade animations.
-  - `kReadableExtensions`: Set of supported extensions for the built-in reader (`.pdf`, `.epub`, `.txt`, `.md`).
-  - `kTapZoneEdgeWidthRatio` / `kTapZoneCenterWidthRatio`: Tap-zone proportions, three equal thirds in every mode and format.
-  - `kPdfDefaultSplitOverlap`: Default vertical slice overlap (6%) for Fit Width sub-screen turns; unused by Zoom / Scroll.
-  - `kPdfMaxRenderDimension`: Longest-edge pixel ceiling (`2048.0` px) for whole-page fit-mode renders.
-  - `kPdfMaxZoomScale` / `kPdfMinZoomScale`: Zoom / Scroll pinch ceiling (`5.0`) and the floor used when zooming out past the page is disabled (`1.0`).
-  - `kPdfZoomOutPageSpan` / `kPdfMinZoomScaleBeyondFit`: Target number of pages visible when fully pinched out (`2.0`) and the absolute hard floor (`0.2`).
-  - `kPdfZoomRenderScales`: Discrete zoom rungs at which pages are re-rasterised through PDFium, so zoomed vector content stays crisp instead of being magnified.
-  - `kPdfTileSidePixels` / `kPdfMaxTileDimension`: Target and hard-cap device-pixel side lengths for one Zoom / Scroll tile; tiles are built to stay under the target so the cap never silently downscales output.
-  - `kPdfFlingFriction` / `kPdfMinFlingVelocity`: Momentum tuning for the Zoom / Scroll fling. Friction is fed to `ClampingScrollSimulation`, where **lower means a longer glide**; releases slower than the velocity threshold are treated as a stop.
-  - PDF bitmap budgets are runtime values selected by `PdfMemoryService`, not a fixed constant in this file.
-  - `kPdfInkLuminanceThreshold`: Bounding box detection ink luminance cutoff (`245`).
-  - `kReaderFontSizeSteps` / `kReaderMarginSteps`: Step tables for typography and margin configuration.
+## What still needs device testing
 
-#### Reader Module (`lib/reader/`)
+- Compare first and second passes through the same PDF in Zoom / Scroll.
+- Recheck zoom-release continuity and fast scrolling with both vector and scanned
+  PDFs.
+- Measure cold start, memory, first PDF open, and sustained PDF use.
+- Exercise real process restart/recovery, battery receiver reattachment, the
+  Android chooser, app discovery/launching, and Impeller versus the legacy renderer.
 
-PDF, EPUB, TXT, and Markdown now open end-to-end in the built-in full-screen
-reader. The text formats share exact `TextPainter` line-boundary pagination,
-logical position persistence, progressive per-chapter pagination, a disk page
-cache, bundled Latin/Hebrew fonts, bidi block direction, optional Latin
-hyphenation, and discrete typography controls. EPUB 3 nav, EPUB 2 NCX, PDF
-outlines, and Markdown headings feed the paginated Table of Contents screen;
-page and percent jumps are available from the reader overlay. Bookmarks work
-the same way for every format: each is a label plus the same logical
-`ReadingPosition` used for persistence, so a bookmark survives font-size,
-margin, rotation, and PDF-fit-mode changes exactly like the saved reading
-position does, and jumping to one reuses the Table of Contents' own
-navigation path.
+The raw HiBreak observations are in [BIGME_TEST_LOG.md](BIGME_TEST_LOG.md). The
+implemented PDF response work and short retest are in
+[PDF_RESPONSIVENESS.md](PDF_RESPONSIVENESS.md).
 
-EPUB, TXT, and Markdown also support **Search** from the centre-tap menu.
-Enter a word or phrase and press Search (or the keyboard search action), then
-select a result to open its page. Matching is case-insensitive, ignores Hebrew
-vowel/cantillation marks and soft hyphens, and treats repeated whitespace as a
-single space. Phrases can cross inline formatting but not paragraph boundaries.
-Results retain the original spelling and logical character offsets, so a match
-stays visible after typography or orientation changes. Search runs on a worker
-isolate, shows results with discrete page controls, and caps each query at 1,000
-matches with a notice to refine broad queries. PDF text search is not supported.
+## Plans
 
-Reader failures now show a plain-language message with **Retry** and **Back to
-files** controls. OS memory warnings release PDF handles/bitmaps and parsed text
-data while retaining saved positions; the reader waits for **Continue reading**
-before loading again. Background work cannot revive a suspended/disposed session,
-and overlapping lifecycle saves are serialized. EPUB encryption metadata is
-checked before reading chapter content: unsupported encryption is reported
-clearly, while IDPF/Adobe-obfuscated publisher fonts are skipped in favor of the
-bundled reader fonts.
-
-PDF bitmap caches now use a provisional **25% of Android's normal per-app heap
-class**, clamped to **4–128 MiB**, with a **32 MiB fallback**. The memory query runs
-only on the first PDF open (not launcher startup), is shared across sessions and
-resumes, and times out after one second. A 256 MiB heap class selects a 64 MiB
-cache. These limits apply per session to retained cache entries, not total app
-memory: PDFium, in-flight renders, and widget-owned images require additional
-headroom. Bigme `dumpsys meminfo` measurements are still required before the
-fraction and bounds are considered tuned.
-
-PDFium initialization also runs lazily: the default `PdfDocumentService` opener
-awaits `PdfRuntimeService.ensureInitialized()` immediately before opening an
-existing PDF. Concurrent opens and later resumes share the same future; launcher
-startup, text reading, missing files, and injected test openers do not initialize
-PDFium. Native initialization errors reach the reader's error view instead of
-preventing the launcher from starting. The initialization future, including a
-failure, is retained for the app lifetime; restart the app to retry a failed
-native initialization. Bigme cold-start timing and first-open checks remain pending.
-
-PDFs offer three per-document display modes. **Fit Height** and **Fit Width** are
-purely tap-driven, with optional per-page auto-crop and (for Fit Width) an
-overlapping sub-screen split. **Zoom / Scroll** is the one continuous surface:
-always pinch-zoomable, two-axis pannable, and momentum-flinging, with a
-document-uniform crop so page extents are exact before anything renders. It owns
-its own transform rather than using `InteractiveViewer`, pushes the quantised
-zoom level down into PDFium through a two-dimensional tile grid so zoomed vector
-content is genuinely re-rasterised, and defers re-rasterisation until a gesture
-and its fling have both finished. Small previews and retained detail provide
-coverage while replacement tiles load; actual HiBreak presentation still needs
-verification.
-
-Phase 2's automated verification covers every bundled font, English and Hebrew
-with nikud, mixed first-strong directions, exact portrait/landscape slice
-coverage, and logical-anchor retention through viewport resize. A release APK
-build also confirms all nine font files are packaged. Visual verification on the
-target Bigme B751C remains outstanding when the device is connected, for both the
-bilingual text pipeline and the Zoom / Scroll zoom/momentum behaviour.
-
-##### Controllers
-
-- **[`lib/reader/controllers/reader_session.dart`](lib/reader/controllers/reader_session.dart)**:
-  - Defines the shared reader-session lifecycle, navigation, settings, and suspend/resume contracts.
-- **[`lib/reader/controllers/pdf_reader_session.dart`](lib/reader/controllers/pdf_reader_session.dart)**:
-  - Implements PDF session loading, fit-mode navigation and sub-screens, continuous layout and offset mapping, per-page and document-uniform crop resolution, neighbour prefetching, persistence, cached whole-page rendering, and cached per-tile rendering at an explicit zoom density.
-  - Exposes a `navigationEpoch` that increments only on *programmatic* moves, so the continuous view can tell a TOC jump apart from the user's own pan and never fights an in-flight fling.
-  - Deliberately throws from `renderCurrentView` in Zoom / Scroll, so no code path can fall back to magnifying one whole-page bitmap.
-- **[`lib/reader/controllers/reader_session_registry.dart`](lib/reader/controllers/reader_session_registry.dart)**:
-  - Tracks open document sessions and coordinates suspension, resumption, and disposal.
-  - `handleMemoryPressure()` forwards OS memory pressure (see `ReaderMemoryPressureObserver` in `main.dart`) to every session in the pool; each session's own `handleMemoryPressure` override decides what to release.
-- **[`lib/reader/controllers/text_reader_session.dart`](lib/reader/controllers/text_reader_session.dart)**:
-  - Implements shared EPUB/TXT/Markdown loading, progressive cached pagination, logically ordered chapter publication, pending TOC/percent targets, typography re-pagination, persistence, suspension, and resumption.
-
-##### Models and Services
-
-- **[`lib/reader/models/doc_ref.dart`](lib/reader/models/doc_ref.dart)**:
-  - `DocFormat` enum (`pdf`, `epub`, `txt`, `markdown`).
-  - `DocRef` model representing document identity, location, format, title, and size.
-- **[`lib/reader/models/reading_position.dart`](lib/reader/models/reading_position.dart)**:
-  - Sealed `ReadingPosition` hierarchy (`PdfReadingPosition` with fractional page offset and `TextReadingPosition` with spine, block, and character offsets).
-- **[`lib/reader/models/reader_exception.dart`](lib/reader/models/reader_exception.dart)**:
-  - `ReaderException`, whose `message` is safe to show directly in the reader's error view, and `EncryptedEpubException` for EPUB spine content encrypted with an unsupported scheme (distinct from ordinary font-obfuscation `encryption.xml` entries, which are not an error).
-- **[`lib/reader/models/content_block.dart`](lib/reader/models/content_block.dart)**:
-  - Rendering-independent semantic blocks and inline runs with direction, alignment, list depth, links, and image references.
-- **[`lib/reader/models/laid_out_page.dart`](lib/reader/models/laid_out_page.dart)**:
-  - Defines paginator output as clip-and-offset block slices bounded by stable logical text positions.
-- **[`lib/reader/models/parsed_book.dart`](lib/reader/models/parsed_book.dart)**:
-  - Holds parsed spine chapters, anchor maps, resources, hierarchical TOC entries, and cumulative character counts.
-- **[`lib/reader/models/pdf_continuous_layout.dart`](lib/reader/models/pdf_continuous_layout.dart)**:
-  - Calculates exact fit-width page heights, cumulative offsets, logical-position conversions, maximum scroll offset, and the page occupying most of the viewport.
-- **[`lib/reader/models/reader_settings.dart`](lib/reader/models/reader_settings.dart)**:
-  - Reader configuration model encompassing fonts, font size steps, margins, line height, hyphenation, justification, `ParagraphMode`, `PdfFitMode`, auto-crop, Fit Width overlap, `allowZoomOutBeyondFit` (with the derived `minZoomScale` floor), and orientation.
-  - Tolerates legacy `library.json` values: older `continuousScroll` / `freeZoom` fit modes map onto `zoom`, and documents saved before `allowZoomOutBeyondFit` existed default it to on.
-- **[`lib/reader/models/bookmark.dart`](lib/reader/models/bookmark.dart)**:
-  - Document bookmark entity mapping creation time and label to a logical `ReadingPosition`.
-- **[`lib/reader/models/toc_entry.dart`](lib/reader/models/toc_entry.dart)**:
-  - Hierarchical Table of Contents tree entry with nesting support.
-- **[`lib/reader/models/book_state.dart`](lib/reader/models/book_state.dart)**:
-  - Comprehensive document persistence state holding reading progress, timestamp, document overrides, bookmarks, per-page crops, and the continuous-mode uniform crop.
-- **[`lib/reader/services/doc_identity_service.dart`](lib/reader/services/doc_identity_service.dart)**:
-  - Generates stable `sha1(first 64 KB + fileSize)` document keys so moved/renamed files retain reading positions.
-- **[`lib/reader/services/book_store_service.dart`](lib/reader/services/book_store_service.dart)**:
-  - Manages `library.json` using atomic write-to-temp-then-rename and 2-second debounced background flushing.
-  - Serializes overlapping flush requests so pause, disposal, and memory warnings cannot overwrite or remove each other's temporary file.
-  - Shares concurrent loads and preserves malformed state as `library.json.corrupt`, `.corrupt.1`, or `.corrupt.2`. It never overwrites a backup. If backup capacity is exhausted or preservation/read access fails, it keeps the source untouched and disables saving for that launch. The reader explains this before continuing. Backup count is bounded to three; files are never truncated to enforce a byte limit.
-- **[`lib/reader/services/bidi_service.dart`](lib/reader/services/bidi_service.dart)**:
-  - Applies Unicode P2/P3 first-strong scanning to choose each block's LTR or RTL base direction.
-- **[`lib/reader/services/hyphenation_service.dart`](lib/reader/services/hyphenation_service.dart)**:
-  - Inserts discretionary soft hyphens into eligible Latin words while preserving Hebrew text and inline semantics.
-- **[`lib/reader/services/html_block_parser.dart`](lib/reader/services/html_block_parser.dart)**:
-  - Walks XHTML on a background isolate and emits semantic headings, paragraphs, lists, quotes, preformatted text, images, inline styles, and safe publisher alignment.
-- **[`lib/reader/services/epub_parser_service.dart`](lib/reader/services/epub_parser_service.dart)**:
-  - Parses EPUB ZIP containers directly with `archive` and `xml`, extracting metadata, OPF manifest/spine, resources, EPUB 3 nav or EPUB 2 NCX, and anchor positions without the incompatible `epubx` dependency.
-  - Checks `META-INF/encryption.xml` before parsing the spine; only recognized font-obfuscation entries on actual non-spine font resources are permitted. The encryption-file distinction follows the [EPUB 3.3 specification](https://www.w3.org/TR/epub-33/#sec-container-metainf-encryption.xml).
-- **[`lib/reader/services/page_bitmap_cache.dart`](lib/reader/services/page_bitmap_cache.dart)**:
-  - Owns rendered Flutter images in a least-recently-used cache with a runtime budget and immediate eviction when resized downward. PDF sessions configure the budget before opening the document; injected caches retain their explicit limits.
-  - Session render methods return caller-owned handles (cloned before cache insertion/eviction), so even concurrent renders and tiny caches cannot invalidate pending UI images. Oversized bitmaps bypass the cache; the UI and prefetch paths dispose their handles, including late completions after unmount.
-- **[`lib/reader/services/pdf_render_scheduler.dart`](lib/reader/services/pdf_render_scheduler.dart)**:
-  - Admits one PDF render/crop operation at a time across sessions, before native buffer allocation. Queued demand is bounded, can change priority, and can be cancelled without treating navigation as a document failure. An active operation retains its slot until it really completes.
-- **[`lib/reader/services/pdf_memory_service.dart`](lib/reader/services/pdf_memory_service.dart)**:
-  - Lazily memoizes `eink_launcher/pdf_memory.getMemoryClass`, validates the reply, and selects a provisional quarter-heap budget bounded to 4–128 MiB. Missing plugins, native failures, malformed replies, timeouts, and non-Android hosts use 32 MiB.
-  - Uses Android's normal [per-app memory class](https://developer.android.com/reference/android/app/ActivityManager#getMemoryClass()), not total/free RAM or `largeHeap`; this is a cache-sizing hint, not a bound on native/GPU allocations.
-- **[`lib/reader/services/pdf_runtime_service.dart`](lib/reader/services/pdf_runtime_service.dart)**:
-  - Memoizes `pdfrxFlutterInitialize()` on the first real PDF open, keeping PDFium work out of launcher startup and sharing initialization across opens and resumes.
-- **[`lib/reader/services/pagination_cache_service.dart`](lib/reader/services/pagination_cache_service.dart)**:
-  - Atomically caches text page geometry by document, chapter, fractional viewport geometry, and typography settings using versioned entries and collision-free temporary writes.
-- **[`lib/reader/services/epub_paginator_service.dart`](lib/reader/services/epub_paginator_service.dart)**:
-  - Uses the renderer's `TextPainter` geometry for exact line-boundary block slices with widow/orphan protection and stable source offsets through soft hyphenation.
-- **[`lib/reader/services/text_block_parser.dart`](lib/reader/services/text_block_parser.dart)**:
-  - Decodes UTF-8, UTF-16, and Windows-1255 TXT files and converts Markdown into the shared semantic block model.
-- **[`lib/reader/services/text_search_service.dart`](lib/reader/services/text_search_service.dart)**:
-  - Searches spine blocks on a worker isolate without transferring embedded resources. Maps normalized matches back to original UTF-16 source ranges, keeps Hebrew punctuation, and returns bounded snippets in reading order.
-- **[`lib/reader/services/reader_error_service.dart`](lib/reader/services/reader_error_service.dart)**:
-  - Turns a raised error into a `ReaderException`-safe message for `ReaderScreen`'s fallback view: distinguishes a missing file, denied storage access, and out-of-memory from a generic per-format "could not read this document" message, and keeps platform paths, stack traces, and parser internals out of what the reader ever sees.
-- **[`lib/reader/services/pdf_crop_service.dart`](lib/reader/services/pdf_crop_service.dart)**:
-  - Detects padded ink bounds on a background isolate, distinguishes blank samples, and unions up to ten spread page samples for stable document-uniform cropping.
-- **[`lib/reader/services/pdf_document_service.dart`](lib/reader/services/pdf_document_service.dart)**:
-  - Owns the `pdfrx` document handle and provides page geometry, PDF-outline conversion, and crop-rect rendering with a caller-supplied dimension cap (2048 px for whole pages, a tile-specific cap for Zoom / Scroll).
-  - Rejects missing files, empty PDFs, and invalid page geometry; closes documents that finish opening after cancellation.
-  - Awaits the shared runtime initialization only in its default opener, after checking file existence; injected document openers bypass native setup.
-
-##### Screens and Widgets
-
-- **[`lib/reader/widgets/reader_error_view.dart`](lib/reader/widgets/reader_error_view.dart)**:
-  - Provides a shared, static error message with Retry/Back controls. `ReaderScreen` also uses it for explicit continuation after memory pressure; PDF page/layout/tile failures use the same fallback.
-
-- **[`lib/reader/screens/reader_screen.dart`](lib/reader/screens/reader_screen.dart)**:
-  - Obtains long-lived sessions from the registry, subscribes to them through a `ListenableBuilder`, presents a full-bleed page, hosts the tap-zone layer and menu overlay, coordinates app pause/resume persistence, and applies manual portrait/landscape locks.
-  - Pushes `ReaderBookmarksScreen` and, when a bookmark is selected, jumps to it by wrapping its label and position as a one-off `TocEntry` and calling the session's existing `goToToc`.
-- **[`lib/reader/screens/reader_bookmarks_screen.dart`](lib/reader/screens/reader_bookmarks_screen.dart)**:
-  - Reads and mutates bookmarks directly through the live `ReaderSession` (add, list, delete) so changes appear immediately via the session's own `ChangeNotifier`, discretely paginated like the file browser and TOC screen.
-  - Prompts for a label defaulting to the current page number, confirms before deleting, and returns the tapped `Bookmark` to the caller.
-- **[`lib/reader/screens/reader_settings_screen.dart`](lib/reader/screens/reader_settings_screen.dart)**:
-  - Shows only the controls the current mode honours, and never repeats the fit-mode selector that already lives in the menu overlay: crop for Fit Height, crop plus overlap for Fit Width, and the zoom-out toggle for Zoom / Scroll. Text formats get the full typography panel instead.
-- **[`lib/reader/screens/reader_toc_screen.dart`](lib/reader/screens/reader_toc_screen.dart)**:
-  - Flattens nested document outlines into an indentation-preserving, discretely paginated navigation screen.
-- **[`lib/reader/screens/reader_search_screen.dart`](lib/reader/screens/reader_search_screen.dart)**:
-  - Provides explicit query submission, static loading/empty/error messages, RTL snippets, and paginated result selection. Editing or clearing the query invalidates old results; queued searches keep only the newest query and run one worker at a time.
-  - Returns the selected logical match to `ReaderScreen`, which reuses TOC navigation and dismisses the menu to reveal the matching page.
-- **[`lib/reader/widgets/pdf_page_view.dart`](lib/reader/widgets/pdf_page_view.dart)**:
-  - Presents tap-driven Fit Height/Width bitmaps, or the continuous Zoom / Scroll surface.
-  - That surface owns its transform as a `scale` plus a scene-space `origin`, handles pans and pinches through a single scale `GestureDetector`, clamps exactly (centring content smaller than the viewport), and flings with per-axis `ClampingScrollSimulation` — Flutter's port of the AOSP `OverScroller` curve — driven from a bare `Ticker` so no rebuild can cancel momentum.
-  - `InteractiveViewer` was removed deliberately: it fires `onInteractionEnd` *before* starting its fling (so reacting to the gesture blanked every tile exactly as the glide began), its `FrictionSimulation` curve decayed within a few frames on a ~30 fps panel, and its scale floor ignored `minScale` unless given `boundaryMargin` slack that then allowed panning into empty space.
-  - Builds a two-dimensional tile grid bounded by `kPdfTileSidePixels`, positions tiles in screen pixels, and requests each at the quantised zoom density. Small correct-page previews stay beneath detail; already displayed detail survives density changes until the visible replacement batch is ready. A short idle interval avoids expensive refinement during repeated gestures. Pending work leaving the demand region is cancelled; no animated loading spinner is used.
-- **[`lib/reader/widgets/reader_menu_overlay.dart`](lib/reader/widgets/reader_menu_overlay.dart)**:
-  - Supplies title, bookmarks, text search, page status, page and percent jumps, contents, fit-mode selection, orientation, settings, and exit controls in high-contrast top and bottom bars. Text navigation buttons wrap on narrow screens.
-- **[`lib/reader/widgets/tap_zone_layer.dart`](lib/reader/widgets/tap_zone_layer.dart)**:
-  - Implements three equal-thirds tap zones — left/back, centre/menu, right/forward — with the right side always forward regardless of text direction, plus horizontal swipe page turns. In Zoom / Scroll it keeps the same tap thirds but registers no swipe recognizer, so pans and pinches reach the PDF surface below.
-- **[`lib/reader/widgets/block_slice_view.dart`](lib/reader/widgets/block_slice_view.dart)** and **[`lib/reader/widgets/text_page_view.dart`](lib/reader/widgets/text_page_view.dart)**:
-  - Render exact clipped semantic block slices and their embedded resources without scroll or transition animation.
-
-#### Launcher Models (`lib/models/`)
-- **[`lib/models/file_entry.dart`](lib/models/file_entry.dart)**:
-  - Data model representing a file or directory with lazy stat caching.
-- **[`lib/models/clipboard_state.dart`](lib/models/clipboard_state.dart)**:
-  - Value object representing the in-memory clipboard state (copy/cut mode and source paths).
-- **[`lib/models/launcher_app.dart`](lib/models/launcher_app.dart)**:
-  - Minimal launchable-app record returned by Android, containing the label, package name, and system-app flag.
-
-#### Controllers (`lib/controllers/`)
-- **[`lib/controllers/file_browser_controller.dart`](lib/controllers/file_browser_controller.dart)**:
-  - Central state manager for the file manager interface, handling navigation, selections, and filesystem mutations.
-  - Owns loading/ready/recovery states; serializes preferences → permission → initial listing, handles home fallback, and ignores work completed after disposal. Preferences time out after five seconds and listings after fifteen; interactive permission prompts are not timed out.
-
-#### Services (`lib/services/`)
-- **[`lib/services/app_list_service.dart`](lib/services/app_list_service.dart)**:
-  - Queries and launches applications through the launcher-owned Android `PackageManager` channel, with separately cached user-only and system-inclusive lists.
-- **[`lib/services/startup_health_service.dart`](lib/services/startup_health_service.dart)**:
-  - Queries the native launch marker with a two-second timeout, acknowledges a usable frame, and bounds/coalesces local error reports. Broken Android health queries enter recovery; non-Android hosts do not invoke the channel.
-- **[`lib/services/launcher_error_service.dart`](lib/services/launcher_error_service.dart)**:
-  - Chains existing Flutter/platform handlers so normal diagnostics still run; errors are recorded locally, not uploaded.
-- **[`lib/services/file_mime_type_service.dart`](lib/services/file_mime_type_service.dart)**:
-  - Maps common document, ebook, text, media, archive, font, and interchange extensions to precise MIME types so Android only offers relevant apps.
-- **[`lib/services/file_operations_service.dart`](lib/services/file_operations_service.dart)**:
-  - Handles filesystem mutations (`dart:io`), recursive cloning, and collision-safe auto-renaming.
-- **[`lib/services/folder_loader_service.dart`](lib/services/folder_loader_service.dart)**:
-  - Persistent background `Isolate` for directory scanning and lazy stat fetching.
-- **[`lib/services/open_with_service.dart`](lib/services/open_with_service.dart)**:
-  - Opens Android's app chooser for a selected file, even when the device has a default app for its type.
-- **[`lib/services/search_service.dart`](lib/services/search_service.dart)**:
-  - Persistent background `Isolate` streaming filesystem search results.
-
-#### Screens (`lib/screens/`)
-- **[`lib/screens/file_browser_screen.dart`](lib/screens/file_browser_screen.dart)**:
-  - Primary equal-band file browser with inverted opening feedback, live clock/battery status, MIME-aware opening, and a responsive selection bar that shows only applicable actions and expands to two rows when needed.
-- **[`lib/screens/app_drawer_screen.dart`](lib/screens/app_drawer_screen.dart)**:
-  - Application drawer with the same equal-band styling as the file browser, discrete pagination, and live as-you-type search.
-  - Handles native app-list/launch failures and ignores stale query completions, so recovery remains usable even when an Android operation fails.
-- **[`lib/screens/launcher_recovery_screen.dart`](lib/screens/launcher_recovery_screen.dart)**:
-  - Static loading/recovery UI with app-drawer access and explicit Retry startup / Use storage root controls. It does not initialize reader state or PDFium.
-
-#### Widgets (`lib/widgets/`)
-- **[`lib/widgets/battery_status.dart`](lib/widgets/battery_status.dart)**:
-  - Shows Android's live battery percentage with discrete level bars and a charging indicator, updating only on system battery broadcasts.
-- **[`lib/widgets/clock_text.dart`](lib/widgets/clock_text.dart)**:
-  - Minute-aligned digital clock widget.
-- **[`lib/widgets/file_action_dialogs.dart`](lib/widgets/file_action_dialogs.dart)**:
-  - Modal dialog builders and validators for folder creation, renaming, and deletion.
-- **[`lib/widgets/file_entry_tile.dart`](lib/widgets/file_entry_tile.dart)**:
-  - Stateless list row item representing a file/folder, with inverted selection and opening feedback.
-- **[`lib/widgets/page_nav_bar.dart`](lib/widgets/page_nav_bar.dart)**:
-  - Pagination navigation footer with first, previous, next, and last-page controls (`Page X of Y`).
-- **[`lib/widgets/paginated_list.dart`](lib/widgets/paginated_list.dart)**:
-  - Configurable height-calculated paginated container with fixed page sizes, optional empty-row filling, and no scroll physics.
-- **[`lib/widgets/search_overlay.dart`](lib/widgets/search_overlay.dart)**:
-  - Floating filename search panel.
-
----
-
-### Test Suite (`test/`)
-
-- **[`test/app_list_service_test.dart`](test/app_list_service_test.dart)**: Unit tests for native app-channel mapping, sorting, caching, query flags, and launch payloads.
-- **[`test/launcher_startup_test.dart`](test/launcher_startup_test.dart)** and **[`test/launcher_recovery_screen_test.dart`](test/launcher_recovery_screen_test.dart)**: Startup ordering, permission errors/denial, invalid/unreadable home fallback, safe mode, recovery actions, and late-work disposal.
-- **[`test/startup_health_service_test.dart`](test/startup_health_service_test.dart)**: Native health timeouts/failures, healthy-write deduplication, bounded diagnostics, and chained/restored error handlers.
-- **[`test/battery_status_test.dart`](test/battery_status_test.dart)**: Battery stream parsing, charging, malformed/unavailable data, and cancellation.
-- **[`test/app_drawer_screen_test.dart`](test/app_drawer_screen_test.dart)** and **[`test/file_browser_screen_test.dart`](test/file_browser_screen_test.dart)**: App-query/launch recovery, live search/page reset, orientation bands, selection actions, chooser path/MIME payloads, and opening feedback before folder I/O.
-- **[`test/file_action_dialogs_test.dart`](test/file_action_dialogs_test.dart)**: Widget tests verifying validation handling in dialogs.
-- **[`test/file_mime_type_service_test.dart`](test/file_mime_type_service_test.dart)**: Unit tests for precise common types, case-insensitive extensions, and the non-wildcard fallback.
-- **[`test/file_operations_service_test.dart`](test/file_operations_service_test.dart)**: Unit tests for filesystem mutations.
-- **[`test/page_nav_bar_test.dart`](test/page_nav_bar_test.dart)**: Widget tests for first/previous/next/last controls and boundary-page jumps.
-- **[`test/widget_test.dart`](test/widget_test.dart)**: Smoke tests verifying base UI rendering.
-- **[`test/reader/doc_identity_service_test.dart`](test/reader/doc_identity_service_test.dart)**: Unit tests for docId computation.
-- **[`test/reader/book_store_service_test.dart`](test/reader/book_store_service_test.dart)**: Unit tests for `library.json` persistence.
-- **[`test/reader/reader_error_service_test.dart`](test/reader/reader_error_service_test.dart)**: Missing/access-denied files, memory failures, encrypted EPUBs, and suppression of internal error details.
-- **[`test/reader/reader_error_screen_test.dart`](test/reader/reader_error_screen_test.dart)**: Real reader-shell recovery after a failed open, encrypted-book exit, and explicit continuation after an OS memory warning.
-- **[`test/reader/page_bitmap_cache_test.dart`](test/reader/page_bitmap_cache_test.dart)**: Unit tests for memory budgeting and LRU eviction.
-- **[`test/reader/pdf_memory_service_test.dart`](test/reader/pdf_memory_service_test.dart)**: Budget fractions and clamps, malformed replies, lazy/concurrent lookup, unsupported hosts, missing channels, failures, and late responses after timeout. PDF session tests additionally cover adaptive open/resume, cancellation during lookup, explicit cache overrides, and caller-owned image lifetimes under rejection/eviction.
-- **[`test/reader/pdf_continuous_layout_test.dart`](test/reader/pdf_continuous_layout_test.dart)**: Unit tests for exact extents, offset mapping, dominant-page selection, and boundary clamping.
-- **[`test/reader/pdf_crop_service_test.dart`](test/reader/pdf_crop_service_test.dart)**: Unit tests for ink bounds, blank pages, alpha compositing, and noise filtering.
-- **[`test/reader/pdf_document_service_test.dart`](test/reader/pdf_document_service_test.dart)**: Unit tests for PDF lifecycle/rendering and an opt-in native PDFium smoke test.
-- **[`test/reader/pdf_runtime_service_test.dart`](test/reader/pdf_runtime_service_test.dart)**: Calls the actual app entry point and exercises the default PDF opener with a delayed native backend; verifies lazy startup, missing/injected opener bypass, shared concurrent initialization, password forwarding, cancellation cleanup, and reuse after close/reopen.
-- **[`test/reader/pdf_reader_session_test.dart`](test/reader/pdf_reader_session_test.dart)**: Unit and widget tests for fit-mode navigation and sub-screens, whole-page cache reuse and physical-pixel sizing, the refusal to render whole pages in Zoom / Scroll, per-density and per-region tile re-rasterisation, navigation-epoch semantics, persistence, suspension/resumption, bookmark add/remove/cross-session persistence, and a fling that keeps gliding after release while respecting the end of the document.
-- **[`test/reader/reader_bookmarks_screen_test.dart`](test/reader/reader_bookmarks_screen_test.dart)**: Widget tests for adding a bookmark with the default label, listing, tap-to-select, and delete-with-confirmation.
-- **[`test/reader/reader_menu_overlay_test.dart`](test/reader/reader_menu_overlay_test.dart)**: Widget tests for reader-menu controls, the bookmarks entry point, and mode-specific actions.
-- **[`test/reader/reader_session_registry_test.dart`](test/reader/reader_session_registry_test.dart)**: Unit tests for reader-session registry reuse and lifecycle management.
-- **[`test/reader/reader_memory_pressure_observer_test.dart`](test/reader/reader_memory_pressure_observer_test.dart)**: Verifies `main.dart`'s OS memory-pressure observer forwards to a given `ReaderSessionRegistry`, exercising a session's default `handleMemoryPressure` → `suspend()` path.
-- **[`test/reader/reader_settings_test.dart`](test/reader/reader_settings_test.dart)**: Unit tests for settings persistence and legacy-value migration.
-- **[`test/reader/reader_settings_screen_test.dart`](test/reader/reader_settings_screen_test.dart)**: Widget tests asserting each fit mode shows only its applicable controls, that the fit-mode selector is not duplicated, and that the zoom-out setting defaults to on and round-trips through JSON.
-- **[`test/reader/reader_toc_screen_test.dart`](test/reader/reader_toc_screen_test.dart)**: Widget tests for flattened nested TOC navigation.
-- **[`test/reader/tap_zone_layer_test.dart`](test/reader/tap_zone_layer_test.dart)**: Widget tests for equal-thirds tap boundaries, fixed navigation direction, and swipe callbacks.
-- **[`test/reader/bidi_service_test.dart`](test/reader/bidi_service_test.dart)**: Unit tests for English, Hebrew with nikud, mixed text, numbers, and punctuation.
-- **[`test/reader/hyphenation_service_test.dart`](test/reader/hyphenation_service_test.dart)**: Unit tests for Latin soft hyphens and preservation of Hebrew/inline styling.
-- **[`test/reader/html_block_parser_test.dart`](test/reader/html_block_parser_test.dart)**: Unit tests for background XHTML parsing, block semantics, nested lists, images, bidi, and safe inline publisher styling.
-- **[`test/reader/epub_parser_service_test.dart`](test/reader/epub_parser_service_test.dart)**: In-memory EPUB fixture tests covering metadata, spine, resources, nested nav TOC, logical anchors, and malformed containers.
-- **[`test/reader/epub_paginator_service_test.dart`](test/reader/epub_paginator_service_test.dart)**: Exact line splitting, source-offset continuity, widow/orphan handling, and publisher-alignment tests.
-- **[`test/reader/pagination_cache_service_test.dart`](test/reader/pagination_cache_service_test.dart)**: Versioned atomic cache round-trips, replacement, fractional geometry keys, and stale-entry rejection.
-- **[`test/reader/text_block_parser_test.dart`](test/reader/text_block_parser_test.dart)**: Unit tests for TXT decoding and Markdown block parsing.
-- **[`test/reader/text_reader_session_test.dart`](test/reader/text_reader_session_test.dart)**: Text navigation, persistence, re-pagination, suspension, logical page ordering, bookmark add/remove/cross-session persistence, and pending TOC-target tests.
-- **[`test/reader/text_search_service_test.dart`](test/reader/text_search_service_test.dart)**: Search across shared EPUB/TXT/Markdown blocks, Hebrew marks, UTF-16 source offsets, inline boundaries, literal punctuation, bounded results, and snippets.
-- **[`test/reader/reader_search_screen_test.dart`](test/reader/reader_search_screen_test.dart)**: Explicit submission, paginated selection, stale-query suppression, clear/retry/disposal handling, partial-result notices, and RTL/narrow-screen layout. Session tests also verify search targets and bookmarks through typography changes and a disk reload.
-- **[`test/reader/text_reader_settings_screen_test.dart`](test/reader/text_reader_settings_screen_test.dart)**: Widget tests for text-format typography controls.
-- **[`test/reader/text_page_view_test.dart`](test/reader/text_page_view_test.dart)**: Widget coverage for rendering exact clip-and-offset block slices.
-- **[`test/reader/phase2_verification_test.dart`](test/reader/phase2_verification_test.dart)**: Automated bundled-font, bilingual direction, exact slice coverage, portrait/landscape re-pagination, and timing verification.
-
----
-
-### Native Android Configurations (`android/`)
-
-- **[`android/app/src/main/AndroidManifest.xml`](android/app/src/main/AndroidManifest.xml)**:
-  - Declares `MANAGE_EXTERNAL_STORAGE` and `QUERY_ALL_PACKAGES` permissions and registers Home Launcher intent.
-- **[`android/app/src/main/kotlin/com/example/eink_launcher/MainActivity.kt`](android/app/src/main/kotlin/com/example/eink_launcher/MainActivity.kt)**:
-  - Provides the native Android `Open with` chooser and event-driven battery-status channels.
-- **[`android/app/src/main/kotlin/com/example/eink_launcher/InstalledAppsHandler.kt`](android/app/src/main/kotlin/com/example/eink_launcher/InstalledAppsHandler.kt)**:
-  - Queries launcher activities and starts selected packages directly through Android `PackageManager`.
-- **[`android/app/src/main/kotlin/com/example/eink_launcher/PdfMemoryHandler.kt`](android/app/src/main/kotlin/com/example/eink_launcher/PdfMemoryHandler.kt)**:
-  - Serves the PDF reader's on-demand `ActivityManager.getMemoryClass()` query without doing memory work during handler registration.
-- **[`android/app/src/main/kotlin/com/example/eink_launcher/StartupHealthHandler.kt`](android/app/src/main/kotlin/com/example/eink_launcher/StartupHealthHandler.kt)** and **[`StartupHealthPolicy.kt`](android/app/src/main/kotlin/com/example/eink_launcher/StartupHealthPolicy.kt)**:
-  - Write the startup marker before Flutter initializes, track unfinished launches within ten minutes, and retain at most two 8,192-character diagnostics records in separate app-private preferences. `StartupHealthPolicyTest.kt` under `android/app/src/test/kotlin/com/example/eink_launcher/` covers failure thresholds, healthy resets, clock changes, bounds, and window expiry.
-- **[`android/app/src/main/res/values/styles.xml`](android/app/src/main/res/values/styles.xml)**:
-  - Window theme definitions configuring white background and fullscreen flags.
+- [READER_PLAN.md](READER_PLAN.md) records reader behavior, architecture, remaining
+  checks, and tab suggestions.
+- [ANDROID_HARDENING_PLAN.md](ANDROID_HARDENING_PLAN.md) records completed Android
+  hardening decisions and the remaining measurement-driven work.

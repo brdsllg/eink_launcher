@@ -12,6 +12,7 @@ import 'package:eink_launcher/reader/services/pdf_crop_service.dart';
 import 'package:eink_launcher/reader/services/pdf_document_service.dart';
 import 'package:eink_launcher/reader/services/pdf_memory_service.dart';
 import 'package:eink_launcher/reader/services/pdf_render_scheduler.dart';
+import 'package:eink_launcher/reader/services/pdf_thumbnail_cache_service.dart';
 import 'package:eink_launcher/reader/widgets/pdf_page_view.dart' as reader;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -48,13 +49,73 @@ void main() {
   PdfReaderSession makeSession({
     required _FakePdfDocument fakeDoc,
     DocRef docRef = doc,
+    PdfThumbnailCacheService? thumbnailCache,
   }) {
     return PdfReaderSession(
       doc: docRef,
+      thumbnailCache: thumbnailCache,
       documentServiceFactory: (path) =>
           PdfDocumentService(path, documentOpener: (p, pw) async => fakeDoc),
     );
   }
+
+  test(
+    'continuous previews survive a new session through the disk cache',
+    () async {
+      final thumbnailCache = PdfThumbnailCacheService.forTesting(
+        cacheDirectory: Directory('${tempDir.path}/pdf-previews'),
+      );
+      final firstDocument = _FakePdfDocument(
+        pageCount: 1,
+        pageWidth: 200,
+        pageHeight: 300,
+      );
+      final first = makeSession(
+        fakeDoc: firstDocument,
+        thumbnailCache: thumbnailCache,
+      );
+      await first.open();
+      await first.applySettings(
+        first.settings.copyWith(fitMode: PdfFitMode.zoom),
+      );
+      final firstLayout = await first.continuousLayoutForViewport(
+        const Size(200, 300),
+      );
+      final warmRequest = PdfRenderRequest(
+        priority: PdfRenderPriority.prefetch,
+      );
+      await first.warmContinuousPreviews(
+        firstLayout,
+        startPage: 0,
+        request: warmRequest,
+      );
+      expect(firstDocument.renderCallCount, greaterThan(0));
+      first.dispose();
+
+      final secondDocument = _FakePdfDocument(
+        pageCount: 1,
+        pageWidth: 200,
+        pageHeight: 300,
+      );
+      final second = makeSession(
+        fakeDoc: secondDocument,
+        thumbnailCache: thumbnailCache,
+      );
+      addTearDown(second.dispose);
+      await second.open();
+      final secondLayout = await second.continuousLayoutForViewport(
+        const Size(200, 300),
+      );
+      final preview = await second.renderContinuousPreview(0, secondLayout);
+      preview.dispose();
+
+      expect(
+        secondDocument.renderCallCount,
+        0,
+        reason: 'the reopened session should decode the persisted preview',
+      );
+    },
+  );
 
   group('adaptive cache initialization', () {
     const channel = MethodChannel('eink_launcher/pdf_memory');

@@ -220,6 +220,8 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   bool _waitingForIdle = false;
   bool _refiningScale = false;
   double _scrollDirection = 1.0;
+  double _previewVelocityY = 0.0;
+  final Set<int> _activePointers = {};
   final Map<String, _PdfRaster> _tiles = {};
   final Map<int, _PdfRaster> _previews = {};
   List<_PdfTileSpec> _tileSpecs = const [];
@@ -229,6 +231,11 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   // Previews cover any region omitted when this limit is reached.
   static const _maxFallbackBytes = 16 * 1024 * 1024;
   static const _refinementDelay = Duration(milliseconds: 200);
+  static const _thumbnailWarmupDelay = Duration(milliseconds: 800);
+
+  Timer? _thumbnailWarmupTimer;
+  PdfRenderRequest? _thumbnailWarmupRequest;
+  bool _thumbnailWarmupComplete = false;
 
   late final Ticker _flingTicker;
   Simulation? _flingX;
@@ -255,6 +262,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     _flingTicker.dispose();
     _refinementTimer?.cancel();
     _retryTimer?.cancel();
+    _cancelThumbnailWarmup();
     _releaseRasters();
     super.dispose();
   }
@@ -272,6 +280,8 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
         oldWidget.devicePixelRatio != widget.devicePixelRatio) {
       _refinementTimer?.cancel();
       _retryTimer?.cancel();
+      _cancelThumbnailWarmup();
+      _thumbnailWarmupComplete = false;
       _waitingForIdle = false;
       _releaseRasters();
       _layoutSignature = null;
@@ -288,6 +298,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     // overwrites the requested logical position before the widget can build.
     _stopFling();
     _refinementTimer?.cancel();
+    _cancelThumbnailWarmup();
     if (mounted) setState(() => _waitingForIdle = false);
   }
 
@@ -380,10 +391,29 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   // Gestures
   // ---------------------------------------------------------------------
 
+  void _onPointerDown(PointerDownEvent event) {
+    _activePointers.add(event.pointer);
+    final wasFlinging = _flingTicker.isTicking;
+    _cancelThumbnailWarmup();
+    _stopFling();
+    _previewVelocityY = 0;
+    if (wasFlinging) _settleRenderScale();
+    if (mounted) setState(() {});
+  }
+
+  void _onPointerFinished(PointerEvent event) {
+    _activePointers.remove(event.pointer);
+    if (_activePointers.isEmpty && !_interacting && !_flingTicker.isTicking) {
+      _settleRenderScale();
+    }
+  }
+
   void _onScaleStart(ScaleStartDetails details) {
     _stopFling();
     _refinementTimer?.cancel();
+    _cancelThumbnailWarmup();
     _waitingForIdle = false;
+    _previewVelocityY = 0;
     final layout = _layout;
     if (layout == null) return;
     _interacting = true;
@@ -403,6 +433,8 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
         .toDouble();
     final target = _gestureStartScene - details.localFocalPoint / _scale;
     _setOrigin(target.dx, target.dy, layout);
+    final sampleVelocity = -details.focalPointDelta.dy * 60 / _scale;
+    _previewVelocityY = _previewVelocityY * 0.65 + sampleVelocity * 0.35;
   }
 
   void _onScaleEnd(ScaleEndDetails details) {
@@ -413,6 +445,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
       return;
     }
     final velocity = details.velocity.pixelsPerSecond;
+    _previewVelocityY = -velocity.dy / _scale;
     if (velocity.distance < kPdfMinFlingVelocity) {
       _settleRenderScale();
       return;
@@ -427,6 +460,8 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   // ---------------------------------------------------------------------
 
   void _startFling(double sceneVx, double sceneVy, PdfContinuousLayout layout) {
+    _cancelThumbnailWarmup();
+    _previewVelocityY = sceneVy;
     _flingTicker.stop();
     _flingX = sceneVx.abs() < 1
         ? null
@@ -461,6 +496,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     final t = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
     final simX = _flingX;
     final simY = _flingY;
+    _previewVelocityY = simY?.dx(t) ?? 0;
     final targetX = simX?.x(t) ?? _originX;
     final targetY = simY?.x(t) ?? _originY;
     final moved = _setOrigin(targetX, targetY, layout);
@@ -483,6 +519,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     if (_flingTicker.isTicking) _flingTicker.stop(canceled: true);
     _flingX = null;
     _flingY = null;
+    _previewVelocityY = 0;
   }
 
   // ---------------------------------------------------------------------
@@ -498,7 +535,12 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     _refinementTimer?.cancel();
     setState(() => _waitingForIdle = true);
     _refinementTimer = Timer(_refinementDelay, () {
-      if (!mounted || _interacting || _flingTicker.isTicking) return;
+      if (!mounted ||
+          _interacting ||
+          _activePointers.isNotEmpty ||
+          _flingTicker.isTicking) {
+        return;
+      }
       final quantized = _quantizeRenderScale(_scale);
       setState(() {
         _waitingForIdle = false;
@@ -508,7 +550,62 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
           _refiningScale = true;
         }
       });
+      final layout = _layout;
+      if (layout != null) _scheduleThumbnailWarmup(layout);
     });
+  }
+
+  void _scheduleThumbnailWarmup(PdfContinuousLayout layout) {
+    if (_thumbnailWarmupComplete ||
+        _thumbnailWarmupTimer != null ||
+        _thumbnailWarmupRequest != null ||
+        _interacting ||
+        _activePointers.isNotEmpty ||
+        _flingTicker.isTicking) {
+      return;
+    }
+    _thumbnailWarmupTimer = Timer(_thumbnailWarmupDelay, () {
+      _thumbnailWarmupTimer = null;
+      if (!mounted ||
+          _interacting ||
+          _activePointers.isNotEmpty ||
+          _flingTicker.isTicking) {
+        return;
+      }
+      final request = PdfRenderRequest(priority: PdfRenderPriority.prefetch);
+      _thumbnailWarmupRequest = request;
+      unawaited(
+        widget.session
+            .warmContinuousPreviews(
+              layout,
+              startPage: layout.pageAtOffset(_visibleRect.center.dy),
+              request: request,
+            )
+            .then(
+              (_) {
+                if (!mounted || !identical(_thumbnailWarmupRequest, request)) {
+                  return;
+                }
+                _thumbnailWarmupRequest = null;
+                _thumbnailWarmupComplete = !request.isCancelled;
+              },
+              onError: (Object error) {
+                if (identical(_thumbnailWarmupRequest, request)) {
+                  _thumbnailWarmupRequest = null;
+                }
+                // Warm-up is optional. Cancellation or a bad cache entry must
+                // never replace the reader's existing render/error behavior.
+              },
+            ),
+      );
+    });
+  }
+
+  void _cancelThumbnailWarmup() {
+    _thumbnailWarmupTimer?.cancel();
+    _thumbnailWarmupTimer = null;
+    _thumbnailWarmupRequest?.cancel();
+    _thumbnailWarmupRequest = null;
   }
 
   Rect get _visibleRect => Rect.fromLTWH(
@@ -656,19 +753,27 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
         _layout = layout;
         _synchronizeTransform(layout);
 
-        return GestureDetector(
+        return Listener(
           key: const Key('continuous-pdf-surface'),
           behavior: HitTestBehavior.opaque,
-          // ScaleGestureRecognizer covers both one-finger pans and two-finger
-          // pinches, and loses the arena to a stationary tap, so the tap zones
-          // wrapping this widget keep working.
-          onScaleStart: _onScaleStart,
-          onScaleUpdate: _onScaleUpdate,
-          onScaleEnd: _onScaleEnd,
-          child: ClipRect(
-            child: Stack(
-              clipBehavior: Clip.hardEdge,
-              children: _buildRasterLayers(layout),
+          // Raw down events stop momentum immediately, before a stationary
+          // finger has moved far enough to win the gesture arena.
+          onPointerDown: _onPointerDown,
+          onPointerUp: _onPointerFinished,
+          onPointerCancel: _onPointerFinished,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            // ScaleGestureRecognizer covers both one-finger pans and two-finger
+            // pinches, and loses the arena to a stationary tap, so the tap zones
+            // wrapping this widget keep working.
+            onScaleStart: _onScaleStart,
+            onScaleUpdate: _onScaleUpdate,
+            onScaleEnd: _onScaleEnd,
+            child: ClipRect(
+              child: Stack(
+                clipBehavior: Clip.hardEdge,
+                children: _buildRasterLayers(layout),
+              ),
             ),
           ),
         );
@@ -681,8 +786,12 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
       return const [SizedBox.expand()];
     }
     final visible = _visibleRect;
-    final moving = _interacting || _flingTicker.isTicking || _waitingForIdle;
-    final previewRange = _lookAheadRect(layout, ahead: 1.0, behind: 0.25);
+    final moving =
+        _interacting ||
+        _activePointers.isNotEmpty ||
+        _flingTicker.isTicking ||
+        _waitingForIdle;
+    final previewRange = _velocityAwarePreviewRect(layout);
     final detailRange = moving
         ? visible
         : _lookAheadRect(layout, ahead: 0.35, behind: 0.10);
@@ -705,6 +814,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     });
     _syncTiles(layout, specs, visible);
     _tileSpecs = specs;
+    if (!moving) _scheduleThumbnailWarmup(layout);
 
     // Only the current viewport gates the handoff. Offscreen prefetch must not
     // delay sharp text, and a timer must never discard the last useful pixels.
@@ -767,6 +877,23 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
       math.min(layout.viewportWidth, visible.right + visible.width * 0.10),
       math.min(layout.totalHeight, visible.bottom + visible.height * after),
     );
+  }
+
+  Rect _velocityAwarePreviewRect(PdfContinuousLayout layout) {
+    final visible = _visibleRect;
+    final screensPerSecond = visible.height <= 0
+        ? 0.0
+        : _previewVelocityY.abs() / visible.height;
+    final ahead = (kPdfPreviewBaseAheadScreens + screensPerSecond * 0.55)
+        .clamp(kPdfPreviewBaseAheadScreens, kPdfPreviewMaxAheadScreens)
+        .toDouble();
+    // Behind remains useful for a reversal, but high-speed work should be
+    // concentrated where the current velocity predicts the viewport will land.
+    final behind = screensPerSecond > 1 ? 0.10 : 0.25;
+    if (_previewVelocityY.abs() > 1) {
+      _scrollDirection = _previewVelocityY.sign;
+    }
+    return _lookAheadRect(layout, ahead: ahead, behind: behind);
   }
 
   List<_PdfTileSpec> _describeTiles(PdfContinuousLayout layout, Rect range) {
@@ -869,7 +996,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
       first,
       last,
       layout.pageAtOffset(visible.center.dy),
-    ).take(8).toList();
+    ).take(kPdfPreviewMaxPages).toList();
     double distance(int page) {
       final top = layout.pageTop(page);
       final bottom = top + layout.pageHeights[page];
@@ -883,7 +1010,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
     pages.sort((a, b) => distance(a).compareTo(distance(b)));
     // Also bound demand for unusual documents containing many tiny pages.
     // Visible pages precede neighbors, and each preview is capped by session.
-    final desired = pages.take(8).toSet();
+    final desired = pages.take(kPdfPreviewMaxPages).toSet();
     for (final page in _previews.keys.toList()) {
       if (!desired.contains(page)) _previews.remove(page)!.release();
     }

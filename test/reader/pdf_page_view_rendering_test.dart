@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:eink_launcher/reader/controllers/pdf_reader_session.dart';
@@ -166,6 +167,46 @@ void main() {
     },
   );
 
+  testWidgets('resting a finger stops momentum immediately', (tester) async {
+    final session = await mount(tester);
+    final surface = find.byKey(const Key('continuous-pdf-surface'));
+    await tester.fling(surface, const Offset(0, -120), 2200);
+    final offsetAtRelease = session.offset;
+    await tester.pump(const Duration(milliseconds: 33));
+    await tester.pump(const Duration(milliseconds: 33));
+    expect(session.offset, greaterThan(offsetAtRelease));
+
+    final finger = await tester.startGesture(tester.getCenter(surface));
+    await tester.pump();
+    final stoppedAt = session.offset;
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(session.offset, closeTo(stoppedAt, 0.5));
+
+    await finger.up();
+    await tester.pump();
+    await _unmountAndFinish(tester, session);
+  });
+
+  testWidgets('fast flings request coarse previews several screens ahead', (
+    tester,
+  ) async {
+    final session = await mount(tester);
+    session.previewRequests.clear();
+    final surface = find.byKey(const Key('continuous-pdf-surface'));
+
+    await tester.fling(surface, const Offset(0, -180), 5000);
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(session.previewRequests, isNotEmpty);
+    expect(
+      session.previewRequests.reduce(math.max),
+      greaterThanOrEqualTo(4),
+      reason: 'velocity should expand demand beyond the fixed one-screen range',
+    );
+    await _unmountAndFinish(tester, session);
+  });
+
   testWidgets('an unchanged navigation target still finishes zoom refinement', (
     tester,
   ) async {
@@ -326,6 +367,8 @@ class _PendingTile {
 class _DelayedPdfSession extends PdfReaderSession {
   final List<ui.Image> images;
   final pending = <_PendingTile>[];
+  final previewRequests = <int>[];
+  int warmupCalls = 0;
   final layout = PdfContinuousLayout.fromPageSizes(
     pageSizes: List.filled(6, const Size(400, 600)),
     viewportWidth: 400,
@@ -400,7 +443,19 @@ class _DelayedPdfSession extends PdfReaderSession {
     int pageIndex,
     PdfContinuousLayout layout, {
     PdfRenderRequest? request,
-  }) async => images[pageIndex == 4 ? 3 : 2].clone();
+  }) async {
+    previewRequests.add(pageIndex);
+    return images[pageIndex == 4 ? 3 : 2].clone();
+  }
+
+  @override
+  Future<void> warmContinuousPreviews(
+    PdfContinuousLayout layout, {
+    required int startPage,
+    required PdfRenderRequest request,
+  }) async {
+    warmupCalls++;
+  }
 
   @override
   Future<ui.Image> renderContinuousTile(

@@ -1,432 +1,174 @@
-# Android-Only Hardening Plan
+# Android hardening status and next steps
 
-This plan keeps the Flutter UI and improves the parts that matter for an Android-only e-ink launcher. It deliberately excludes a native rewrite, architecture churn, and cleanup that would not improve the installed app.
+This document tracks Android-specific reliability and performance work for the
+e-ink launcher. The high-value code changes are implemented. Remaining changes
+should be driven by measurements on the Bigme device.
 
 ## Priorities
 
-| Priority | Improvement | Expected payoff | Status |
-| --- | --- | --- | --- |
-| P0 | Establish device baselines and fix startup ordering | Reliable measurements and deterministic home-folder startup | [x] Startup ordering implemented; device baselines pending |
-| P1 | Defer PDF runtime initialization | Removes PDF setup from launcher cold start | [x] Implemented; device timing pending |
-| P1 | Launcher crash resilience (safe mode, corrupt-state recovery) | Preserves access to recovery controls and the app drawer | [x] Implemented; device restart verification pending |
-| P2 | Compare Impeller with the legacy renderer on the Bigme | Select the renderer with the least ghosting and best response | [ ] Not started |
-| P2 | Reduce rebuild/repaint scope only where profiling proves useful | Less unnecessary rendering work | [ ] Conditional |
-| P3 | Add Bigme refresh controls only if a supported API is available | Direct partial/full e-ink refresh control | [ ] Conditional |
-| Done | Native `PackageManager` app discovery and launching | Removed the Kotlin plugin warning and gives direct launcher control | [x] Implemented |
-| Done | Native Android battery broadcast bridge | Event-driven battery updates with no `battery_plus` dependency | [x] Implemented |
-| Done | Preserve simple personal-sideload signing | Directly installable APKs that upgrade on the owned device | [x] Documented current workflow |
-
-## 1. Measure the Current App First — Startup Ordering Implemented; Device Baselines Pending
-
-Use a release or profile build on the actual Bigme device. Debug APK size and timing are not representative.
-
-### Record a baseline
-
-1. Connect the device and confirm its ABI:
-
-   ```sh
-   adb shell getprop ro.product.cpu.abi
-   ```
-
-2. Run a profile build:
-
-   ```sh
-   flutter run --profile
-   ```
-
-3. Measure five cold starts:
-
-   ```sh
-   adb shell am force-stop com.example.eink_launcher
-   adb shell am start -W -n com.example.eink_launcher/.MainActivity
-   ```
-
-4. Record idle memory after leaving the launcher untouched for one minute:
-
-   ```sh
-   adb shell dumpsys meminfo com.example.eink_launcher
-   ```
-
-5. Manually record these e-ink-specific observations:
-
-   - Time from tapping Home until the first usable page.
-   - Time from tapping a folder until the new folder appears.
-   - Whether the temporary inverted row is visible.
-   - Ghosting after ten folder changes and ten page changes.
-   - Whether battery and clock updates repaint more of the screen than expected.
-
-Keep the results in a dated section at the bottom of this file. Repeat the same measurements after each performance change.
-
-### Fix startup ordering before comparing results
-
-`FileBrowserScreen.initState()` now calls one guarded `_initialize()` flow.
-`FileBrowserController.initialize()` waits for preferences before checking
-permissions, then awaits the initial directory listing. A normal startup lists
-the saved home once. Missing/unreadable home folders fall back to internal storage
-with a dismissible warning and remove only the invalid home-folder key.
-
-Implemented on 2026-08-31:
-
-1. Native startup-health status is checked before preferences or file access.
-2. Preferences load before permission requests; directory validity is checked by
-   listing only after permission is granted, so denial cannot erase a valid home.
-3. Preference loads time out after five seconds; directory listings after fifteen.
-   Interactive permission prompts are not timed out.
-4. Duplicate initialization is suppressed, and disposal invalidates late work.
-5. Loading and recovery views keep **Open app drawer** accessible. The normal
-   file browser retains its 15/12 equal bands, including when showing a warning.
-
-Acceptance criteria:
-
-- A configured home folder is always the first folder loaded after a cold start.
-- Permission prompts still work on a fresh install.
-- No folder is loaded twice during normal startup.
-
-## 2. Defer PDF Runtime Initialization — Implemented; Device Verification Pending
-
-`lib/main.dart` no longer awaits `pdfrxFlutterInitialize()` before `runApp()`. PDF setup now runs only when the reader's default document opener first needs it.
-
-This step is the startup side of the reader lifecycle described in
-[E-Ink Reader Plan §4.1](READER_PLAN.md#41-pdf). `PdfReaderSession.open()` and
-`resume()` call `PdfDocumentService.open()`; the service's default document
-opener is the precise place where lazy initialization belongs. This preserves
-the session's suspend/resume architecture without making the launcher aware of
-PDFium.
-
-Implemented on 2026-08-31:
-
-1. Added `lib/reader/services/pdf_runtime_service.dart` with a memoized `Future<void>`:
-
-   ```dart
-   abstract final class PdfRuntimeService {
-     static Future<void>? _initialization;
-
-     static Future<void> ensureInitialized() {
-       return _initialization ??= pdfrxFlutterInitialize();
-     }
-   }
-   ```
-
-2. Removed the `pdfrxFlutterInitialize()` call and `pdfrx` import from `lib/main.dart`.
-3. `PdfDocumentService._openPdfDocument()` awaits `PdfRuntimeService.ensureInitialized()` immediately before `PdfDocument.openFile()`, after rejecting missing files.
-4. `PdfReaderSession.open()` and `resume()` still call `PdfDocumentService.open()`; both lifecycle paths therefore use the same memoized initialization.
-5. Injected PDF openers bypass native initialization. The opt-in native smoke test now supplies only host configuration, so it exercises lazy initialization through the production opener.
-
-The initialization future retains both success and failure for the app lifetime.
-Native setup failures now reach the reader's error boundary rather than blocking
-launcher startup; restarting the app is required to retry native initialization.
-Existing generation checks dispose documents that finish opening after closure.
-
-Acceptance criteria:
-
-- The launcher renders before PDF initialization occurs.
-- The first PDF opens normally.
-- Later PDFs reuse the same initialization future.
-- All reader tests continue to pass.
-
-Automated regression coverage in `test/reader/pdf_runtime_service_test.dart`
-calls the actual app entry point, then exercises the default document opener
-against a delayed pdfrx backend. It checks no initialization at launcher startup,
-missing-file and injected-opener bypass, one shared initialization across
-concurrent opens/reopens, password forwarding, and late-document disposal.
-On-device first-PDF rendering and before/after cold-start measurements remain
-pending: no Android device was attached on 2026-08-31.
-
-2026-08-31 software verification: `flutter analyze --no-pub` found no issues,
-and `flutter build apk --release --no-pub` succeeded (77.3 MB universal APK).
-The full suite passed 166 tests, skipped the opt-in native smoke test, and had
-only the two previously documented Windows folder-copy failures in
-`file_operations_service_test.dart`. All reader tests passed.
-
-## 3. Keep `open_filex` — Decision Complete
-
-Normal file opening uses `open_filex`, while the selection-mode **Open with** uses the custom Kotlin channel with `Intent.createChooser()`. Both paths work correctly, so `open_filex` is being kept as a dependency. The dual-path approach is acceptable for a personal-sideload app:
-
-- Normal taps go through `open_filex`, which handles its own `FileProvider` and `ACTION_VIEW` intent.
-- **Open with** goes through the Kotlin bridge, which borrows `open_filex`'s `FileProvider` authority for the chooser intent.
-
-This was originally planned for consolidation but has been deliberately deferred — the current setup works reliably and removing `open_filex` would require setting up a standalone `FileProvider` configuration.
-
-Important dependency: the custom Kotlin chooser currently borrows the provider authority installed by `open_filex`. Do not remove or replace `open_filex` in the future unless an app-owned `FileProvider` and `file_paths.xml` are added first and both opening paths are retested.
-
-## 4. Native Android Battery Bridge — Implemented
-
-The app does not depend on `battery_plus`. `MainActivity.kt` already listens to Android's sticky `ACTION_BATTERY_CHANGED` broadcast and sends percentage and charging state through `eink_launcher/battery_events`. `BatteryStatus` subscribes to that event stream and cancels its subscription when disposed.
-
-This already provides the desired low-work behavior: there is no polling, and the launcher repaints only when Android reports a battery change. Moving the receiver into a separate `BatteryStatusHandler.kt` can be done later if `MainActivity.kt` becomes difficult to maintain, but that is code organization rather than a performance or reliability improvement.
-
-Remaining verification:
-
-- [x] `battery_status_test.dart` covers valid/malformed/unavailable stream events,
-  charging transitions, clamping, and subscription cancellation.
-- Confirm charging transitions and receiver reattachment after an activity/engine restart on the Bigme.
-
-## 5. Replace `installed_apps` with Android `PackageManager` — Implemented
-
-The launcher now owns this integration. `LauncherApp`, `AppListService`, and
-`InstalledAppsHandler` replace the plugin, preserve separate caches, and remove
-its Kotlin Gradle warning. Automated channel tests cover mapping, sorting,
-caching, query flags, and launch payloads; repeated launch behaviour still
-needs the normal on-device smoke test.
-
-Implementation:
-
-1. Add a launcher-owned Dart model such as `LauncherApp` containing only `name`, `packageName`, and `isSystemApp`.
-2. Add a Kotlin handler that queries activities matching:
-
-   - `Intent.ACTION_MAIN`
-   - `Intent.CATEGORY_LAUNCHER`
-
-3. Return label, package name, and system-app status through a method channel.
-4. Launch apps with `PackageManager.getLaunchIntentForPackage()`.
-5. Keep the existing Dart-side sorting and separate caches for user-only and system-inclusive results.
-6. Update `AppDrawerScreen` to use `LauncherApp` instead of the plugin's `AppInfo`.
-7. Remove `installed_apps` from `pubspec.yaml` and rebuild the APK.
-
-The app-query channel is kept in its own handler. Battery and file-intent code
-can move out of `MainActivity.kt` when those hardening steps are undertaken:
-
-```text
-android/app/src/main/kotlin/com/example/eink_launcher/
-├── MainActivity.kt
-└── InstalledAppsHandler.kt
-```
-
-Acceptance criteria:
-
-- User apps and optional system apps load and sort correctly.
-- Only launchable activities appear.
-- App launching and refresh work after repeated use.
-- The Kotlin Gradle warning from `installed_apps` is gone.
-
-## 6. Personal Sideloading and Optional Distribution — Current Workflow Complete
-
-This app is currently intended for personal sideloading onto one owned device,
-so both debug and release-mode APKs use Flutter's generated debug key. That is
-installable and upgrade-safe as long as the same local key is retained. A
-private release keystore is only needed if the app will be distributed or must
-survive moving builds to another development machine.
-
-Current workflow:
-
-1. For personal sideloading, build the already signed debug APK with
-   `flutter build apk --debug`.
-2. Only before distribution, create a private release keystore, keep its
-   passwords outside Git, and replace the debug signing configuration.
-3. If release-mode performance testing is needed, verify the Bigme ABI and build only that target:
-
-   ```sh
-   flutter build apk --release --target-platform android-arm64
-   ```
-
-4. If distributing to multiple Android devices, use an app bundle or split APKs:
-
-   ```sh
-   flutter build appbundle --release
-   flutter build apk --release --split-per-abi
-   ```
-
-5. Inspect release size rather than debug size:
-
-   ```sh
-   flutter build apk --release --analyze-size --target-platform android-arm64
-   ```
-
-6. Consider R8/resource shrinking only after the native plugin replacements are complete. Enable it in a branch, build, and exercise every native feature before keeping it.
-
-Acceptance criteria for the current personal workflow:
-
-- A debug APK installs and upgrades over the previous debug-key build.
-- The package ID stays stable so Android retains app data across sideloaded updates.
-- Distribution signing remains explicitly out of scope until distribution is planned.
-
-## 7. Launcher Crash Resilience — Implemented; Device Verification Pending
-
-Because this app is registered as the device's Home launcher, startup recovery matters more than it would for an ordinary app. The goal is not to hide every error; it is to ensure a bad saved folder, corrupt state file, or repeated startup failure still leaves a usable route to the app drawer and recovery controls without requiring ADB.
-
-Implemented on 2026-08-31:
-
-1. `FileBrowserController` owns explicit loading, ready, and recovery states.
-   Preferences, permission, and initial-listing failures enter recovery rather
-   than escaping from unawaited initialization. Unavailable metadata is nonfatal.
-2. Invalid home values and failed home listings clear only `home_folder_path`,
-   try `/storage/emulated/0`, and explain the fallback. A failed root listing
-   leaves recovery available. Permission denial does not clear the saved home.
-3. `BookStoreService` shares concurrent initialization and preserves malformed
-   state before replacement, in `library.json.corrupt`, `.corrupt.1`, and
-   `.corrupt.2`. Backups are never overwritten or truncated. Once all three slots
-   are occupied, or preservation/read access fails, the source remains untouched
-   and saving is disabled for that launch. The reader displays an explanatory
-   dialog. Backup retention is bounded by count, not by truncating user data.
-4. `LauncherRecoveryScreen` offers **Retry startup**, **Use storage root**, and
-   **Open app drawer**, without initializing the reader. Use storage root bypasses
-   preferences for that attempt, so a broken preferences plugin cannot trap the
-   user. It does not erase unrelated settings or the saved home. App-list and
-   app-launch failures are caught, with Refresh or a static error message.
-5. `StartupHealthHandler` synchronously writes a tiny native marker before
-   `MainActivity` calls Flutter's `onCreate`. Three unfinished cold launches in
-   one ten-minute window put the fourth in recovery. Activity/engine recreation
-   in the same process does not increment the count. A usable browser or recovery
-   frame acknowledges health in a post-frame callback; intervening reported
-   errors prevent that frame from acknowledging success. Healthy acknowledgement
-   clears the failure count. Missing/broken native health queries lead to recovery.
-6. `LauncherErrorService` chains Flutter and platform error handlers on Android.
-   `StartupHealthService` bounds/coalesces diagnostics and never reports channel
-   failures recursively. Native app-private preferences retain at most two error
-   records of 8,192 characters each. These records stay local; nothing is uploaded.
-
-The marker identifies unfinished launches, which can include an early OS kill;
-it is not proof of a crash. Native health decisions have JVM tests, and recovery
-controls have widget tests. Real process restarts, storage prompts, and recovery
-on the Bigme remain pending; no device was connected for this work.
-
-Acceptance criteria:
-
-- A missing or inaccessible saved home folder opens the storage root and explains what changed.
-- Invalid `library.json` data cannot prevent the launcher or app drawer from opening, and a recoverable backup is retained.
-- Three simulated early startup failures lead to the recovery screen on the next launch.
-- Recovery mode can open the app drawer and return to normal startup without ADB or clearing all app data.
-- Tests cover invalid preferences, unreadable folders, corrupt JSON, and the crash-loop threshold.
-
-## 8. Compare Flutter Renderers on the E-Ink Device — Not Started
-
-Do not disable Impeller based on assumptions. Compare both renderers using identical actions and the baseline checklist.
-
-Implementation:
-
-1. Test the default renderer:
-
-   ```sh
-   flutter run --profile
-   ```
-
-2. Test the legacy renderer:
-
-   ```sh
-   flutter run --profile --no-enable-impeller
-   ```
-
-3. Compare startup, tap feedback, folder changes, page changes, ghosting, and idle battery use.
-4. Only if the legacy renderer is consistently better, disable Impeller in the Android manifest:
-
-   ```xml
-   <meta-data
-       android:name="io.flutter.embedding.android.EnableImpeller"
-       android:value="false" />
-   ```
-
-Acceptance criteria:
-
-- The selected renderer wins repeatably on the actual device.
-- The choice is documented with measurements, not preference.
-
-## 9. Reduce Rebuilds Only If Profiling Shows a Problem — Conditional
-
-The file browser currently places most of the scaffold under one `ListenableBuilder`. That is simple and probably acceptable for twelve visible rows, but file-stat updates can rebuild the whole screen.
-
-Practical sequence:
-
-1. Use Flutter DevTools in profile mode to record folder load, page change, selection, clock update, and battery update.
-2. If rebuild cost is visible, separate the screen into top-bar, file-grid, and search-layer widgets.
-3. Expose narrower `ValueListenable` state from `FileBrowserController` for navigation, selection, and status instead of making every section react to every notification.
-4. Trial `RepaintBoundary` around the top status bar and paginated grid. Keep it only if traces or device behavior improve; extra layers also consume memory.
-5. Retest actual e-ink ghosting. Reduced Flutter paint work does not guarantee that the device performs a smaller physical refresh.
-
-Do not replace the fixed twelve/fifteen-row layout with a complex lazy list. The current number of children is small and bounded.
-
-## 10. Add Vendor Refresh Control Only When Supported — Conditional
-
-This is useful only if Bigme provides a documented SDK, system service, or intent for refresh modes.
-
-Implementation if an API is available:
-
-1. Wrap it in a small Kotlin handler.
-2. Expose explicit operations such as `partialRefresh()` and `fullRefresh()` through the Android bridge.
-3. Trigger partial refresh after a completed tap/page/folder update, not continuously during layout.
-4. Trigger full refresh sparingly, such as after a configurable number of page changes or through a manual menu command.
-5. Make the bridge a no-op on unsupported devices.
-
-Do not use undocumented reflection or hard-coded service calls that could break after a firmware update.
-
-## 11. Expand Regression Coverage Around the Android-Only Features — Ongoing
-
-Implemented regression coverage:
-
-- [x] Startup sequencing, permission denial/failure, home fallback, retry, and disposal (`launcher_startup_test.dart`).
-- [x] Chooser method, exact path, and MIME payload (`file_browser_screen_test.dart`); native chooser UI still needs a device check.
-- [x] App query mapping/sorting/caching plus query/launch failure recovery (`app_list_service_test.dart`, `app_drawer_screen_test.dart`).
-- [x] Selection actions: **Open with** and Rename applicability; no Paste in selection mode (`file_browser_screen_test.dart`).
-- [x] 15 portrait / 12 landscape band heights on both screens and live search/page reset (`file_browser_screen_test.dart`, `app_drawer_screen_test.dart`).
-- [x] Battery event parsing, charging icon, unavailable stream, and cancellation (`battery_status_test.dart`).
-- [x] Recovery UI, corrupt-state backup capacity/preservation, native health channel failure, error-handler chaining, and native crash-loop policy tests.
-- [x] Opening feedback inverts a row before the folder opener runs (`file_browser_screen_test.dart`).
-
-The two previously documented Windows folder-copy failures are fixed: basename
-and parent-path helpers normalize native backslashes on Windows only, preserving
-Android path semantics. Existing recursive-copy and collision tests now pass.
-
-Keep the standard completion checks:
-
-```sh
-flutter analyze
-flutter test
+| Priority | Work | Status |
+| --- | --- | --- |
+| P0 | Deterministic startup and usable recovery | Implemented; real restart checks pending |
+| P0 | Record cold-start, memory, and e-ink baselines | Pending |
+| P1 | Initialize PDFium only when a PDF opens | Implemented; device timing pending |
+| P1 | Verify Android chooser, app launching, and battery reconnection | Pending device smoke test |
+| P2 | Compare Impeller and the legacy renderer | Pending |
+| P2 | Reduce rebuild/repaint scope | Only if profiling shows a cost |
+| P3 | Add Bigme refresh controls | Only if a documented API exists |
+
+## Implemented hardening
+
+### Startup ordering and recovery
+
+Startup follows one guarded sequence: native startup-health check, saved
+preferences, storage permission, then the initial folder listing. Preference and
+listing work have timeouts; the interactive permission prompt does not. Duplicate
+initialization is suppressed and late work is ignored after disposal.
+
+An invalid or unreadable saved home falls back to `/storage/emulated/0`, removes
+only the invalid home setting, and shows a warning. Permission denial does not
+erase the setting. Loading and recovery screens retain **Open app drawer**.
+
+Before Flutter starts, Android records an unfinished launch in app-private
+preferences. Three unfinished cold launches within ten minutes send the next
+launch to recovery. Activity or engine recreation in the same process is not
+counted as a new cold launch. A usable browser or recovery frame clears the
+failure state. Recovery offers **Retry startup**, **Use storage root**, and
+**Open app drawer**.
+
+Flutter and platform errors keep normal logging and also store at most two local
+diagnostic records of 8,192 characters. Nothing is uploaded.
+
+Reader-state recovery is separate from launcher startup. Malformed `library.json`
+is preserved in up to three full backups. If safe preservation is impossible,
+the source remains untouched and saving is disabled for that launch.
+
+### Lazy PDF runtime
+
+Launcher startup does not initialize PDFium. The production PDF opener calls a
+memoized runtime service immediately before `PdfDocument.openFile()`. Concurrent
+PDF opens share initialization; missing files and injected test openers bypass it.
+A setup failure reaches the reader error boundary and can be retried after an app
+restart.
+
+Reader lifecycle and PDF performance details are in
+[READER_PLAN.md](READER_PLAN.md) and
+[PDF_RESPONSIVENESS.md](PDF_RESPONSIVENESS.md).
+
+### Native Android integrations
+
+- App discovery and launch use an app-owned Kotlin `PackageManager` handler. Only
+  launchable activities are listed, with separate user-app and all-app caches.
+- Battery state uses the sticky `ACTION_BATTERY_CHANGED` broadcast through an
+  event channel. There is no polling and no `battery_plus` dependency.
+- Normal file taps use `open_filex`; explicit **Open with** uses an Android chooser.
+  Keep `open_filex` until an app-owned `FileProvider` replaces the authority used
+  by both paths.
+- PDF cache sizing queries Android's normal heap class lazily on first PDF use.
+- Windows file-copy path handling was fixed without changing Android path rules.
+
+### Personal sideloading
+
+The current local key is suitable for builds installed on the owned device and
+allows upgrades while the same signing identity and package ID are retained.
+A private release keystore is required before distribution or before builds move
+to a machine that cannot retain that identity.
+
+Useful build commands:
+
+```powershell
 flutter build apk --debug
+flutter build apk --release --target-platform android-arm64
+flutter build apk --release --split-per-abi
+flutter build appbundle --release
 ```
 
-Native policy tests run with `android/gradlew.bat -p android :app:testDebugUnitTest`
-on Windows (or `./android/gradlew -p android :app:testDebugUnitTest` elsewhere).
-JUnit 4.13.2 is a test-only dependency; it is not packaged in the installed app.
+Do not enable shrinking or change signing immediately before a device test. Trial
+either change separately and exercise every native channel before keeping it.
 
-2026-08-31 hardening verification: **201 Flutter tests passed**, with one opt-in
-native PDFium smoke test skipped and no failures; **5 native JVM policy tests
-passed**. `flutter analyze --no-pub` is clean. Both debug and release APK builds
-succeeded; the universal release APK is 77.4 MB. These results include a regression
-preventing Back from listing folders while storage permission is pending or denied.
-Device baselines, real restart/recovery checks, battery receiver reattachment,
-chooser UI, PDF memory tuning, and renderer comparisons remain pending.
+## Device work in recommended order
 
-Also perform a short on-device smoke test for battery events, MIME resolution, Android chooser behavior, app discovery, app launching, rotation, and e-ink ghosting.
+### 1. Record a baseline
 
-## Things Not Worth Doing Now
+Use the same release/profile build and device refresh mode for every comparison.
 
-- Rewriting the application in Kotlin/Compose or Android Views without measured Flutter failures.
-- Removing the iOS, web, desktop, or Linux directories for performance; they are not packaged into the Android APK.
-- Introducing a state-management framework solely to reduce a few small rebuilds.
-- Polling battery state; the existing Android broadcast stream is already the correct low-work design.
-- Adding animations to make transitions appear smoother; this conflicts with the e-ink design.
-- Disabling Impeller or adding vendor refresh calls without testing on the real device.
+```powershell
+adb shell getprop ro.product.cpu.abi
+flutter run --profile
+adb shell am force-stop com.example.eink_launcher
+adb shell am start -W -n com.example.eink_launcher/.MainActivity
+adb shell dumpsys meminfo com.example.eink_launcher
+```
 
-## Recommended Execution Order
+Measure five cold starts. Record first usable frame, folder-open response, idle
+memory after one minute, first PDF-open time, and ghosting after repeated folder
+and reader page changes. For PDF memory work, record normal heap class plus
+native, graphics, and total PSS before and after sustained page turns and zooming.
 
-1. Capture Bigme baselines; startup sequencing is implemented.
-2. Defer PDF initialization (implemented; device timing/first-open verification pending).
-3. Verify implemented startup recovery and crash-loop safe mode on the Bigme.
-4. Keep the current `open_filex` and native battery implementations; only perform their remaining tests.
-5. Keep using the documented personal-sideload signing workflow.
-6. Compare Impeller on/off.
-7. Optimize rebuild boundaries only if profiling identifies them.
-8. Add Bigme-specific refresh control only if a supported API exists.
+### 2. Verify recovery and Android channels
 
-## Measurement Log
+- Exercise fresh-install permission handling and an inaccessible saved home.
+- Simulate repeated process restarts and confirm the recovery threshold and return
+  to normal startup without clearing all app data.
+- Confirm corrupt reader-state handling retains a backup and leaves the app drawer
+  usable.
+- Check battery charging transitions after activity/engine recreation.
+- Open the Android chooser, query/refresh apps, and launch several apps repeatedly.
 
-2026-08-31 manual HiBreak follow-up: the user reports tests 1–8 complete, with all
-other checks passing apart from the three open PDF responsiveness/blanking issues
-in [the device test log](BIGME_TEST_LOG.md). This updates the earlier pending
-manual-check status, but does not supply memory/timing measurements, renderer
-comparisons, or advanced crash-loop/corrupt-state fault-injection results.
-No code or device changes were made to address this report.
+### 3. Compare Flutter renderers
 
-Add dated before/after measurements here as work is completed.
+Run the same actions with the default renderer and the legacy renderer:
 
-| Date | Build/commit | Renderer | Cold start median | Idle memory | Folder open | Ghosting notes |
+```powershell
+flutter run --profile
+flutter run --profile --no-enable-impeller
+```
+
+Compare startup, taps, folder/page changes, PDF motion, ghosting, and idle battery
+use. Change the manifest only if one renderer wins repeatably on the actual device.
+
+### 4. Profile before changing rebuild structure
+
+If DevTools shows meaningful work during folder loads, page changes, clock ticks,
+or battery updates, split the file-browser scaffold into narrower listeners and
+trial `RepaintBoundary` around stable areas. Keep a change only if traces and the
+panel response improve; the fixed 12/15-band list is already small.
+
+### 5. Consider vendor refresh controls last
+
+Add a small Kotlin bridge only if Bigme supplies a documented SDK, service, or
+intent. It should be a no-op on unsupported devices and request full refreshes
+sparingly. Do not rely on undocumented reflection or firmware-specific service
+names.
+
+## Verification baseline
+
+The last complete Android hardening run passed **201 Flutter tests** and **5 native
+JVM startup-policy tests**, with clean static analysis and successful debug/release
+APK builds. Later reader work supersedes the Flutter count: the current full suite
+passes **240 tests** with the generated native PDFium check enabled. The raw HiBreak
+results are in [BIGME_TEST_LOG.md](BIGME_TEST_LOG.md).
+
+Standard checks:
+
+```powershell
+flutter analyze --no-pub
+flutter test --no-pub
+flutter build apk --debug --no-pub
+android\gradlew.bat -p android :app:testDebugUnitTest
+```
+
+## Avoid without evidence
+
+- Rewriting the app in Kotlin/Compose solely because it targets Android.
+- Removing unbuilt desktop/web directories for installed APK performance.
+- Adding a state-management framework for the current small listener graph.
+- Polling battery state or adding animations to mask e-ink refresh behavior.
+- Disabling Impeller, changing cache fractions, or adding vendor calls without a
+  repeatable device comparison.
+
+## Measurement log
+
+| Date | Build | Renderer/refresh mode | Cold start median | Idle memory | Folder open | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | _Pending_ |  |  |  |  |  |  |
-
-## Official References
-
-- [Flutter platform channels](https://docs.flutter.dev/platform-integration/platform-channels)
-- [Flutter Impeller renderer](https://docs.flutter.dev/perf/impeller)
-- [Flutter Android deployment and ABI splitting](https://docs.flutter.dev/deployment/android)
-- [Flutter performance best practices](https://docs.flutter.dev/perf/best-practices)
-- [Android startup measurement and optimization](https://developer.android.com/topic/performance/appstartup/analysis-optimization)
-- [Android APK size reduction](https://developer.android.com/topic/performance/reduce-apk-size)

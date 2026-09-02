@@ -21,6 +21,7 @@ import '../services/pdf_crop_service.dart';
 import '../services/pdf_document_service.dart';
 import '../services/pdf_memory_service.dart';
 import '../services/pdf_render_scheduler.dart';
+import '../services/pdf_thumbnail_cache_service.dart';
 import '../services/reader_error_service.dart';
 import 'reader_session.dart';
 
@@ -43,6 +44,7 @@ class PdfReaderSession extends ReaderSession {
   final PageBitmapCache _bitmapCache;
   final PageBitmapCache _previewCache = PageBitmapCache(maxBytes: 1);
   final PdfMemoryService _memoryService;
+  final PdfThumbnailCacheService _thumbnailCache;
   final bool _adaptiveCache;
   final PdfDocumentServiceFactory _serviceFactory;
 
@@ -100,6 +102,7 @@ class PdfReaderSession extends ReaderSession {
     PdfCropService? cropService,
     PageBitmapCache? bitmapCache,
     PdfMemoryService? memoryService,
+    PdfThumbnailCacheService? thumbnailCache,
     PdfDocumentServiceFactory? documentServiceFactory,
   }) : _bookStore = bookStore ?? BookStoreService.instance,
        _cropService = cropService ?? PdfCropService(),
@@ -107,6 +110,7 @@ class PdfReaderSession extends ReaderSession {
            bitmapCache ??
            PageBitmapCache(maxBytes: PdfMemoryService.fallbackCacheBytes),
        _memoryService = memoryService ?? PdfMemoryService.instance,
+       _thumbnailCache = thumbnailCache ?? PdfThumbnailCacheService.instance,
        _adaptiveCache = bitmapCache == null,
        _serviceFactory = documentServiceFactory ?? PdfDocumentService.new;
 
@@ -709,23 +713,125 @@ class PdfReaderSession extends ReaderSession {
     int pageIndex,
     PdfContinuousLayout layout, {
     PdfRenderRequest? request,
-  }) => _withRequest(request, (demand) async {
+  }) => _withRequest(
+    request,
+    (demand) => _renderContinuousPreview(pageIndex, layout, demand),
+  );
+
+  Future<Image> _renderContinuousPreview(
+    int pageIndex,
+    PdfContinuousLayout layout,
+    PdfRenderRequest demand, {
+    bool awaitPersistence = false,
+  }) async {
     if (!_isReady || !_isContinuous) {
       throw StateError('Continuous PDF rendering is not active');
     }
+    final generation = _generation;
     if (!_previewBudgetReserved && _bitmapCache.maxBytes > 1) {
       final total = _bitmapCache.maxBytes;
       _previewBudgetReserved = true;
       _setCacheBudget(total);
     }
-    final crop = await _resolveUniformCropRect(demand);
+    final descriptor = await _continuousPreviewDescriptor(
+      pageIndex,
+      layout,
+      demand,
+    );
     demand.throwIfCancelled();
+    final memory = _previewCache.get(descriptor.bitmapKey);
+    if (memory != null) return memory.clone();
+
+    final disk = await _thumbnailCache.load(descriptor.diskKey);
+    if (demand.isCancelled ||
+        _disposed ||
+        !_isReady ||
+        generation != _generation) {
+      disk?.dispose();
+      throw const PdfRenderCancelledException();
+    }
+    if (disk != null) {
+      final retained = disk.clone();
+      if (!_previewCache.put(descriptor.bitmapKey, retained)) {
+        retained.dispose();
+      }
+      return disk;
+    }
+
+    final image = await _renderBitmap(
+      descriptor.bitmapKey,
+      descriptor.crop,
+      demand,
+      preview: true,
+      maxDimension: kPdfPreviewMaxDimension,
+    );
+    final store = _thumbnailCache.store(descriptor.diskKey, image.clone());
+    if (awaitPersistence) {
+      await store;
+    } else {
+      unawaited(store);
+    }
+    return image;
+  }
+
+  /// Fills missing disk previews in outward order while the reader is idle.
+  /// The caller cancels [request] as soon as touch, lifecycle, or navigation
+  /// makes the work speculative. Only one native operation is admitted at a
+  /// time, and visible demand can promote/share the same page render.
+  Future<void> warmContinuousPreviews(
+    PdfContinuousLayout layout, {
+    required int startPage,
+    required PdfRenderRequest request,
+  }) async {
+    if (!_isReady || !_isContinuous || layout.pageCount == 0) return;
+    _requests.add(request);
+    try {
+      final center = startPage.clamp(0, layout.pageCount - 1).toInt();
+      for (var distance = 0; distance < layout.pageCount; distance++) {
+        for (final pageIndex in <int>{center + distance, center - distance}) {
+          if (pageIndex < 0 || pageIndex >= layout.pageCount) continue;
+          request.throwIfCancelled();
+          final descriptor = await _continuousPreviewDescriptor(
+            pageIndex,
+            layout,
+            request,
+          );
+          request.throwIfCancelled();
+          if (_previewCache.containsKey(descriptor.bitmapKey) ||
+              await _thumbnailCache.contains(descriptor.diskKey)) {
+            continue;
+          }
+          final image = await _renderContinuousPreview(
+            pageIndex,
+            layout,
+            request,
+            awaitPersistence: true,
+          );
+          image.dispose();
+        }
+      }
+    } finally {
+      _requests.remove(request);
+    }
+  }
+
+  Future<({PdfCropRect crop, PdfBitmapCacheKey bitmapKey, String diskKey})>
+  _continuousPreviewDescriptor(
+    int pageIndex,
+    PdfContinuousLayout layout,
+    PdfRenderRequest request,
+  ) async {
+    if (pageIndex < 0 || pageIndex >= layout.pageHeights.length) {
+      throw RangeError.index(pageIndex, layout.pageHeights, 'pageIndex');
+    }
+    final crop = await _resolveUniformCropRect(request);
+    request.throwIfCancelled();
     final dimensions = PdfDocumentService.constrainedRenderSize(
       math.max(1, layout.viewportWidth.round()),
       math.max(1, layout.pageHeights[pageIndex].round()),
-      maxDimension: 512,
+      maxDimension: kPdfPreviewMaxDimension,
     );
-    final key = PdfBitmapCacheKey(
+    final bitmapKey = PdfBitmapCacheKey(
       pageIndex: pageIndex,
       pixelWidth: dimensions.width,
       pixelHeight: dimensions.height,
@@ -734,8 +840,18 @@ class PdfReaderSession extends ReaderSession {
       cropRight: crop.right,
       cropBottom: crop.bottom,
     );
-    return _renderBitmap(key, crop, demand, preview: true, maxDimension: 512);
-  });
+    return (
+      crop: crop,
+      bitmapKey: bitmapKey,
+      diskKey: _thumbnailCache.keyFor(
+        docId: doc.id,
+        pageIndex: pageIndex,
+        pixelWidth: dimensions.width,
+        pixelHeight: dimensions.height,
+        crop: crop,
+      ),
+    );
+  }
 
   Future<Image> _renderPageAt(
     int pageIndex,

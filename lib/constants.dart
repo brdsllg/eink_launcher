@@ -88,6 +88,17 @@ const double kPdfTileSidePixels = 1536.0;
 /// output would be silently downscaled and zoom would look blurry.
 const double kPdfMaxTileDimension = 2048.0;
 
+/// Long-edge limit for the coarse whole-page images shown during fast motion.
+/// These are deliberately much cheaper than detailed tiles and are also stored
+/// in the bounded persistent thumbnail cache.
+const double kPdfPreviewMaxDimension = 320.0;
+
+/// Preview demand begins one viewport ahead and expands with fling velocity,
+/// but never beyond this many viewports or page requests.
+const double kPdfPreviewBaseAheadScreens = 1.0;
+const double kPdfPreviewMaxAheadScreens = 4.0;
+const int kPdfPreviewMaxPages = 16;
+
 /// Friction for a Zoom / Scroll fling, fed to Flutter's
 /// `ClampingScrollSimulation` — the same AOSP `OverScroller` curve that every
 /// Android list scroll uses.
