@@ -4,15 +4,20 @@ This document tracks Android-specific reliability and performance work for the
 e-ink launcher. The high-value code changes are implemented. Remaining changes
 should be driven by measurements on the Bigme device.
 
+The [2026-09-02 ADB report](DEVICE_VALIDATION_2026-09-02.md) now records cold
+starts, memory, native-channel checks, and isolated recovery fault injection.
+The user confirmed no physical-screen ghosting or white flashes on 2026-09-02.
+Renderer preference and unplugged battery drain remain optional measurements.
+
 ## Priorities
 
 | Priority | Work | Status |
 | --- | --- | --- |
-| P0 | Deterministic startup and usable recovery | Implemented; real restart checks pending |
-| P0 | Record cold-start, memory, and e-ink baselines | Pending |
-| P1 | Initialize PDFium only when a PDF opens | Implemented; device timing pending |
-| P1 | Verify Android chooser, app launching, and battery reconnection | Pending device smoke test |
-| P2 | Compare Impeller and the legacy renderer | Pending |
+| P0 | Deterministic startup and usable recovery | Restart and isolated fault-injection checks passed |
+| P0 | Record cold-start, memory, and e-ink baselines | Startup/memory recorded; user confirmed no ghosting or white flashes |
+| P1 | Initialize PDFium only when a PDF opens | Implemented; coarse open samples recorded, precise timing pending |
+| P1 | Verify Android chooser, app launching, and battery reconnection | ADB smoke tests passed; battery changes simulated and restored |
+| P2 | Compare Impeller and the legacy renderer | Startup and sampled PDF motion compared; no renderer change justified |
 | P2 | Reduce rebuild/repaint scope | Only if profiling shows a cost |
 | P3 | Add Bigme refresh controls | Only if a documented API exists |
 
@@ -171,4 +176,5 @@ android\gradlew.bat -p android :app:testDebugUnitTest
 
 | Date | Build | Renderer/refresh mode | Cold start median | Idle memory | Folder open | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| _Pending_ |  |  |  |  |  |  |
+| 2026-09-02 | 1.0.2+3 arm64 release | Impeller OpenGLES / unchanged Bigme mode | 1,216 ms activity display median | See device report | Not precisely timed | Five valid cold starts; PDF/lifecycle PSS recorded |
+| 2026-09-02 | Same installed release | Legacy / same Bigme mode | 1,109 ms activity display median | See device report | Not precisely timed | Five valid cold starts; original renderer restored |

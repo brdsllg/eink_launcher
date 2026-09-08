@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
-// Dialog builders used by the file browser for New Folder / Rename / Delete
-// confirm. These are standard AlertDialogs (fine per the "no transitions rule",
-// which targets screen/route transitions, not modal dialogs) styled to match
-// the rest of the theme via the app's shared ThemeData.
+import 'adaptive_grid.dart';
+
+// File dialogs share a bounded content panel and equal action cells.
 
 /// Validates a folder/file name for creation or rename.
 ///
@@ -70,7 +69,7 @@ Future<bool> showDeleteConfirmDialog(BuildContext context, int count) {
   return showDialog<bool>(
     context: context,
     animationStyle: AnimationStyle.noAnimation,
-    builder: (context) => AlertDialog(
+    builder: (context) => GridDialog(
       title: const Text('Delete'),
       content: Text('Delete $count $noun?\n\nThis can\'t be undone.'),
       actions: [
@@ -166,15 +165,16 @@ class _NameDialogState extends State<_NameDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return GridDialog(
       title: Text(widget.title),
       content: TextField(
         controller: _controller,
         autofocus: true,
         decoration: InputDecoration(
-          hintText: 'Folder name',
+          hintText: widget.currentName == null ? 'Folder name' : 'Name',
           errorText: _errorText,
-          border: const UnderlineInputBorder(),
+          errorMaxLines: 3,
+          border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
         ),
         onSubmitted: (_) => _submit(),
       ),

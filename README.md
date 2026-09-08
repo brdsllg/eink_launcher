@@ -9,9 +9,43 @@ Bigme HiBreak running Android 14. The original target was the Bigme B751C.
 
 ## Current status
 
-Version **1.0.2 (build 3)** is the latest verified build. The current APK is
-[eink-launcher-1.0.2-scroll-previews.apk](build/app/outputs/flutter-apk/eink-launcher-1.0.2-scroll-previews.apk).
+**Current trial: version 1.0.9 (build 10)** adds physical page-button support for
+the Bigme B751C: Page Up/Down, Left/Right, and Volume Up/Down. The buttons turn
+reader pages and page through file, Apps, bookmark, Contents, and search-result
+lists. Holds do not repeat, text entry and dialogs are isolated, and loading or
+background readers do not turn. [Button behavior and supported assignments](BUTTON_SUPPORT.md).
+The APK is [eink-launcher-1.0.9-b751c-buttons-trial.apk](build/app/outputs/flutter-apk/eink-launcher-1.0.9-b751c-buttons-trial.apk).
+Physical B751C verification remains pending.
 
+**Design trial: version 1.0.8 (build 9)** gives each screen a layout suited to
+its controls. Reader header icons use bounded widths, rotation has a wider
+labeled cell, and three equal tabs share the remaining space between arrows.
+The requested **1:2:3:1:1:1** status row and equal-third PDF modes remain intact.
+
+The browser, Apps, all list pagers, selection actions, search, settings, dialogs,
+and recovery screens now use aligned rectangular cells with suitable widths.
+Settings choices divide by their option count; labels move into a shared column
+on wide screens. Menus remain single-column command lists. Forms and recovery
+actions adapt to narrow screens and the keyboard. Browser/Apps vertical bands
+are preserved. [Layout decisions and comparisons](LAYOUT_DESIGN.md) explain the
+dimensions chosen for each area, with preview links.
+
+The trial APK is [eink-launcher-1.0.8-area-grids-trial.apk](build/app/outputs/flutter-apk/eink-launcher-1.0.8-area-grids-trial.apk).
+The full suite passes **279 Flutter tests**, including native PDFium stress;
+one external-PDF test is skipped. All 35 portrait, landscape, and narrow-screen
+visual cases pass, covering all screen types and dialogs; the final combined
+settings/search/visual run passes 41 checks. Static analysis is clean.
+The latest trial has not been installed on
+the device. Previous trial APKs remain available.
+
+Version **1.0.3 (build 4)** introduced reader tabs. Its comparison APK is
+[eink-launcher-1.0.3-tabs.apk](build/app/outputs/flutter-apk/eink-launcher-1.0.3-tabs.apk).
+Automated tests and portrait/landscape layout checks pass. The HiBreak device
+observations below are from version 1.0.2; this tab build has not been installed
+or physically tested on the device yet.
+
+- Open tabs, selection, and reading order survive restart. The menu strip
+  switches and closes tabs; the browser's **+ → Tabs** action returns to reading.
 - Rapid PDF page taps now work in the HiBreak test.
 - Zoom / Scroll keeps coarse previews visible while sharp tiles render, stores
   prepared previews in a 64 MiB disk cache, and looks farther ahead during fast
@@ -19,16 +53,18 @@ Version **1.0.2 (build 3)** is the latest verified build. The current APK is
 - Touching the PDF immediately stops scrolling momentum; no reverse drag is
   required.
 - Very fast first-pass scrolling at minimum zoom can still outrun PDF rendering.
-  Revisiting prepared pages should be much faster, but version 1.0.2 still needs
-  an on-device comparison.
-- The full suite passes **240 Flutter tests** with the generated native PDFium
+  An ADB device pass exercised vector/scanned PDFs, pinch, scrolling, and restore;
+  sampled images retained content. On 2026-09-02 the user also confirmed no
+  ghosting or white flashes on the physical screen.
+- Version 1.0.3 passed **277 Flutter tests** with the generated native PDFium
   stress check enabled. The older test that requires an external PDF is skipped.
   Static analysis is clean.
 
-The APK is an arm64 release build signed with the project's existing personal
-sideload key. Its Android v2 signature and package/version metadata were checked.
+The version 1.0.9 trial APK is an arm64 release build signed with the project's
+existing personal sideload key. Its Android v2 signature and package/version
+metadata were checked.
 SHA-256:
-`8231F46FF8A086EF84C50AA416EADE9589A64E0599F7EB45CD7F2EA6D0317CAB`.
+`BD8A8E7CF407886C800139463722004B509144F5DAE3E3C38AD2CB2A0015C32E`.
 
 ## What the app does
 
@@ -52,7 +88,9 @@ are bounded and are never uploaded.
 The reader opens PDF, EPUB, TXT, and Markdown files directly from the browser.
 It provides equal-thirds tap zones, swipes where appropriate, manual rotation,
 per-document positions and settings, bookmarks, tables of contents, and text
-search for text formats.
+search for text formats. The reader menu also contains a paged strip of open
+tabs. Back keeps a tab open; its corner X closes it. The browser's **+ → Tabs**
+action returns to the most recently read tab, including after a restart.
 
 PDF has three modes:
 
@@ -66,8 +104,11 @@ Hebrew fonts, bidi paragraph handling, exact line-boundary splits, safe publishe
 styles, optional hyphenation, and typography controls.
 
 Reader sessions retain logical positions rather than display page numbers, so
-changes to font size, orientation, crop, or PDF mode keep the user's place. Hidden
-sessions release native PDF handles and bitmaps to control memory.
+changes to font size, orientation, crop, or PDF mode keep the user's place.
+Suspension releases native PDF handles and bitmaps. Switching tabs explicitly
+suspends hidden sessions. Tab order and selection persist alongside reading
+positions; restoring the tab list does not open any document. Opening a PDF reuses
+its cached first-page preview when available, with a static loading indicator.
 
 ## E-ink design rules
 
@@ -128,12 +169,13 @@ before distribution or moving the signing identity to another machine.
 
 ## What still needs device testing
 
-- Compare first and second passes through the same PDF in Zoom / Scroll.
-- Recheck zoom-release continuity and fast scrolling with both vector and scanned
-  PDFs.
-- Measure cold start, memory, first PDF open, and sustained PDF use.
-- Exercise real process restart/recovery, battery receiver reattachment, the
-  Android chooser, app discovery/launching, and Impeller versus the legacy renderer.
+The [2026-09-02 ADB report](DEVICE_VALIDATION_2026-09-02.md) records completed
+reader, restart/recovery, battery, chooser, app-drawer, cold-start, and memory
+checks, including both renderers. The user subsequently confirmed no ghosting or
+white flashes, completing the outstanding physical-screen check for the observed
+conditions. Precise first-preview/sharpen timings, renderer preference, and
+unplugged idle battery drain remain optional measurements, not blockers for tabs
+planning.
 
 The raw HiBreak observations are in [BIGME_TEST_LOG.md](BIGME_TEST_LOG.md). The
 implemented PDF response work and short retest are in
@@ -142,6 +184,6 @@ implemented PDF response work and short retest are in
 ## Plans
 
 - [READER_PLAN.md](READER_PLAN.md) records reader behavior, architecture, remaining
-  checks, and tab suggestions.
+  checks, and the implemented tab design.
 - [ANDROID_HARDENING_PLAN.md](ANDROID_HARDENING_PLAN.md) records completed Android
   hardening decisions and the remaining measurement-driven work.

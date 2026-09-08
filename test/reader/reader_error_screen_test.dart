@@ -34,6 +34,11 @@ void main() {
 
   setUp(() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('eink_launcher/battery_events'),
+          (_) async => null,
+        );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (_) async => null);
     directory = await Directory.systemTemp.createTemp('reader-errors-');
     await BookStoreService.instance.init(
@@ -69,6 +74,11 @@ void main() {
 
   tearDown(() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('eink_launcher/battery_events'),
+          null,
+        );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, null);
     registry.dispose();
     BookStoreService.instance.dispose();
@@ -99,7 +109,7 @@ void main() {
       await openReader(tester);
       expect(find.textContaining('Could not read this EPUB'), findsOneWidget);
       expect(find.textContaining('internal parser detail'), findsNothing);
-      expect(find.text('Back to files'), findsOneWidget);
+      expect(find.byKey(const Key('reader-error-home-button')), findsOneWidget);
       loadFailure = null;
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
@@ -125,7 +135,7 @@ void main() {
         find.textContaining('DRM-protected or encrypted content'),
         findsOneWidget,
       );
-      await tester.tap(find.text('Back to files'));
+      await tester.tap(find.byKey(const Key('reader-error-home-button')));
       await tester.pumpAndSettle();
       expect(find.text('Files'), findsOneWidget);
       expect(find.byType(ReaderScreen), findsNothing);

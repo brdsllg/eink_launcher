@@ -7,8 +7,9 @@ import 'block_slice_view.dart';
 
 class TextPageView extends StatefulWidget {
   final TextReaderSession session;
+  final VoidCallback? onContentReady;
 
-  const TextPageView({super.key, required this.session});
+  const TextPageView({super.key, required this.session, this.onContentReady});
 
   @override
   State<TextPageView> createState() => _TextPageViewState();
@@ -16,6 +17,7 @@ class TextPageView extends StatefulWidget {
 
 class _TextPageViewState extends State<TextPageView> {
   Size? _reportedSize;
+  bool _contentReported = false;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +34,15 @@ class _TextPageViewState extends State<TextPageView> {
           }
           final page = widget.session.currentLaidOutPage;
           final book = widget.session.book;
+          if (!_contentReported &&
+              (page != null ||
+                  (book?.spine.every((item) => item.blocks.isEmpty) ??
+                      false))) {
+            _contentReported = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) widget.onContentReady?.call();
+            });
+          }
           if (page == null || book == null) {
             return Center(
               child: Text(

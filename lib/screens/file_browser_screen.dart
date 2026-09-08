@@ -5,14 +5,17 @@ import 'package:open_filex/open_filex.dart';
 import '../constants.dart';
 import '../controllers/file_browser_controller.dart';
 import '../models/file_entry.dart';
+import '../reader/controllers/reader_session_registry.dart';
 import '../reader/models/doc_ref.dart';
 import '../reader/screens/reader_screen.dart';
 import '../reader/services/doc_identity_service.dart';
 import '../services/file_mime_type_service.dart';
 import '../services/open_with_service.dart';
 import '../services/startup_health_service.dart';
+import '../widgets/adaptive_grid.dart';
 import '../widgets/battery_status.dart';
 import '../widgets/clock_text.dart';
+import '../widgets/control_bar_row.dart';
 import '../widgets/file_action_dialogs.dart';
 import '../widgets/file_entry_tile.dart';
 import '../widgets/paginated_list.dart';
@@ -29,12 +32,14 @@ class FileBrowserScreen extends StatefulWidget {
   final FileBrowserController? controller;
   final StartupHealthService? startupHealth;
   final Future<bool> Function()? checkPermission;
+  final ReaderSessionRegistry? registry;
 
   const FileBrowserScreen({
     super.key,
     this.controller,
     this.startupHealth,
     this.checkPermission,
+    this.registry,
   });
 
   @override
@@ -44,15 +49,18 @@ class FileBrowserScreen extends StatefulWidget {
 class _FileBrowserScreenState extends State<FileBrowserScreen> {
   late final FileBrowserController _controller;
   late final StartupHealthService _startupHealth;
+  late final ReaderSessionRegistry _registry;
   bool _healthChecked = false;
   bool _initializing = false;
   String? _openingPath;
+  bool _openingTabs = false;
 
   @override
   void initState() {
     super.initState();
     _controller = widget.controller ?? FileBrowserController();
     _startupHealth = widget.startupHealth ?? StartupHealthService.instance;
+    _registry = widget.registry ?? ReaderSessionRegistry.instance;
     _initialize();
   }
 
@@ -129,9 +137,9 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
     showDialog<void>(
       context: context,
       animationStyle: AnimationStyle.noAnimation,
-      builder: (context) => AlertDialog(
+      builder: (context) => GridDialog(
         title: Text(title),
-        content: SingleChildScrollView(child: Text(errors.join('\n'))),
+        content: Text(errors.join('\n')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -143,7 +151,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
   }
 
   Future<void> _openEntry(FileEntry entry) async {
-    if (_openingPath != null) return;
+    if (_openingPath != null || _openingTabs) return;
     final path = entry.path;
     setState(() => _openingPath = path);
     // Guarantee that the inverted row reaches the e-ink panel before a folder
@@ -164,8 +172,9 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
       if (kReadableExtensions.contains(extension) && format != null) {
         final doc = await DocIdentityService.createDocRef(path);
         if (!mounted) return;
-        await Navigator.of(context)
-            .push(noTransitionRoute(ReaderScreen(doc: doc)));
+        await Navigator.of(
+          context,
+        ).push(noTransitionRoute(ReaderScreen(doc: doc, registry: _registry)));
         return;
       }
       final result = await OpenFilex.open(
@@ -187,6 +196,26 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
   Future<void> _openAppDrawer() async {
     await Navigator.of(context)
         .push(noTransitionRoute(const AppDrawerScreen()));
+  }
+
+  Future<void> _openTabs() async {
+    if (_openingPath != null || _openingTabs) return;
+    _openingTabs = true;
+    try {
+      await _registry.restoreTabs();
+      if (!mounted) return;
+      final doc = _registry.mostRecentlyReadTab;
+      if (doc == null) {
+        _showSnack('No open tabs');
+        return;
+      }
+      await Navigator.of(context)
+          .push(noTransitionRoute(ReaderScreen(doc: doc, registry: _registry)));
+    } catch (_) {
+      _showSnack('Could not restore open tabs. Please try again.');
+    } finally {
+      _openingTabs = false;
+    }
   }
 
   Future<void> _promptNewFolder() async {
@@ -231,7 +260,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       animationStyle: AnimationStyle.noAnimation,
-      builder: (context) => AlertDialog(
+      builder: (context) => GridDialog(
         title: const Text('Set Home Folder'),
         content: Text(
           'Make this your home folder?\n\n${_controller.currentPath}',
@@ -294,7 +323,18 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
     return Container(
       height: barHeight,
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.black, width: 0.5)),
+        border: Border(bottom: BorderSide(color: Colors.black)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Align(
+          alignment: Alignment.centerRight,
+          child: Container(
+            width: FileEntryTile.metadataWidthFor(constraints.maxWidth),
+            decoration: const BoxDecoration(
+              border: Border(left: BorderSide(color: Colors.black)),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -369,24 +409,24 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
     );
   }
 
-  // A single action in the selection-mode app bar.
+  // Action cells use equal widths within a row, with enough room for the
+  // longest label (Open with). Text can scale down without changing the bands.
   Widget _barAction(
     IconData icon,
     String label,
     VoidCallback onPressed, {
-    bool compact = false,
     double barHeight = kToolbarHeight,
   }) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 2 : 6),
-      child: TextButton(
-        style: TextButton.styleFrom(
-          foregroundColor: Colors.black,
-          minimumSize: const Size(0, 0),
-          padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 6),
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        ),
-        onPressed: onPressed,
+    return TextButton(
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.black,
+        minimumSize: Size.zero,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      ),
+      onPressed: onPressed,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -425,154 +465,257 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
     }
   }
 
-  double _textWidth(BuildContext context, String text, TextStyle style) {
-    final painter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-      maxLines: 1,
-    )..layout();
-    return painter.width;
-  }
-
-  bool _selectionBarNeedsTwoRows(BuildContext context, double barHeight) {
-    final theme = Theme.of(context);
-    final titleStyle =
-        theme.appBarTheme.titleTextStyle ??
-        theme.textTheme.titleLarge ??
-        const TextStyle(fontSize: 20);
-    final actionStyle = TextStyle(
-      fontSize: (barHeight * 0.3).clamp(14.0, 18.0).toDouble(),
-    );
-    final selectedLabel = '${_controller.selectedPaths.length} selected';
-    final actionLabels = [
-      if (_singleSelectedFile != null) 'Open with',
+  List<Widget> _selectionActions(double barHeight) => [
+    if (_singleSelectedFile != null)
+      _barAction(
+        Icons.open_in_new,
+        'Open with',
+        _openSelectedWith,
+        barHeight: barHeight,
+      ),
+    _barAction(
+      Icons.copy,
       'Copy',
+      () => _showSnackFrom(_controller.copySelected()),
+      barHeight: barHeight,
+    ),
+    _barAction(
+      Icons.content_cut,
       'Cut',
-      if (_controller.selectedPaths.length == 1) 'Rename',
+      () => _showSnackFrom(_controller.cutSelected()),
+      barHeight: barHeight,
+    ),
+    if (_controller.selectedPaths.length == 1)
+      _barAction(
+        Icons.drive_file_move,
+        'Rename',
+        _renameSelected,
+        barHeight: barHeight,
+      ),
+    _barAction(
+      Icons.delete_outline,
       'Delete',
-    ];
+      _confirmDeleteSelected,
+      barHeight: barHeight,
+    ),
+  ];
 
-    // Each action uses a 22 px icon, 4 px gap, 24 px of horizontal padding,
-    // and its label. The remaining width accounts for the leading close
-    // button, the balancing trailing space, and the AppBar's title spacing.
-    final requiredWidth =
-        16 +
-        _textWidth(context, selectedLabel, titleStyle) +
-        actionLabels.fold<double>(
-          0,
-          (width, label) =>
-              width + 50 + _textWidth(context, label, actionStyle),
-        );
-    final availableWidth =
-        MediaQuery.sizeOf(context).width -
-        (kToolbarHeight * 2) -
-        NavigationToolbar.kMiddleSpacing * 2;
-    return requiredWidth > availableWidth;
-  }
-
-  List<Widget> _selectionActions(double barHeight, {bool compact = false}) {
-    return [
-      if (_singleSelectedFile != null)
-        _barAction(
-          Icons.open_in_new,
-          'Open with',
-          _openSelectedWith,
-          compact: compact,
-          barHeight: barHeight,
-        ),
-      _barAction(
-        Icons.copy,
-        'Copy',
-        () {
-          _showSnackFrom(_controller.copySelected());
-        },
-        compact: compact,
-        barHeight: barHeight,
-      ),
-      _barAction(
-        Icons.content_cut,
-        'Cut',
-        () {
-          _showSnackFrom(_controller.cutSelected());
-        },
-        compact: compact,
-        barHeight: barHeight,
-      ),
-      if (_controller.selectedPaths.length == 1)
-        _barAction(
-          Icons.drive_file_move,
-          'Rename',
-          _renameSelected,
-          compact: compact,
-          barHeight: barHeight,
-        ),
-      _barAction(
-        Icons.delete_outline,
-        'Delete',
-        _confirmDeleteSelected,
-        compact: compact,
-        barHeight: barHeight,
-      ),
-    ];
-  }
+  int _selectionColumns(double width, int actionCount) =>
+      (width / 120).floor().clamp(1, actionCount);
 
   PreferredSizeWidget _buildSelectionBar(
-    BuildContext context,
-    double barHeight, {
-    required bool twoRows,
-  }) {
-    final actions = _selectionActions(barHeight, compact: twoRows);
-    final topActionCount = actions.length >= 5 ? 2 : 1;
-    final selectedCount = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Text(
-        '${_controller.selectedPaths.length} selected',
-        style: TextStyle(
-          fontSize: (barHeight * 0.38).clamp(17.0, 22.0).toDouble(),
-          height: 1,
+    double barHeight,
+    List<Widget> actions,
+    int columns,
+  ) {
+    final actionRows = (actions.length / columns).ceil();
+    return AppBar(
+      toolbarHeight: barHeight * (actionRows + 1),
+      automaticallyImplyLeading: false,
+      titleSpacing: 0,
+      title: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ControlBarRow(
+            height: barHeight,
+            children: [
+              SizedBox(
+                width: 48,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: _controller.exitSelection,
+                  tooltip: 'Cancel selection',
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    '${_controller.selectedPaths.length} selected',
+                    style: TextStyle(
+                      fontSize: (barHeight * 0.38).clamp(17.0, 22.0),
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          for (var row = 0; row < actionRows; row++)
+            DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.black)),
+              ),
+              child: ControlBarRow(
+                height: barHeight,
+                children: [
+                  for (var column = 0; column < columns; column++)
+                    Expanded(
+                      child: row * columns + column < actions.length
+                          ? actions[row * columns + column]
+                          : const SizedBox(),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
+      shape: const Border(bottom: BorderSide(color: Colors.black)),
+    );
+  }
+
+  PreferredSizeWidget _buildBrowserBar(double barHeight) {
+    Widget statusCell(Key key, double width, Widget child) => SizedBox(
+      key: key,
+      width: width,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: FittedBox(fit: BoxFit.scaleDown, child: child),
         ),
       ),
     );
-
     return AppBar(
-      toolbarHeight: twoRows ? barHeight * 2 : barHeight,
-      leading: InkResponse(
-        onTap: _controller.exitSelection,
-        radius: 24,
-        child: const Padding(
-          padding: EdgeInsets.all(12),
-          child: Icon(Icons.close),
-        ),
-      ),
-      titleSpacing: twoRows ? 0 : NavigationToolbar.kMiddleSpacing,
-      title: twoRows
-          ? Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  height: barHeight,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [selectedCount, ...actions.take(topActionCount)],
+      toolbarHeight: barHeight,
+      automaticallyImplyLeading: false,
+      titleSpacing: 0,
+      centerTitle: false,
+      shape: const Border(bottom: BorderSide(color: Colors.black)),
+      title: ControlBarRow(
+        height: barHeight,
+        children: [
+          SizedBox(
+            key: const Key('browser-home-cell'),
+            width: 48,
+            child: Tooltip(
+              message: 'Home (long-press to set as Home)',
+              child: InkWell(
+                onTap: _controller.goHome,
+                onLongPress: _confirmSetHome,
+                child: const Icon(Icons.home, size: kReaderChromeIconSize),
+              ),
+            ),
+          ),
+          statusCell(
+            const Key('browser-clock-cell'),
+            72,
+            const ClockText(
+              style: TextStyle(fontSize: 12, height: 1, color: Colors.black),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _displayName(_controller.currentPath),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: (barHeight * 0.4).clamp(17.0, 24.0),
+                      height: 1,
+                    ),
                   ),
-                ),
-                SizedBox(
-                  height: barHeight,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: actions.skip(topActionCount).toList(),
-                  ),
+                  if (_controller.status.isNotEmpty)
+                    Text(
+                      _controller.status,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: (barHeight * 0.21).clamp(10.0, 13.0),
+                        height: 1,
+                        color: Colors.grey,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          statusCell(
+            const Key('browser-battery-cell'),
+            64,
+            const BatteryStatus(
+              style: TextStyle(fontSize: 12, height: 1),
+              iconSize: kReaderChromeIconSize,
+            ),
+          ),
+          SizedBox(
+            key: const Key('browser-options-cell'),
+            width: 48,
+            child: PopupMenuButton<String>(
+              icon: const Icon(Icons.add, size: kReaderChromeIconSize),
+              tooltip: 'More options',
+              padding: EdgeInsets.zero,
+              popUpAnimationStyle: AnimationStyle.noAnimation,
+              position: PopupMenuPosition.under,
+              menuPadding: EdgeInsets.zero,
+              elevation: 0,
+              constraints: const BoxConstraints.tightFor(width: 216),
+              shape: const RoundedRectangleBorder(
+                side: BorderSide(color: Colors.black),
+              ),
+              onSelected: (value) {
+                switch (value) {
+                  case 'search':
+                    _controller.setSearchOpen(true);
+                  case 'apps':
+                    _openAppDrawer();
+                  case 'tabs':
+                    _openTabs();
+                  case 'newFolder':
+                    _promptNewFolder();
+                  case 'paste':
+                    _showSnackFrom(
+                      _controller.paste(
+                        onErrors: (errors) =>
+                            _showErrorsDialog('Paste errors', errors),
+                      ),
+                    );
+                }
+              },
+              itemBuilder: (context) => [
+                _boxedMenuItem('search', 'Search'),
+                _boxedMenuItem('tabs', 'Tabs'),
+                _boxedMenuItem('apps', 'Apps'),
+                _boxedMenuItem('newFolder', 'New Folder'),
+                _boxedMenuItem(
+                  'paste',
+                  'Paste',
+                  enabled: _controller.ops.hasClipboard,
+                  last: true,
                 ),
               ],
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [selectedCount, ...actions],
             ),
-      centerTitle: !twoRows,
-      actions: twoRows ? null : const [SizedBox(width: kToolbarHeight)],
-      shape: const Border(bottom: BorderSide(color: Colors.black, width: 0.5)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  PopupMenuItem<String> _boxedMenuItem(
+    String value,
+    String label, {
+    bool enabled = true,
+    bool last = false,
+  }) {
+    return PopupMenuItem(
+      value: value,
+      enabled: enabled,
+      padding: EdgeInsets.zero,
+      height: kReaderChromeRowHeight,
+      child: Container(
+        height: kReaderChromeRowHeight,
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        foregroundDecoration: BoxDecoration(
+          border: last
+              ? null
+              : const Border(bottom: BorderSide(color: Colors.black)),
+        ),
+        child: Text(label),
+      ),
     );
   }
 
@@ -625,149 +768,25 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
               ? kPortraitBarCount
               : kLandscapeBarCount;
           final barHeight = mediaQuery.size.height / totalBars;
-          final selectionUsesTwoRows =
-              _controller.selecting &&
-              _selectionBarNeedsTwoRows(context, barHeight);
-          final topBarUnits = selectionUsesTwoRows ? 2 : 1;
+          final selectionActions = _controller.selecting
+              ? _selectionActions(barHeight)
+              : const <Widget>[];
+          final selectionColumns = _selectionColumns(
+            mediaQuery.size.width,
+            selectionActions.isEmpty ? 1 : selectionActions.length,
+          );
+          final topBarUnits = _controller.selecting
+              ? 1 + (selectionActions.length / selectionColumns).ceil()
+              : 1;
           final fileRowCount = totalBars - topBarUnits - 2;
           return Scaffold(
             appBar: _controller.selecting
                 ? _buildSelectionBar(
-                    context,
                     barHeight,
-                    twoRows: selectionUsesTwoRows,
+                    selectionActions,
+                    selectionColumns,
                   )
-                : AppBar(
-                    toolbarHeight: barHeight,
-                    leadingWidth: kToolbarHeight + 82,
-                    leading: Row(
-                      children: [
-                        SizedBox(
-                          width: kToolbarHeight,
-                          child: Tooltip(
-                            message: 'Home (long-press to set as Home)',
-                            child: InkResponse(
-                              onTap: _controller.goHome,
-                              onLongPress: _confirmSetHome,
-                              radius: 24,
-                              child: const Padding(
-                                padding: EdgeInsets.all(12),
-                                child: Icon(Icons.home),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Center(
-                            child: ClockText(
-                              style: TextStyle(
-                                fontSize: (barHeight * 0.25)
-                                    .clamp(11.0, 15.0)
-                                    .toDouble(),
-                                height: 1,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    title: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _displayName(_controller.currentPath),
-                          style: TextStyle(
-                            fontSize: (barHeight * 0.4)
-                                .clamp(17.0, 24.0)
-                                .toDouble(),
-                            height: 1,
-                          ),
-                        ),
-                        if (_controller.status.isNotEmpty)
-                          Text(
-                            _controller.status,
-                            style: TextStyle(
-                              fontSize: (barHeight * 0.21)
-                                  .clamp(10.0, 13.0)
-                                  .toDouble(),
-                              height: 1,
-                              color: Colors.grey,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                      ],
-                    ),
-                    centerTitle: true,
-                    actions: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Center(
-                          child: BatteryStatus(
-                            style: TextStyle(
-                              fontSize: (barHeight * 0.25)
-                                  .clamp(11.0, 15.0)
-                                  .toDouble(),
-                              height: 1,
-                              color: Colors.black,
-                            ),
-                            iconSize: (barHeight * 0.46)
-                                .clamp(21.0, 28.0)
-                                .toDouble(),
-                          ),
-                        ),
-                      ),
-                      PopupMenuButton<String>(
-                        icon: const Icon(Icons.add),
-                        tooltip: 'More options',
-                        popUpAnimationStyle: AnimationStyle.noAnimation,
-                        onSelected: (value) {
-                          switch (value) {
-                            case 'search':
-                              _controller.setSearchOpen(true);
-                              break;
-                            case 'apps':
-                              _openAppDrawer();
-                              break;
-                            case 'newFolder':
-                              _promptNewFolder();
-                              break;
-                            case 'paste':
-                              _showSnackFrom(
-                                _controller.paste(
-                                  onErrors: (errors) =>
-                                      _showErrorsDialog('Paste errors', errors),
-                                ),
-                              );
-                              break;
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'search',
-                            child: Text('Search'),
-                          ),
-                          const PopupMenuItem(
-                            value: 'apps',
-                            child: Text('Apps'),
-                          ),
-                          const PopupMenuItem(
-                            value: 'newFolder',
-                            child: Text('New Folder'),
-                          ),
-                          PopupMenuItem(
-                            value: 'paste',
-                            enabled: _controller.ops.hasClipboard,
-                            child: const Text('Paste'),
-                          ),
-                        ],
-                      ),
-                    ],
-                    shape: const Border(
-                      bottom: BorderSide(color: Colors.black, width: 0.5),
-                    ),
-                  ),
+                : _buildBrowserBar(barHeight),
             body: Stack(
               children: [
                 Column(
@@ -775,14 +794,17 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
                     Container(
                       height: barHeight,
                       decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: Colors.black, width: 0.5),
-                        ),
+                        border: Border(bottom: BorderSide(color: Colors.black)),
                       ),
                       child: _buildTopBar(barHeight),
                     ),
                     Expanded(
                       child: PaginatedList<FileEntry>(
+                        pageButtonsEnabled:
+                            !_controller.searchOpen &&
+                            _openingPath == null &&
+                            !_openingTabs,
+                        boxedNavigation: true,
                         items: _controller.entries,
                         currentPage: _controller.currentPage,
                         onPageChanged: _controller.setPage,
@@ -814,6 +836,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
                     top: 0,
                     left: 0,
                     right: 0,
+                    bottom: 0,
                     child: SearchOverlay(
                       initialPath: _controller.currentPath,
                       onClose: () => _controller.setSearchOpen(false),

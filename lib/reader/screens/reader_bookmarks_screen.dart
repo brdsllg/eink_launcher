@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../constants.dart';
+import '../../widgets/adaptive_grid.dart';
+import '../../widgets/control_bar_row.dart';
 import '../../widgets/paginated_list.dart';
 import '../controllers/reader_session.dart';
 import '../models/bookmark.dart';
@@ -36,7 +38,7 @@ class _ReaderBookmarksScreenState extends State<ReaderBookmarksScreen> {
     final label = await showDialog<String>(
       context: context,
       animationStyle: AnimationStyle.noAnimation,
-      builder: (context) => AlertDialog(
+      builder: (context) => GridDialog(
         title: const Text('Add bookmark'),
         content: TextField(
           controller: controller,
@@ -70,7 +72,7 @@ class _ReaderBookmarksScreenState extends State<ReaderBookmarksScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       animationStyle: AnimationStyle.noAnimation,
-      builder: (context) => AlertDialog(
+      builder: (context) => GridDialog(
         title: const Text('Delete bookmark'),
         content: Text('Delete "${bookmark.label}"?\n\nThis can\'t be undone.'),
         actions: [
@@ -97,12 +99,8 @@ class _ReaderBookmarksScreenState extends State<ReaderBookmarksScreen> {
         final bookmarks = List<Bookmark>.of(widget.session.bookmarks)
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         return Scaffold(
-          appBar: AppBar(
+          appBar: GridAppBar(
             title: const Text('Bookmarks'),
-            centerTitle: true,
-            shape: const Border(
-              bottom: BorderSide(color: Colors.black, width: 1.5),
-            ),
             actions: [
               IconButton(
                 key: const Key('reader-add-bookmark-button'),
@@ -119,35 +117,45 @@ class _ReaderBookmarksScreenState extends State<ReaderBookmarksScreen> {
                   currentPage: _page,
                   onPageChanged: (page) => setState(() => _page = page),
                   rowHeight: kRowHeight,
+                  boxedNavigation: true,
                   itemBuilder: (context, bookmark) => SizedBox(
                     height: kRowHeight,
                     child: InkWell(
                       key: ValueKey('bookmark-${bookmark.id}'),
                       onTap: () => Navigator.of(context).pop(bookmark),
                       child: Container(
-                        padding: const EdgeInsetsDirectional.only(
-                          start: 16,
-                        ),
                         decoration: const BoxDecoration(
                           border: Border(
                             bottom: BorderSide(color: Colors.black, width: 1),
                           ),
                         ),
-                        child: Row(
+                        child: ControlBarRow(
+                          height: kRowHeight,
                           children: [
                             Expanded(
-                              child: Text(
-                                bookmark.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 16),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Align(
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: Text(
+                                    bookmark.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ),
                               ),
                             ),
-                            IconButton(
-                              key: ValueKey('bookmark-delete-${bookmark.id}'),
-                              icon: const Icon(Icons.delete_outline),
-                              tooltip: 'Delete bookmark',
-                              onPressed: () => _confirmRemove(bookmark),
+                            SizedBox(
+                              width: 56,
+                              child: IconButton(
+                                key: ValueKey('bookmark-delete-${bookmark.id}'),
+                                icon: const Icon(Icons.delete_outline),
+                                tooltip: 'Delete bookmark',
+                                onPressed: () => _confirmRemove(bookmark),
+                              ),
                             ),
                           ],
                         ),

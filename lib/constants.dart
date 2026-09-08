@@ -31,6 +31,15 @@ Route<T> noTransitionRoute<T>(Widget page) {
 // Reader Constants
 // -----------------------------------------------------------------------------
 
+/// Reader rows share a height; each area's controls determine its columns.
+const double kReaderChromeRowHeight = 56;
+
+/// Header icons need a useful touch target, not a fraction of a wide display.
+double readerHeaderActionWidth(double availableWidth) =>
+    availableWidth < 360 ? 48 : 56;
+
+const double kReaderChromeIconSize = 24;
+
 /// File extensions opened by the built-in document reader.
 const Set<String> kReadableExtensions = {'.pdf', '.epub', '.txt', '.md'};
 

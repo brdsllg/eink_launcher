@@ -18,8 +18,14 @@ import 'reader_error_view.dart';
 class PdfPageView extends StatefulWidget {
   final PdfReaderSession session;
   final VoidCallback? onRetry;
+  final VoidCallback? onContentReady;
 
-  const PdfPageView({super.key, required this.session, this.onRetry});
+  const PdfPageView({
+    super.key,
+    required this.session,
+    this.onRetry,
+    this.onContentReady,
+  });
 
   @override
   State<PdfPageView> createState() => _PdfPageViewState();
@@ -32,6 +38,15 @@ class _PdfPageViewState extends State<PdfPageView> {
   Object? _renderSignature;
   PdfRenderRequest? _fitRequest;
   Timer? _fitRetryTimer;
+  bool _contentReported = false;
+
+  void _reportContent() {
+    if (_contentReported) return;
+    _contentReported = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onContentReady?.call();
+    });
+  }
 
   @override
   void dispose() {
@@ -114,6 +129,7 @@ class _PdfPageViewState extends State<PdfPageView> {
               viewport: viewport,
               devicePixelRatio: devicePixelRatio,
               onRetry: widget.onRetry,
+              onContentReady: _reportContent,
             );
           }
 
@@ -135,6 +151,7 @@ class _PdfPageViewState extends State<PdfPageView> {
           }
 
           if (_fitError != null) {
+            _reportContent();
             return ReaderErrorView(
               message: readerErrorMessage(
                 _fitError!,
@@ -145,7 +162,8 @@ class _PdfPageViewState extends State<PdfPageView> {
                   () => setState(() => _renderSignature = null),
             );
           }
-          // A plain page while loading avoids animated e-ink refreshes.
+          if (_fitImage != null) _reportContent();
+          // The reader shell retains its opening preview until this image arrives.
           return Center(
             child: RawImage(
               image: _fitImage,
@@ -185,12 +203,14 @@ class _ContinuousPdfView extends StatefulWidget {
   final Size viewport;
   final double devicePixelRatio;
   final VoidCallback? onRetry;
+  final VoidCallback onContentReady;
 
   const _ContinuousPdfView({
     required this.session,
     required this.viewport,
     required this.devicePixelRatio,
     this.onRetry,
+    required this.onContentReady,
   });
 
   @override
@@ -709,6 +729,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   @override
   Widget build(BuildContext context) {
     if (_renderFailed) {
+      widget.onContentReady();
       return ReaderErrorView(
         message:
             'Could not render this PDF page. Try again or choose another file.',
@@ -739,6 +760,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
       future: _layoutFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
+          widget.onContentReady();
           return ReaderErrorView(
             message: readerErrorMessage(
               snapshot.error!,
@@ -783,6 +805,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
 
   List<Widget> _buildRasterLayers(PdfContinuousLayout layout) {
     if (layout.pageCount == 0 || layout.totalHeight <= 0) {
+      widget.onContentReady();
       return const [SizedBox.expand()];
     }
     final visible = _visibleRect;
@@ -832,6 +855,20 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
       return true;
     });
 
+    final visiblePreviewsReady = _previews.entries.any(
+      (entry) =>
+          entry.value.image != null &&
+          layout.pageTop(entry.key) < visible.bottom &&
+          layout.pageTop(entry.key) + layout.pageHeights[entry.key] >
+              visible.top,
+    );
+    if (visiblePreviewsReady ||
+        specs.any(
+          (spec) =>
+              spec.bounds.overlaps(visible) && _tiles[spec.key]?.image != null,
+        )) {
+      widget.onContentReady();
+    }
     return [
       const SizedBox.expand(),
       for (final entry in _previews.entries)

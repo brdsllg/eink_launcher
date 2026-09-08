@@ -92,6 +92,15 @@ void main() {
       expect(firstDocument.renderCallCount, greaterThan(0));
       first.dispose();
 
+      final renderCount = firstDocument.renderCallCount;
+      final restartedCache = PdfThumbnailCacheService.forTesting(
+        cacheDirectory: Directory('${tempDir.path}/pdf-previews'),
+      );
+      final openingPreview = await restartedCache.loadOpeningPreview(doc.id);
+      expect(openingPreview, isNotNull);
+      openingPreview!.dispose();
+      expect(firstDocument.renderCallCount, renderCount);
+
       final secondDocument = _FakePdfDocument(
         pageCount: 1,
         pageWidth: 200,

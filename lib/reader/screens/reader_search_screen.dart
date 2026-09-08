@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../widgets/adaptive_grid.dart';
+import '../../widgets/control_bar_row.dart';
 import '../../widgets/paginated_list.dart';
 import '../models/content_block.dart';
 import '../models/parsed_book.dart';
@@ -103,58 +105,78 @@ class _ReaderSearchScreenState extends State<ReaderSearchScreen> {
   Widget build(BuildContext context) {
     final results = _results;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Search in book'),
-        centerTitle: true,
-        shape: const Border(
-          bottom: BorderSide(color: Colors.black, width: 1.5),
-        ),
-      ),
+      appBar: const GridAppBar(title: Text('Search in book')),
       body: SafeArea(
         top: false,
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
+            DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Colors.black)),
+              ),
+              child: ControlBarRow(
                 children: [
                   Expanded(
-                    child: TextField(
-                      key: const Key('reader-search-query'),
-                      controller: _query,
-                      textInputAction: TextInputAction.search,
-                      onChanged: _queryChanged,
-                      onSubmitted: (_) => _submit(),
-                      decoration: InputDecoration(
-                        labelText: 'Search text',
-                        border: const OutlineInputBorder(),
-                        suffixIcon: _query.text.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: 'Clear search',
-                                onPressed: () {
-                                  _query.clear();
-                                  _queryChanged('');
-                                },
-                                icon: const Icon(Icons.clear),
-                              ),
+                    child: Center(
+                      child: TextField(
+                        key: const Key('reader-search-query'),
+                        controller: _query,
+                        textInputAction: TextInputAction.search,
+                        onChanged: _queryChanged,
+                        onSubmitted: (_) => _submit(),
+                        decoration: InputDecoration(
+                          labelText: 'Search text',
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          suffixIcon: _query.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'Clear search',
+                                  onPressed: () {
+                                    _query.clear();
+                                    _queryChanged('');
+                                  },
+                                  icon: const Icon(Icons.clear),
+                                ),
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  OutlinedButton(
-                    key: const Key('reader-search-submit'),
-                    onPressed: _query.text.trim().isEmpty || _searching
-                        ? null
-                        : _submit,
-                    child: const Text('Search'),
+                  SizedBox(
+                    width: 88,
+                    child: OutlinedButton(
+                      key: const Key('reader-search-submit'),
+                      onPressed: _query.text.trim().isEmpty || _searching
+                          ? null
+                          : _submit,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: Size.zero,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        side: BorderSide.none,
+                        shape: const RoundedRectangleBorder(),
+                      ),
+                      child: const Text('Search'),
+                    ),
                   ),
                 ],
               ),
             ),
             if (results != null && results.matches.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8, left: 12, right: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 16,
+                ),
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.black)),
+                ),
                 child: Text(
                   results.truncated
                       ? 'First ${results.matches.length} matches — refine your search for more.'
@@ -168,6 +190,7 @@ class _ReaderSearchScreenState extends State<ReaderSearchScreen> {
                       currentPage: _page,
                       onPageChanged: (page) => setState(() => _page = page),
                       rowHeight: 96,
+                      boxedNavigation: true,
                       itemBuilder: (context, match) =>
                           _SearchResultRow(match: match),
                     )

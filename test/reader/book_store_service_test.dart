@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eink_launcher/reader/models/book_state.dart';
 import 'package:eink_launcher/reader/models/doc_ref.dart';
 import 'package:eink_launcher/reader/models/reading_position.dart';
 import 'package:eink_launcher/reader/models/reader_settings.dart';
+import 'package:eink_launcher/reader/models/reader_tabs_state.dart';
 import 'package:eink_launcher/reader/services/book_store_service.dart';
 
 void main() {
@@ -63,6 +65,84 @@ void main() {
       'non-existent',
     );
     expect(resolved.lineHeight, equals(1.8));
+  });
+
+  test(
+    'tab metadata round-trips alongside books in the atomic library',
+    () async {
+      const doc = DocRef(
+        id: 'a',
+        path: '/books/a.pdf',
+        format: DocFormat.pdf,
+        title: 'A book',
+        fileSize: 123,
+      );
+      final store = BookStoreService.instance;
+      store.saveTabsState(
+        ReaderTabsState(documents: [doc], selectedTabId: 'a', recency: ['a']),
+      );
+      await store.flush();
+      expect(jsonDecode(await libraryFile.readAsString())['tabs'], {
+        'documents': [doc.toJson()],
+        'selectedTabId': 'a',
+        'recency': ['a'],
+      });
+      store.dispose();
+      await BookStoreService.instance.init(customFile: libraryFile);
+      final restored = BookStoreService.instance.tabsState;
+      expect(restored.documents.single.toJson(), doc.toJson());
+      expect(restored.selectedTabId, 'a');
+      expect(restored.recency, ['a']);
+      expect(await File('${libraryFile.path}.tmp').exists(), isFalse);
+    },
+  );
+
+  test('old libraries without tabs retain their reading state', () async {
+    final state = BookState(
+      docId: 'legacy',
+      lastPath: '/books/legacy.pdf',
+      format: DocFormat.pdf,
+      lastRead: DateTime.utc(2026),
+      position: const PdfReadingPosition(pageIndex: 12),
+    );
+    await libraryFile.writeAsString(
+      jsonEncode({
+        'version': 1,
+        'books': {'legacy': state.toJson()},
+      }),
+    );
+    final store = BookStoreService.instance;
+    await store.init(customFile: libraryFile);
+    expect(store.tabsState.documents, isEmpty);
+    expect(store.tabsState.selectedTabId, isNull);
+    expect(store.getBookState('legacy')?.position, state.position);
+    expect(store.recoveryWarning, isNull);
+  });
+
+  test('tab metadata normalizes duplicate and missing identities', () {
+    const old = DocRef(
+      id: 'a',
+      path: '/old.pdf',
+      format: DocFormat.pdf,
+      title: 'Old',
+      fileSize: 10,
+    );
+    const moved = DocRef(
+      id: 'a',
+      path: '/moved.pdf',
+      format: DocFormat.pdf,
+      title: 'Moved',
+      fileSize: 10,
+    );
+    final state = ReaderTabsState.fromJson({
+      'documents': [old.toJson(), moved.toJson()],
+      'selectedTabId': 'missing',
+      'recency': ['missing', 'a', 'a'],
+    });
+    expect(state.documents.single.path, moved.path);
+    expect(state.selectedTabId, isNull);
+    expect(state.recency, ['a']);
+    expect(() => state.documents.clear(), throwsUnsupportedError);
   });
 
   for (final invalid in ['{broken json', '[]', '{"books":{"bad":false}}']) {

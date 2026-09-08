@@ -27,10 +27,12 @@ The app has been manually exercised on a Bigme HiBreak running Android 14. See
 ## Session and position model
 
 `ReaderSessionRegistry` keeps document sessions outside individual routes so a
-session can survive navigation and later support tabs. At most four sessions are
-active. Hidden sessions suspend: they retain position and parsed metadata while
-releasing PDFium handles and page images. Memory pressure suspends sessions and
-clears disposable image data.
+session can survive navigation and tab switches. At most four sessions are
+active. App backgrounding, memory pressure, and the active-session cap suspend
+sessions, retaining position and metadata while releasing PDFium handles and
+page images. Back cancels pending reader work but retains the tab, its session,
+and caches. Selecting another tab explicitly suspends the hidden sessions.
+Backgrounding releases sessions even when the file browser is on screen.
 
 Positions are logical rather than display page numbers:
 
@@ -112,7 +114,9 @@ Each session chooses its retained bitmap budget lazily from Android's normal hea
 class: 25%, clamped to 4–128 MiB, with a 32 MiB fallback. Visible widget images,
 one active native render, PDFium data, and graphics allocations sit outside that
 budget. Oversized images bypass the LRU and remain owned by their caller. These
-values are safe starting points and still need HiBreak memory measurements.
+values are starting points. The [HiBreak ADB measurements](DEVICE_VALIDATION_2026-09-02.md)
+recorded about 332 MiB total PSS after sequential PDF use and about 148 MiB after
+memory-pressure recovery; graphics allocations account for much of the difference.
 
 ## Text pipeline
 
@@ -160,38 +164,180 @@ format and mode:
 Reader errors show safe messages with Retry and Back controls. Raw parser errors,
 file paths from internals, and stack traces are not displayed to the user.
 
-## Future tabs
+## Tabs
 
-Tabs are not implemented. When they are added:
+Implemented in version 1.0.3 (build 4). The behavior below is covered by registry,
+persistence, widget, and reader integration tests. Device validation of this tab
+UI remains separate from the completed version 1.0.2 reader validation.
 
-1. Put a compact tab-count button in the reader menu. On a narrow HiBreak screen,
-   it should open a paginated document list instead of permanently consuming a
-   row with visible tabs.
-2. Show document name and current page/percentage, with one-tap switching, Close,
-   Close others, and Reopen last closed.
-3. Persist open-tab order and the selected tab. Restore sessions lazily after
-   restart so hidden PDFs do not all open native handles at startup.
-4. Skip missing or unreadable files with a clear warning and keep the four-active-
-   session limit.
-5. Consider an optional visible tab bar only for wider devices.
+### Session and persistence model
+
+- `ReaderSessionRegistry` owns the ordered list of open tabs (one `DocRef` per
+  tab) and which tab is selected, in addition to the four-active-session cap and
+  LRU suspension it already implements. The same recency tracking that drives
+  suspension also determines "most recently read" for the close-tab fallback
+  below.
+- Open tabs and the selected tab persist in `library.json` as a `tabs` block
+  alongside `books`. `DocRef` already round-trips to JSON, so this is a thin
+  addition, not new plumbing.
+- Restoring tabs at launch is metadata-only: titles come from persisted `DocRef`
+  values and last positions/percent from `BookState`. No session opens and no
+  PDFium handle is created until the user actually switches to that tab.
+- Opening a file that already has an open tab switches to that tab; it never
+  creates a duplicate.
+- The reader's Back control and a tab's Close are different actions. Back
+  leaves the reader UI and keeps the tab, and its session, open in the
+  background. Switching to another tab suspends the hidden session. Close (the
+  X on a tab) evicts the session and removes the tab from persisted order.
+- Closing the tab currently being read lands on the most-recently-read
+  remaining tab, still inside the reader. It falls back to the file browser
+  only when no other tab is open.
+- Switching tabs happens inside the single reader route: obtain the target
+  session from the registry and rebuild, with no navigation push and no
+  transition, matching the zero-animation rule elsewhere in the reader.
+
+### Tab strip
+
+A second horizontal bar sits directly above the existing top bar, inside the
+same menu overlay, and shows or hides with it on a centre tap. Version 1.0.4
+(build 5) trials the user's compact design sketch: all four control rows are 56
+logical pixels high, including borders. The strip fills the screen width and has
+no outer padding or gaps between tabs. Edge arrows and small action cells share
+a 64-pixel width; rotation and Settings align with the right arrow. Titles use
+the same font size and action icons and labels use shared sizing.
+
+Layout is a large left arrow, three equal-width rectangular tabs, and a large
+right arrow. The arrows page
+the window three tabs at a time and clamp at both ends, the same pattern as
+page navigation elsewhere in the app. Opening, selecting, or changing the tab
+list reveals the current tab. Arrow paging can browse the other windows without
+changing the selected document.
+
+Each tab shows a larger single-line book title, ellipsized to fit, with a boxed
+X beside it. There is no thumbnail or format icon. The current tab is shown
+inverted (black background, white
+text), the same convention used for a selected file-browser row. A small
+close control has its own full-height touch target. There is no separate
+tab-list screen; the strip is the entire tab UI. The previous square-tab design
+remains available in the version 1.0.3 APK for comparison.
+
+The trial also adds full-height vertical dividers between Back, Bookmarks,
+document title, and rotation; between the PDF page controls and Settings; and
+between all three PDF mode cells. The selected mode fills its entire cell.
+Version 1.0.5 (build 6) ensures the tab dividers paint above every tab background,
+including unselected tabs and both arrow boundaries. Back, Bookmarks, and
+Settings are icon-only, retaining their tooltips and accessibility labels.
+Tab paging arrows are grey and disabled when their direction has no further tabs.
+
+Version 1.0.6 (build 7) makes Contents icon-only and changes the return-to-browser
+control to a Home icon, including the reader error screen. Home returns to the
+file browser while retaining open tabs. The page-count row includes boxed live
+clock and battery displays. Search, Contents, and percentage controls move into
+an additional equal-cell row when needed to keep the page count legible.
+
+The file browser now uses the same permanent black dividers for Home, clock,
+folder title, battery, and the plus button. These columns align with the first,
+previous, page-count, next, and last cells in its paging bar. Browser band heights
+are preserved. Plus-menu options have equal-height rectangular cells with an
+outer border and permanent separators. The browser and reader share one native
+battery subscription so opening or closing the reader preserves live updates.
+
+Version 1.0.7 (build 8) replaces fixed reader action widths with proportional
+cells. The page-count bar stays in one row: battery 1/9, clock 2/9, page count
+3/9, percentage 1/9, Contents 1/9, and Settings 1/9, in that order. Missing
+Contents or percentage actions remain disabled in their cells, preserving the
+grid. The PDF modes each occupy exactly 1/3, aligned with the page-count cell.
+Dividers paint inside cells so differing divider counts do not offset the grid.
+
+The top arrows each use 1/9; three equal tabs share the remaining 7/9. The title
+row gives Home, Bookmarks, and rotation 1/9 each and the title 6/9. Text search
+moves to an icon in this row and uses 1/9 of the title's space when available.
+The file browser retains its previous layout. The new reader layout passes 17
+focused widget, integration, and portrait/landscape visual checks.
+
+Version 1.0.8 (build 9) retains ninths only for the bottom status row that aligns
+with the three PDF modes. Top reader controls use bounded icon widths of 56px
+(48px below 360px screen width), a flexible title, and a wider 96px rotation cell
+(88px on narrow screens). The tab strip uses the same bounded arrow widths and
+three equal remaining tracks. Permanent dividers and disabled grey arrows remain.
+
+The same visual language now covers all app screens with local layouts:
+content-first browser/Apps headers, bounded paging arrows, equal selection cells,
+single-column menus, aligned settings groups, fixed-action/flexible-text lists,
+search inputs and scope choices, and responsive form/recovery actions. Detailed
+dimensions and alternatives are recorded in [LAYOUT_DESIGN.md](LAYOUT_DESIGN.md).
+The full suite passes 279 tests including native PDFium stress, with one external
+PDF check skipped. Device installation and physical validation remain pending.
+
+Version 1.0.9 (build 10) adds route-aware physical page-button input. Page Up,
+Left, and Volume Up invoke previous; Page Down, Right, and Volume Down invoke
+next. The reader uses the existing session navigation, preserving PDF ordered
+turns, fit-width screenful steps, and viewport steps in Zoom / Scroll. A button
+press hides the reader menu. Paginated lists share the same handler. Repeats and
+synthesized downs do not navigate; focused editors, inactive routes, loading,
+and file-search overlays are excluded. Details and references are in
+[BUTTON_SUPPORT.md](BUTTON_SUPPORT.md). Physical B751C verification is pending.
+
+### Opening and loading
+
+Opening a document — a fresh tap in the file browser, switching to a
+suspended tab, or the new browser entry point below — shows a medium-
+resolution first-page preview immediately, with a small non-animated loading
+indicator on top, and the menu overlay, tab strip included, already visible
+underneath it. Switching to a tab that is already active skips this
+entirely; there is nothing to load.
+
+- PDF: reuses the existing 320-pixel cached coarse preview, stretched to fill
+  the screen, rather than rendering a new higher-resolution preview at open
+  time. This adds no new PDF rendering or higher-resolution preview work.
+- If no cached first-page preview exists, the filename placeholder is used.
+  A bounded disk index locates existing preview PNGs without opening PDFium or
+  rendering additional pages. The preview remains until initial content is ready.
+- EPUB, TXT, and Markdown: a blank page showing the file name, with the same
+  loading indicator. These formats have no page-thumbnail system today and
+  none is being added for this.
+
+### Entry points
+
+- File browser: opening any readable file behaves as above.
+- The file browser's add/action menu gains a "Tabs" item that opens the
+  reader directly on the most-recently-read tab, using the same
+  opening/loading behavior.
+
+### Out of scope
+
+Close-others and reopen-last-closed are not part of this design; the strip
+only supports switch and close-one. A persistent, always-visible tab bar for
+wider or landscape devices was considered and dropped in favor of the
+overlay-only strip above.
 
 ## Remaining work
 
-The implementation phases are complete except for device confirmation and
-measurement. The next useful checks are:
+The pre-tabs implementation phases, ADB device-validation pass, and physical-screen
+confirmation are complete. On 2026-09-02 the user reported no ghosting or white
+flashes in the observed test conditions. See
+[the device report](DEVICE_VALIDATION_2026-09-02.md) for measurements, generated
+test documents, and the limits of screenshot-based evidence.
 
-1. Compare first and second fast-scroll passes in version 1.0.2 using one vector
-   PDF and one scanned PDF.
-2. Confirm zoom-release continuity, pinch repetition, direction reversal, and
-   finger-down momentum stopping on the HiBreak.
-3. Verify fit-mode navigation, text layout, search, bookmarks, position restore,
-   rotation, and mode changes with representative real documents.
-4. Record Android heap class and native/graphics/total PSS at idle, after opening
-   PDFs, during repeated turns/zoom/flings, and after leaving the reader.
-5. Tune preview, cache, or renderer policy only if those measurements identify a
-   repeatable problem.
+1. Exercise the implemented tabs on the HiBreak: open and close mixed formats,
+   switch during loading, restore after process restart, and check the strip in
+   portrait and landscape. The previous device validation covers version 1.0.2.
+2. If a symptom recurs with another book, capture precise preview/sharpen timing
+   or traces as needed to diagnose it.
+3. Tune caches or renderer policy only for a repeatable measured improvement.
 
-Current software verification is **240 passing Flutter tests** with the generated
+Version 1.0.3 software verification was **277 passing Flutter tests** with the generated
 native PDFium check enabled and clean static analysis. Host tests verify state,
 geometry, scheduling, cancellation, caches, and image continuity; they do not
-establish what an e-ink panel will display during extreme motion.
+establish what an e-ink panel will display during extreme motion. Tab coverage
+includes restart restoration without opening documents, deduplication, MRU close
+fallback, pending-open cancellation, background/resume, retained Back behavior,
+cached-preview handoff/disposal, and portrait/landscape strip sizing.
+The compact version 1.0.4 trial passes 17 targeted UI/integration/screenshot
+checks, including equal row heights, aligned action columns, and portrait and
+landscape rendering with real fonts. Static analysis is clean.
+Version 1.0.6 passes 278 Flutter tests with native PDFium stress enabled (one
+external-PDF test skipped), clean static analysis, and four reader/browser visual
+checks in portrait and landscape. Coverage includes shared battery updates and
+subscription lifetime while the browser and reader coexist. Device trial remains
+pending.

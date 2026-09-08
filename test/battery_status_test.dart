@@ -56,6 +56,57 @@ void main() {
   );
 
   testWidgets(
+    'browser and reader share live updates and retain the last level on entry',
+    (tester) async {
+      late StateSetter update;
+      var showReader = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                update = setState;
+                return Column(
+                  children: [
+                    const BatteryStatus(key: Key('browser')),
+                    if (showReader) const BatteryStatus(key: Key('reader')),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      Future<void> emit(int level) async {
+        await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+          channel.name,
+          codec.encodeSuccessEnvelope({'level': level, 'charging': false}),
+          (_) {},
+        );
+        await tester.pump();
+      }
+
+      await emit(75);
+      update(() => showReader = true);
+      await tester.pump();
+      expect(find.text('75%'), findsNWidgets(2));
+      expect(calls, ['listen']);
+      await emit(74);
+      expect(find.text('74%'), findsNWidgets(2));
+      update(() => showReader = false);
+      await tester.pump();
+      expect(calls, ['listen']);
+      await emit(73);
+      expect(find.text('73%'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(calls, ['listen', 'cancel']);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'an unavailable stream leaves a static fallback and can receive later data',
     (tester) async {
       await tester.pumpWidget(

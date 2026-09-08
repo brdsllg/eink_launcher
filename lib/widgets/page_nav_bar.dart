@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
+import 'control_bar_row.dart';
 
 class PageNavBar extends StatelessWidget {
   final int currentPage; // 0-indexed
@@ -10,6 +11,7 @@ class PageNavBar extends StatelessWidget {
   final VoidCallback? onNext;
   final VoidCallback? onLast;
   final double height;
+  final bool boxed;
 
   const PageNavBar({
     super.key,
@@ -20,10 +22,70 @@ class PageNavBar extends StatelessWidget {
     required this.onNext,
     required this.onLast,
     this.height = kNavBarHeight,
+    this.boxed = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (boxed) {
+      Widget arrow(
+        IconData icon,
+        String label,
+        VoidCallback? onPressed, {
+        bool boundary = false,
+      }) => SizedBox(
+        // The frequent one-page actions get larger targets; jumps to the
+        // beginning/end stay compact. Extra width belongs to the count.
+        width: boundary ? 48 : 64,
+        child: IconButton(
+          icon: Icon(icon, size: kReaderChromeIconSize),
+          color: Colors.black,
+          disabledColor: Colors.grey,
+          padding: EdgeInsets.zero,
+          tooltip: label,
+          onPressed: onPressed,
+        ),
+      );
+      return DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Colors.black)),
+        ),
+        child: ControlBarRow(
+          height: height,
+          children: [
+            arrow(
+              Icons.keyboard_double_arrow_left,
+              'First page',
+              onFirst,
+              boundary: true,
+            ),
+            arrow(Icons.chevron_left, 'Previous page', onPrevious),
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Page ${currentPage + 1} of $totalPages',
+                      style: const TextStyle(fontSize: 14, height: 1),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            arrow(Icons.chevron_right, 'Next page', onNext),
+            arrow(
+              Icons.keyboard_double_arrow_right,
+              'Last page',
+              onLast,
+              boundary: true,
+            ),
+          ],
+        ),
+      );
+    }
     return Container(
       height: height,
       decoration: const BoxDecoration(

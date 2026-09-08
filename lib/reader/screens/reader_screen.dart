@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../constants.dart';
+import '../../widgets/adaptive_grid.dart';
+import '../../widgets/page_button_scope.dart';
 import '../controllers/pdf_reader_session.dart';
 import '../controllers/reader_session.dart';
 import '../controllers/reader_session_registry.dart';
@@ -11,14 +14,17 @@ import '../controllers/text_reader_session.dart';
 import '../models/bookmark.dart';
 import '../models/doc_ref.dart';
 import '../models/reader_settings.dart';
+import '../models/reading_position.dart';
 import '../models/toc_entry.dart';
 import '../services/book_store_service.dart';
 import '../services/reader_error_service.dart';
 import '../services/pdf_render_scheduler.dart';
+import '../services/pdf_thumbnail_cache_service.dart';
 import '../services/text_search_service.dart';
 import '../widgets/pdf_page_view.dart';
 import '../widgets/reader_menu_overlay.dart';
 import '../widgets/reader_error_view.dart';
+import '../widgets/reader_tab_strip.dart';
 import '../widgets/tap_zone_layer.dart';
 import '../widgets/text_page_view.dart';
 import 'reader_bookmarks_screen.dart';
@@ -31,9 +37,17 @@ import 'reader_toc_screen.dart';
 class ReaderScreen extends StatefulWidget {
   final DocRef doc;
   final ReaderSessionRegistry registry;
+  final Future<ui.Image?> Function(String docId) openingPreviewLoader;
 
-  ReaderScreen({super.key, required this.doc, ReaderSessionRegistry? registry})
-    : registry = registry ?? ReaderSessionRegistry.instance;
+  ReaderScreen({
+    super.key,
+    required this.doc,
+    ReaderSessionRegistry? registry,
+    Future<ui.Image?> Function(String docId)? openingPreviewLoader,
+  }) : registry = registry ?? ReaderSessionRegistry.instance,
+       openingPreviewLoader =
+           openingPreviewLoader ??
+           PdfThumbnailCacheService.instance.loadOpeningPreview;
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -42,8 +56,14 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen>
     with WidgetsBindingObserver {
   ReaderSession? _session;
+  late DocRef _doc;
+  ui.Image? _openingPreview;
+  int _loadGeneration = 0;
+  int _contentGeneration = 0;
+  bool _waitingForContent = true;
+  bool _backgrounded = false;
   String? _loadError;
-  bool _menuVisible = false;
+  bool _menuVisible = true;
   bool _navigating = false;
   bool _loadingSession = false;
   bool _memoryPaused = false;
@@ -52,26 +72,79 @@ class _ReaderScreenState extends State<ReaderScreen>
   @override
   void initState() {
     super.initState();
+    _doc = widget.doc;
     WidgetsBinding.instance.addObserver(this);
+    widget.registry.addListener(_tabsChanged);
     unawaited(_loadSession());
   }
 
-  Future<void> _loadSession() async {
-    if (_loadingSession) return;
-    setState(() {
-      _loadingSession = true;
-      _loadError = null;
-    });
+  void _tabsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  bool _isCurrentLoad(int generation) =>
+      mounted &&
+      generation == _loadGeneration &&
+      !_backgrounded &&
+      !_memoryPaused;
+
+  void _clearOpeningPreview() {
+    final previous = _openingPreview;
+    _openingPreview = null;
+    if (previous != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+    }
+  }
+
+  Future<void> _readOpeningPreview(DocRef doc, int generation) async {
     try {
-      await BookStoreService.instance.init();
-      if (!mounted) return;
+      final image = await widget.openingPreviewLoader(doc.id);
+      if (!_isCurrentLoad(generation) || !_waitingForContent) {
+        image?.dispose();
+        return;
+      }
+      setState(() => _openingPreview = image);
+    } catch (_) {
+      // A missing or unreadable optional cache must never prevent opening a book.
+    }
+  }
+
+  Future<void> _loadSession({DocRef? doc}) async {
+    final target = doc ?? _doc;
+    final generation = ++_loadGeneration;
+    final retained = widget.registry.sessionFor(target.id);
+    final ready =
+        retained != null &&
+        retained.isReady &&
+        !retained.isSuspended &&
+        retained.doc.path == target.path;
+    setState(() {
+      _doc = target;
+      _session = ready ? retained : null;
+      _loadingSession = !ready;
+      _waitingForContent = !ready;
+      if (!ready) ++_contentGeneration;
+      _menuVisible = true;
+      _navigating = false;
+      _loadError = null;
+      _clearOpeningPreview();
+    });
+    // Register immediately: Back must retain even an opening tab while the
+    // library is still being read. Restoration merges these local changes.
+    widget.registry.selectTab(target);
+    if (!ready && target.format == DocFormat.pdf) {
+      unawaited(_readOpeningPreview(target, generation));
+    }
+    try {
+      await widget.registry.restoreTabs();
+      if (!mounted || !_isCurrentLoad(generation)) return;
       final warning = BookStoreService.instance.recoveryWarning;
       if (warning != null && !_shownStateWarning) {
         _shownStateWarning = true;
         await showDialog<void>(
           context: context,
           animationStyle: AnimationStyle.noAnimation,
-          builder: (context) => AlertDialog(
+          builder: (context) => GridDialog(
             title: const Text('Reading state'),
             content: Text(warning),
             actions: [
@@ -82,21 +155,60 @@ class _ReaderScreenState extends State<ReaderScreen>
             ],
           ),
         );
-        if (!mounted) return;
+        if (!_isCurrentLoad(generation)) return;
       }
-      final session = await widget.registry.obtain(widget.doc);
-      if (!mounted) return;
+      final session = await widget.registry.obtain(target);
+      if (!_isCurrentLoad(generation)) return;
       setState(() {
         _session = session;
         _loadError = null;
+        if (session.error != null || !session.isReady) {
+          _waitingForContent = false;
+          _clearOpeningPreview();
+        }
       });
       await _applyOrientation(session.settings.landscape);
     } catch (error) {
-      if (!mounted) return;
-      setState(() => _loadError = readerErrorMessage(error, widget.doc.format));
+      if (!_isCurrentLoad(generation)) return;
+      setState(() {
+        _loadError = readerErrorMessage(error, target.format);
+        _waitingForContent = false;
+        _clearOpeningPreview();
+      });
     } finally {
-      if (mounted) setState(() => _loadingSession = false);
+      if (_isCurrentLoad(generation)) setState(() => _loadingSession = false);
     }
+  }
+
+  void _switchTab(DocRef doc) {
+    if (doc.id == _doc.id && !_memoryPaused) return;
+    _memoryPaused = false;
+    unawaited(_loadSession(doc: doc));
+  }
+
+  void _closeTab(DocRef doc) {
+    final closingCurrent = doc.id == _doc.id;
+    if (closingCurrent) {
+      ++_loadGeneration;
+      _session = null;
+      _clearOpeningPreview();
+    }
+    final next = widget.registry.closeTab(doc.id);
+    if (!closingCurrent) return;
+    if (next == null) {
+      Navigator.of(context).pop();
+    } else {
+      _memoryPaused = false;
+      unawaited(_loadSession(doc: next));
+    }
+  }
+
+  void _contentReady(int generation) {
+    if (!_isCurrentLoad(generation) || !_waitingForContent) return;
+    setState(() {
+      _waitingForContent = false;
+      _clearOpeningPreview();
+    });
   }
 
   Future<void> _resumeSession() async {
@@ -106,7 +218,6 @@ class _ReaderScreenState extends State<ReaderScreen>
   Future<void> _retry() async {
     if (_loadingSession) return;
     _memoryPaused = false;
-    _menuVisible = false;
     _session?.suspend();
     await _loadSession();
   }
@@ -115,8 +226,12 @@ class _ReaderScreenState extends State<ReaderScreen>
   void didHaveMemoryPressure() {
     if (!mounted) return;
     setState(() {
+      ++_loadGeneration;
       _memoryPaused = true;
+      _loadingSession = false;
+      _waitingForContent = false;
       _menuVisible = false;
+      _clearOpeningPreview();
     });
     // The app-lifetime ReaderMemoryPressureObserver releases all sessions,
     // including hidden ones. This observer only manages the visible fallback.
@@ -129,12 +244,15 @@ class _ReaderScreenState extends State<ReaderScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
+        _backgrounded = false;
         unawaited(_resumeSession());
       case AppLifecycleState.inactive:
         unawaited(BookStoreService.instance.flush());
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
+        _backgrounded = true;
+        ++_loadGeneration;
         widget.registry.suspendAll();
         unawaited(BookStoreService.instance.flush());
     }
@@ -143,7 +261,10 @@ class _ReaderScreenState extends State<ReaderScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    final session = _session;
+    widget.registry.removeListener(_tabsChanged);
+    ++_loadGeneration;
+    _clearOpeningPreview();
+    final session = _session ?? widget.registry.sessionFor(_doc.id);
     if (session is PdfReaderSession) session.cancelPendingWork();
     unawaited(BookStoreService.instance.flush());
     unawaited(SystemChrome.setPreferredOrientations(const []));
@@ -159,19 +280,18 @@ class _ReaderScreenState extends State<ReaderScreen>
     final lockNavigation = !orderedPdfTurn;
     if (lockNavigation && _navigating) return;
     if (lockNavigation) _navigating = true;
+    final generation = _loadGeneration;
     try {
       await operation();
-      if (mounted) setState(() => _loadError = null);
+      if (_isCurrentLoad(generation)) setState(() => _loadError = null);
     } on PdfRenderCancelledException {
       // Normal supersession from navigation, settings, or suspension.
     } catch (error) {
-      if (mounted) {
-        setState(
-          () => _loadError = readerErrorMessage(error, widget.doc.format),
-        );
+      if (_isCurrentLoad(generation)) {
+        setState(() => _loadError = readerErrorMessage(error, _doc.format));
       }
     } finally {
-      if (lockNavigation) _navigating = false;
+      if (lockNavigation && generation == _loadGeneration) _navigating = false;
     }
   }
 
@@ -186,9 +306,12 @@ class _ReaderScreenState extends State<ReaderScreen>
   Future<void> _applySettings(ReaderSettings settings) async {
     final session = _session;
     if (session == null) return;
+    final generation = _loadGeneration;
     await _navigate(() async {
       await session.applySettings(settings);
-      await _applyOrientation(settings.landscape);
+      if (_isCurrentLoad(generation)) {
+        await _applyOrientation(settings.landscape);
+      }
     });
   }
 
@@ -215,7 +338,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     final page = await showDialog<int>(
       context: context,
       animationStyle: AnimationStyle.noAnimation,
-      builder: (context) => AlertDialog(
+      builder: (context) => GridDialog(
         title: Text('Go to page (1–${session.pageCount})'),
         content: TextField(
           controller: controller,
@@ -260,7 +383,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     final percent = await showDialog<int>(
       context: context,
       animationStyle: AnimationStyle.noAnimation,
-      builder: (context) => AlertDialog(
+      builder: (context) => GridDialog(
         title: const Text('Go to percent'),
         content: TextField(
           controller: controller,
@@ -334,93 +457,183 @@ class _ReaderScreenState extends State<ReaderScreen>
   @override
   Widget build(BuildContext context) {
     final session = _session;
-    if (_memoryPaused) {
-      return Scaffold(
-        body: ReaderErrorView(
-          message: 'Reading was paused to free memory. Your position has been saved.',
-          onRetry: _retry,
-          retryLabel: 'Continue reading',
-        ),
-      );
-    }
-    if (_loadingSession) {
-      return Scaffold(
-        body: ReaderErrorView(message: 'Opening ${widget.doc.title}…'),
-      );
-    }
-    if (session == null) {
-      return Scaffold(
-        body: ReaderErrorView(
-          message: _loadError ?? 'Could not open this document.',
-          onRetry: _retry,
-        ),
-      );
-    }
-
+    if (session == null) return _buildShell(null);
     return ListenableBuilder(
       listenable: session,
-      builder: (context, _) {
-        final error = session.error ?? _loadError;
-        return Scaffold(
-          body: error != null
-              ? ReaderErrorView(message: error, onRetry: _retry)
-              : _buildReader(session),
-        );
-      },
+      builder: (context, _) => _buildShell(session),
+    );
+  }
+
+  Widget _tabStrip() => ReaderTabStrip(
+    tabs: widget.registry.tabs,
+    selectedTabId: _doc.id,
+    onSelect: _switchTab,
+    onClose: _closeTab,
+  );
+
+  void _turnFromButton(ReaderSession session, {required bool forward}) {
+    if (_menuVisible) setState(() => _menuVisible = false);
+    unawaited(
+      _navigate(
+        forward ? session.nextPage : session.prevPage,
+        orderedPdfTurn: session is PdfReaderSession,
+      ),
+    );
+  }
+
+  Widget _buildShell(ReaderSession? session) {
+    final error = _memoryPaused
+        ? 'Reading was paused to free memory. Your position has been saved.'
+        : session?.error ??
+              _loadError ??
+              (!_loadingSession && session?.isReady != true
+                  ? 'Reader is paused'
+                  : null);
+    if (error != null) {
+      return Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              _tabStrip(),
+              Expanded(
+                child: ReaderErrorView(
+                  message: error,
+                  onRetry: _retry,
+                  retryLabel: _memoryPaused ? 'Continue reading' : 'Retry',
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final loading = _loadingSession || _waitingForContent;
+    final state = BookStoreService.instance.getBookState(_doc.id);
+    final settings =
+        session?.settings ??
+        BookStoreService.instance.getSettingsForDoc(_doc.id);
+    final savedPosition = state?.position;
+    final isPdf = _doc.format == DocFormat.pdf;
+    return PageButtonScope(
+      enabled: !loading && !_backgrounded && session?.isReady == true,
+      onPrevious: session == null
+          ? null
+          : () => _turnFromButton(session, forward: false),
+      onNext: session == null
+          ? null
+          : () => _turnFromButton(session, forward: true),
+      child: Scaffold(
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (session?.isReady == true) _buildReader(session!),
+            if (loading)
+              ColoredBox(
+                key: const Key('reader-opening-preview'),
+                color: Colors.white,
+                child: _openingPreview != null
+                    ? RawImage(
+                        image: _openingPreview,
+                        fit: BoxFit.fill,
+                        filterQuality: FilterQuality.none,
+                      )
+                    : Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(_doc.title, textAlign: TextAlign.center),
+                        ),
+                      ),
+              ),
+            if (_menuVisible || loading)
+              ReaderMenuOverlay(
+                title: _doc.title,
+                currentPage:
+                    session?.currentPage ??
+                    (savedPosition is PdfReadingPosition
+                        ? savedPosition.pageIndex
+                        : 0),
+                pageCount: session?.pageCount ?? 0,
+                settings: settings,
+                tabStrip: _tabStrip(),
+                controlsEnabled: !loading,
+                onCloseReader: () => Navigator.of(context).pop(),
+                onDismiss: () {
+                  if (!loading) setState(() => _menuVisible = false);
+                },
+                onOpenBookmarks: _openBookmarks,
+                onJumpToPage: _showPageJump,
+                onSelectFitMode: (fitMode) =>
+                    _applySettings(settings.copyWith(fitMode: fitMode)),
+                onToggleOrientation: () => _applySettings(
+                  settings.copyWith(landscape: !settings.landscape),
+                ),
+                onOpenSettings: _openSettings,
+                showPdfControls: isPdf,
+                onOpenToc: session == null || session.toc.isEmpty
+                    ? null
+                    : _openToc,
+                onOpenSearch: isPdf ? null : _openSearch,
+                onJumpToPercent: _showPercentJump,
+                percent: session?.percent ?? state?.percent,
+              ),
+            if (loading)
+              const IgnorePointer(
+                child: Align(
+                  alignment: Alignment(0, 0.35),
+                  child: DecoratedBox(
+                    key: Key('reader-loading-indicator'),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.fromBorderSide(
+                        BorderSide(color: Colors.black),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.hourglass_empty, size: 18),
+                          SizedBox(width: 8),
+                          Text('Loading…'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildReader(ReaderSession session) {
-    if (!session.isReady) {
-      return ReaderErrorView(
-        message: 'Reader is paused',
-        onRetry: _retry,
-        retryLabel: 'Continue reading',
-      );
-    }
-    if (session is! PdfReaderSession && session is! TextReaderSession) {
-      return const ReaderErrorView(
-        message: 'This document format is not implemented yet.',
-      );
-    }
-
     final isPdf = session is PdfReaderSession;
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        TapZoneLayer(
-          zoomMode: isPdf && session.settings.fitMode == PdfFitMode.zoom,
-          onPrevious: () => _navigate(session.prevPage, orderedPdfTurn: isPdf),
-          onMenu: () => setState(() => _menuVisible = !_menuVisible),
-          onNext: () => _navigate(session.nextPage, orderedPdfTurn: isPdf),
-          child: isPdf
-              ? PdfPageView(session: session, onRetry: _retry)
-              : TextPageView(session: session as TextReaderSession),
-        ),
-        if (_menuVisible)
-          ReaderMenuOverlay(
-            title: session.doc.title,
-            currentPage: session.currentPage,
-            pageCount: session.pageCount,
-            settings: session.settings,
-            onCloseReader: () => Navigator.of(context).pop(),
-            onDismiss: () => setState(() => _menuVisible = false),
-            onOpenBookmarks: _openBookmarks,
-            onJumpToPage: _showPageJump,
-            onSelectFitMode: (fitMode) =>
-                _applySettings(session.settings.copyWith(fitMode: fitMode)),
-            onToggleOrientation: () => _applySettings(
-              session.settings.copyWith(landscape: !session.settings.landscape),
-            ),
-            onOpenSettings: _openSettings,
-            showPdfControls: isPdf,
-            onOpenToc: session.toc.isEmpty ? null : _openToc,
-            onOpenSearch: isPdf ? null : _openSearch,
-            onJumpToPercent: _showPercentJump,
-            percent: session.percent,
-          ),
-      ],
+    final generation = _loadGeneration;
+    return TapZoneLayer(
+      // A cached resume can finish before the next frame. Give its presenter
+      // a new readiness callback even if the same session State would survive.
+      key: ValueKey((session, _contentGeneration)),
+      zoomMode: isPdf && session.settings.fitMode == PdfFitMode.zoom,
+      onPrevious: () => _navigate(session.prevPage, orderedPdfTurn: isPdf),
+      onMenu: () => setState(() => _menuVisible = !_menuVisible),
+      onNext: () => _navigate(session.nextPage, orderedPdfTurn: isPdf),
+      child: isPdf
+          ? PdfPageView(
+              session: session,
+              onRetry: _retry,
+              onContentReady: () => _contentReady(generation),
+            )
+          : session is TextReaderSession
+          ? TextPageView(
+              session: session,
+              onContentReady: () => _contentReady(generation),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }

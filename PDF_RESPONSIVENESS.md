@@ -61,6 +61,15 @@ recovery remain necessary.
 
 ## Verification
 
+The [2026-09-02 HiBreak ADB pass](DEVICE_VALIDATION_2026-09-02.md) exercised
+vector/scanned PDFs, ordered taps, repeated pinches, two scroll passes, reversal,
+finger-down stopping, rotation, restart restore, and memory-pressure recovery.
+Sampled frames retained content under Impeller and the legacy renderer. The user
+subsequently confirmed no ghosting or white flashes on the physical screen on
+2026-09-02, closing PDF-002 and PDF-003 for the observed test conditions. This
+confirmation is separate from the screenshots and is not a guarantee for every
+document or scroll speed.
+
 The complete suite passes **240 Flutter tests** with `PDF_NATIVE_STRESS=1`. The
 generated-document native PDFium test ran; the older test requiring an external
 PDF was skipped. Static analysis reports no issues.
@@ -92,6 +101,9 @@ signature were verified.
 SHA-256: `8231F46FF8A086EF84C50AA416EADE9589A64E0599F7EB45CD7F2EA6D0317CAB`
 
 ## Short device check
+
+The ADB pass and user confirmation above complete this check for version 1.0.2.
+Keep the following steps for optional regression testing after future changes.
 
 Use a small text/vector PDF and a scanned PDF with the same renderer and Bigme
 refresh mode.

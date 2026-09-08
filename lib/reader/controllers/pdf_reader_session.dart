@@ -742,7 +742,11 @@ class PdfReaderSession extends ReaderSession {
     final memory = _previewCache.get(descriptor.bitmapKey);
     if (memory != null) return memory.clone();
 
-    final disk = await _thumbnailCache.load(descriptor.diskKey);
+    final disk = await _thumbnailCache.load(
+      descriptor.diskKey,
+      docId: doc.id,
+      pageIndex: pageIndex,
+    );
     if (demand.isCancelled ||
         _disposed ||
         !_isReady ||
@@ -765,7 +769,12 @@ class PdfReaderSession extends ReaderSession {
       preview: true,
       maxDimension: kPdfPreviewMaxDimension,
     );
-    final store = _thumbnailCache.store(descriptor.diskKey, image.clone());
+    final store = _thumbnailCache.store(
+      descriptor.diskKey,
+      image.clone(),
+      docId: doc.id,
+      pageIndex: pageIndex,
+    );
     if (awaitPersistence) {
       await store;
     } else {
@@ -798,7 +807,11 @@ class PdfReaderSession extends ReaderSession {
           );
           request.throwIfCancelled();
           if (_previewCache.containsKey(descriptor.bitmapKey) ||
-              await _thumbnailCache.contains(descriptor.diskKey)) {
+              await _thumbnailCache.contains(
+                descriptor.diskKey,
+                docId: doc.id,
+                pageIndex: pageIndex,
+              )) {
             continue;
           }
           final image = await _renderContinuousPreview(

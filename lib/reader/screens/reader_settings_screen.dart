@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/adaptive_grid.dart';
+import '../../widgets/control_bar_row.dart';
 import '../models/doc_ref.dart';
 import '../models/reader_settings.dart';
 
-/// Discrete PDF controls; no animated switches or continuously repainting
-/// sliders, keeping interaction predictable on an e-ink panel.
-///
-/// Only settings that actually affect the *current* mode are shown. The fit
-/// mode itself is not repeated here: the reader menu overlay already offers
-/// Height / Width / Zoom-Scroll.
+/// Discrete controls with a grid appropriate to each choice group. The active
+/// fit mode itself lives in the reader's Height / Width / Zoom-Scroll bar.
 class ReaderSettingsScreen extends StatefulWidget {
   final ReaderSettings initialSettings;
   final DocFormat format;
@@ -57,178 +55,200 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
   }
 
   List<Widget> _textControls() => [
-    const _SectionLabel('Latin font'),
-    Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final family in const ['Literata', 'EB Garamond', 'Inter'])
+    _SettingsGroup(
+      label: 'Latin font',
+      child: GridActions(
+        minCellWidth: 96,
+        children: [
+          for (final family in const ['Literata', 'EB Garamond', 'Inter'])
+            _ChoiceButton(
+              label: family,
+              selected: _settings.latinFontFamily == family,
+              onPressed: () => setState(
+                () => _settings = _settings.copyWith(latinFontFamily: family),
+              ),
+            ),
+        ],
+      ),
+    ),
+    _SettingsGroup(
+      label: 'Hebrew font',
+      child: GridActions(
+        minCellWidth: 96,
+        children: [
+          for (final family in const [
+            'Frank Ruhl Libre',
+            'Noto Serif Hebrew',
+            'Heebo',
+          ])
+            _ChoiceButton(
+              label: family,
+              selected: _settings.hebrewFontFamily == family,
+              onPressed: () => setState(
+                () => _settings = _settings.copyWith(hebrewFontFamily: family),
+              ),
+            ),
+        ],
+      ),
+    ),
+    _SettingsGroup(
+      label: 'Text size',
+      child: _StepControl(
+        value: '${_settings.fontSize.round()} pt',
+        decreaseKey: const Key('reader-settings-font-smaller'),
+        increaseKey: const Key('reader-settings-font-larger'),
+        onDecrease: _settings.fontSizeStep == 0
+            ? null
+            : () => _changeFontSize(-1),
+        onIncrease: _settings.fontSizeStep == 7
+            ? null
+            : () => _changeFontSize(1),
+      ),
+    ),
+    _SettingsGroup(
+      label: 'Line spacing',
+      child: _StepControl(
+        value: _settings.lineHeight.toStringAsFixed(1),
+        onDecrease: _settings.lineHeight <= 1.2
+            ? null
+            : () => _changeLineHeight(-0.1),
+        onIncrease: _settings.lineHeight >= 2.0
+            ? null
+            : () => _changeLineHeight(0.1),
+      ),
+    ),
+    _SettingsGroup(
+      label: 'Page margins',
+      child: GridActions(
+        minCellWidth: 64,
+        maxColumns: 4,
+        children: [
+          for (var index = 0; index < 4; index++)
+            _ChoiceButton(
+              label: const ['Tight', 'Normal', 'Wide', 'Extra'][index],
+              selected: _settings.marginStep == index,
+              onPressed: () => setState(
+                () => _settings = _settings.copyWith(marginStep: index),
+              ),
+            ),
+        ],
+      ),
+    ),
+    _SettingsGroup(
+      label: 'Paragraph layout',
+      child: GridActions(
+        minCellWidth: 120,
+        maxColumns: 2,
+        children: [
           _ChoiceButton(
-            label: family,
-            selected: _settings.latinFontFamily == family,
+            label: 'Blank line',
+            selected: _settings.paragraphMode == ParagraphMode.blankLine,
             onPressed: () => setState(
-              () => _settings = _settings.copyWith(latinFontFamily: family),
+              () => _settings = _settings.copyWith(
+                paragraphMode: ParagraphMode.blankLine,
+              ),
             ),
           ),
-      ],
-    ),
-    const SizedBox(height: 28),
-    const _SectionLabel('Hebrew font'),
-    Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final family in const [
-          'Frank Ruhl Libre',
-          'Noto Serif Hebrew',
-          'Heebo',
-        ])
           _ChoiceButton(
-            label: family,
-            selected: _settings.hebrewFontFamily == family,
+            label: 'First-line indent',
+            selected: _settings.paragraphMode == ParagraphMode.firstLineIndent,
             onPressed: () => setState(
-              () => _settings = _settings.copyWith(hebrewFontFamily: family),
+              () => _settings = _settings.copyWith(
+                paragraphMode: ParagraphMode.firstLineIndent,
+              ),
             ),
           ),
-      ],
+        ],
+      ),
     ),
-    const SizedBox(height: 28),
-    const _SectionLabel('Text size'),
-    _StepControl(
-      value: '${_settings.fontSize.round()} pt',
-      decreaseKey: const Key('reader-settings-font-smaller'),
-      increaseKey: const Key('reader-settings-font-larger'),
-      onDecrease: _settings.fontSizeStep == 0
-          ? null
-          : () => _changeFontSize(-1),
-      onIncrease: _settings.fontSizeStep == 7 ? null : () => _changeFontSize(1),
-    ),
-    const SizedBox(height: 28),
-    const _SectionLabel('Line spacing'),
-    _StepControl(
-      value: _settings.lineHeight.toStringAsFixed(1),
-      onDecrease: _settings.lineHeight <= 1.2
-          ? null
-          : () => _changeLineHeight(-0.1),
-      onIncrease: _settings.lineHeight >= 2.0
-          ? null
-          : () => _changeLineHeight(0.1),
-    ),
-    const SizedBox(height: 28),
-    const _SectionLabel('Page margins'),
-    Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (var index = 0; index < 4; index++)
+    _SettingsGroup(
+      label: 'Text options',
+      child: GridActions(
+        minCellWidth: 96,
+        children: [
           _ChoiceButton(
-            label: const ['Tight', 'Normal', 'Wide', 'Extra'][index],
-            selected: _settings.marginStep == index,
+            key: const Key('reader-settings-justify'),
+            label: _settings.justify ? 'Justified' : 'Ragged edge',
+            selected: _settings.justify,
             onPressed: () => setState(
-              () => _settings = _settings.copyWith(marginStep: index),
+              () => _settings = _settings.copyWith(justify: !_settings.justify),
             ),
           ),
-      ],
-    ),
-    const SizedBox(height: 28),
-    const _SectionLabel('Paragraph layout'),
-    Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _ChoiceButton(
-          label: 'Blank line',
-          selected: _settings.paragraphMode == ParagraphMode.blankLine,
-          onPressed: () => setState(
-            () => _settings = _settings.copyWith(
-              paragraphMode: ParagraphMode.blankLine,
+          _ChoiceButton(
+            key: const Key('reader-settings-hyphenation'),
+            label: _settings.hyphenate ? 'Hyphenation on' : 'Hyphenation off',
+            selected: _settings.hyphenate,
+            onPressed: () => setState(
+              () => _settings = _settings.copyWith(
+                hyphenate: !_settings.hyphenate,
+              ),
             ),
           ),
-        ),
-        _ChoiceButton(
-          label: 'First-line indent',
-          selected: _settings.paragraphMode == ParagraphMode.firstLineIndent,
-          onPressed: () => setState(
-            () => _settings = _settings.copyWith(
-              paragraphMode: ParagraphMode.firstLineIndent,
+          _ChoiceButton(
+            key: const Key('reader-settings-publisher-css'),
+            label: _settings.honorPublisherCss
+                ? 'Publisher style on'
+                : 'Publisher style off',
+            selected: _settings.honorPublisherCss,
+            onPressed: () => setState(
+              () => _settings = _settings.copyWith(
+                honorPublisherCss: !_settings.honorPublisherCss,
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-    const SizedBox(height: 28),
-    const _SectionLabel('Text options'),
-    Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _ChoiceButton(
-          key: const Key('reader-settings-justify'),
-          label: _settings.justify ? 'Justified' : 'Ragged edge',
-          selected: _settings.justify,
-          onPressed: () => setState(
-            () => _settings = _settings.copyWith(justify: !_settings.justify),
-          ),
-        ),
-        _ChoiceButton(
-          key: const Key('reader-settings-hyphenation'),
-          label: _settings.hyphenate ? 'Hyphenation on' : 'Hyphenation off',
-          selected: _settings.hyphenate,
-          onPressed: () => setState(
-            () =>
-                _settings = _settings.copyWith(hyphenate: !_settings.hyphenate),
-          ),
-        ),
-        _ChoiceButton(
-          key: const Key('reader-settings-publisher-css'),
-          label: _settings.honorPublisherCss
-              ? 'Publisher style on'
-              : 'Publisher style off',
-          selected: _settings.honorPublisherCss,
-          onPressed: () => setState(
-            () => _settings = _settings.copyWith(
-              honorPublisherCss: !_settings.honorPublisherCss,
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     ),
   ];
 
   /// Only the controls the active fit mode actually honours.
-  List<Widget> _pdfControls(BuildContext context) {
+  List<Widget> _pdfControls() {
     switch (_settings.fitMode) {
       case PdfFitMode.fitHeight:
         return [_cropControl()];
-
       case PdfFitMode.fitWidth:
         return [
           _cropControl(),
-          const SizedBox(height: 28),
-          const _SectionLabel('Fit-width overlap'),
-          _overlapControl(context),
-        ];
-
-      case PdfFitMode.zoom:
-        return [
-          const _SectionLabel('Zoom out past the page'),
-          _ChoiceButton(
-            key: const Key('reader-settings-zoom-out'),
-            label: _settings.allowZoomOutBeyondFit ? 'Enabled' : 'Disabled',
-            selected: _settings.allowZoomOutBeyondFit,
-            onPressed: () => setState(
-              () => _settings = _settings.copyWith(
-                allowZoomOutBeyondFit: !_settings.allowZoomOutBeyondFit,
-              ),
+          _SettingsGroup(
+            label: 'Fit-width overlap',
+            child: _StepControl(
+              value: '${(_settings.splitOverlap * 100).round()}%',
+              onDecrease: _settings.splitOverlap <= 0
+                  ? null
+                  : () => _changeOverlap(-0.01),
+              onIncrease: _settings.splitOverlap >= 0.20
+                  ? null
+                  : () => _changeOverlap(0.01),
             ),
           ),
-          const SizedBox(height: 12),
+        ];
+      case PdfFitMode.zoom:
+        return [
+          _SettingsGroup(
+            label: 'Zoom out past the page',
+            child: GridActions(
+              children: [
+                _ChoiceButton(
+                  key: const Key('reader-settings-zoom-out'),
+                  label: _settings.allowZoomOutBeyondFit
+                      ? 'Enabled'
+                      : 'Disabled',
+                  selected: _settings.allowZoomOutBeyondFit,
+                  onPressed: () => setState(
+                    () => _settings = _settings.copyWith(
+                      allowZoomOutBeyondFit: !_settings.allowZoomOutBeyondFit,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const Text(
             'When enabled, pinching in can shrink pages below the screen '
             'width so several can be skimmed at once. When disabled, the '
             'page never gets smaller than the screen width.',
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
           const Text(
             'Zoom / Scroll always scrolls continuously, always allows pinch '
             'zoom, and crops margins uniformly across the whole document, so '
@@ -238,11 +258,10 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
     }
   }
 
-  Widget _cropControl() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _cropControl() => _SettingsGroup(
+    label: 'Automatic margin crop',
+    child: GridActions(
       children: [
-        const _SectionLabel('Automatic margin crop'),
         _ChoiceButton(
           key: const Key('reader-settings-crop'),
           label: _settings.autoCrop ? 'Enabled' : 'Disabled',
@@ -252,47 +271,20 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _overlapControl(BuildContext context) {
-    return Row(
-      children: [
-        OutlinedButton(
-          onPressed: _settings.splitOverlap <= 0
-              ? null
-              : () => _changeOverlap(-0.01),
-          child: const Icon(Icons.remove),
-        ),
-        Expanded(
-          child: Text(
-            '${(_settings.splitOverlap * 100).round()}%',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-        ),
-        OutlinedButton(
-          onPressed: _settings.splitOverlap >= 0.20
-              ? null
-              : () => _changeOverlap(0.01),
-          child: const Icon(Icons.add),
-        ),
-      ],
-    );
-  }
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
     final textDocument = widget.format != DocFormat.pdf;
     return Scaffold(
-      appBar: AppBar(
+      appBar: GridAppBar(
         leading: IconButton(
           tooltip: 'Cancel',
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.close),
         ),
         title: Text(textDocument ? 'Text settings' : 'PDF settings'),
-        centerTitle: true,
         actions: [
           TextButton(
             key: const Key('reader-settings-save'),
@@ -300,19 +292,68 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
             child: const Text('Save'),
           ),
         ],
-        shape: const Border(
-          bottom: BorderSide(color: Colors.black, width: 1.5),
-        ),
       ),
       body: SafeArea(
-        child: ListView(
-          physics: const ClampingScrollPhysics(),
-          padding: const EdgeInsets.all(20),
-          children: textDocument ? _textControls() : _pdfControls(context),
+        top: false,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1040),
+            child: ListView(
+              physics: const ClampingScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              children: textDocument ? _textControls() : _pdfControls(),
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+/// Portrait keeps the complete width for choices. Wider screens line up the
+/// setting labels in a fixed column so each group's controls start together.
+class _SettingsGroup extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _SettingsGroup({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 20),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final text = Text(
+          label,
+          style: Theme.of(context).textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.bold),
+        );
+        if (constraints.maxWidth >= 640) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 176,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 16, 16, 0),
+                  child: text,
+                ),
+              ),
+              Expanded(child: child),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(padding: const EdgeInsets.only(bottom: 8), child: text),
+            child,
+          ],
+        );
+      },
+    ),
+  );
 }
 
 class _StepControl extends StatelessWidget {
@@ -331,48 +372,45 @@ class _StepControl extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
+  Widget build(BuildContext context) => DecoratedBox(
+    position: DecorationPosition.foreground,
+    decoration: BoxDecoration(border: Border.all(color: Colors.black)),
+    child: ControlBarRow(
       children: [
-        OutlinedButton(
-          key: decreaseKey,
-          onPressed: onDecrease,
-          child: const Icon(Icons.remove),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall,
+        SizedBox(
+          width: 56,
+          child: OutlinedButton(
+            key: decreaseKey,
+            onPressed: onDecrease,
+            style: _cellButtonStyle,
+            child: const Icon(Icons.remove),
           ),
         ),
-        OutlinedButton(
-          key: increaseKey,
-          onPressed: onIncrease,
-          child: const Icon(Icons.add),
+        Expanded(
+          child: Center(
+            child: Text(value, style: Theme.of(context).textTheme.titleLarge),
+          ),
+        ),
+        SizedBox(
+          width: 56,
+          child: OutlinedButton(
+            key: increaseKey,
+            onPressed: onIncrease,
+            style: _cellButtonStyle,
+            child: const Icon(Icons.add),
+          ),
         ),
       ],
-    );
-  }
+    ),
+  );
 }
 
-class _SectionLabel extends StatelessWidget {
-  final String text;
-
-  const _SectionLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.titleMedium
-            ?.copyWith(fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
+final _cellButtonStyle = OutlinedButton.styleFrom(
+  minimumSize: Size.zero,
+  padding: const EdgeInsets.symmetric(horizontal: 8),
+  side: BorderSide.none,
+  shape: const RoundedRectangleBorder(),
+);
 
 class _ChoiceButton extends StatelessWidget {
   final String label;
@@ -387,15 +425,20 @@ class _ChoiceButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
+  Widget build(BuildContext context) => Padding(
+    // Keep adjacent selected options visibly separate inside the black grid.
+    padding: const EdgeInsets.all(1),
+    child: OutlinedButton(
       onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        backgroundColor: selected ? Colors.black : Colors.white,
-        foregroundColor: selected ? Colors.white : Colors.black,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      style: _cellButtonStyle.copyWith(
+        backgroundColor: WidgetStatePropertyAll(
+          selected ? Colors.black : Colors.white,
+        ),
+        foregroundColor: WidgetStatePropertyAll(
+          selected ? Colors.white : Colors.black,
+        ),
       ),
-      child: Text(label),
-    );
-  }
+      child: Text(label, textAlign: TextAlign.center, maxLines: 2),
+    ),
+  );
 }

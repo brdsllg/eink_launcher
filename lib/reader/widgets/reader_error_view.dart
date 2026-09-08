@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/adaptive_grid.dart';
+
 /// Static e-ink fallback with an explicit recovery action and an exit.
 class ReaderErrorView extends StatelessWidget {
   final String message;
@@ -16,27 +18,30 @@ class ReaderErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                if (onRetry != null)
-                  OutlinedButton(onPressed: onRetry, child: Text(retryLabel)),
-                OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Back to files'),
-                ),
-              ],
-            ),
-          ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(message, textAlign: TextAlign.center),
+              const SizedBox(height: 24),
+              GridActions(
+                maxColumns: 2,
+                children: [
+                  if (onRetry != null)
+                    TextButton(onPressed: onRetry, child: Text(retryLabel)),
+                  IconButton(
+                    key: const Key('reader-error-home-button'),
+                    tooltip: 'Home',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.home),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

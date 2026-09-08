@@ -4,6 +4,7 @@ import '../constants.dart';
 import '../models/launcher_app.dart';
 import '../services/app_list_service.dart';
 import '../widgets/clock_text.dart';
+import '../widgets/control_bar_row.dart';
 import '../widgets/paginated_list.dart';
 
 class AppDrawerScreen extends StatefulWidget {
@@ -128,7 +129,7 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
     return Container(
       height: barHeight,
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.black, width: 0.5)),
+        border: Border(bottom: BorderSide(color: Colors.black)),
       ),
       child: InkWell(
         onTap: () => _launchApp(app.packageName),
@@ -155,7 +156,7 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
     return Container(
       height: barHeight,
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.black, width: 0.5)),
+        border: Border(bottom: BorderSide(color: Colors.black)),
       ),
     );
   }
@@ -199,6 +200,129 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
     );
   }
 
+  PreferredSizeWidget _buildAppBar(double barHeight) {
+    Widget iconCell(Widget child) => SizedBox(width: 48, child: child);
+    final titleStyle = TextStyle(
+      fontSize: (barHeight * 0.4).clamp(17.0, 24.0),
+      height: 1,
+    );
+    return AppBar(
+      toolbarHeight: barHeight,
+      automaticallyImplyLeading: false,
+      titleSpacing: 0,
+      centerTitle: false,
+      shape: const Border(bottom: BorderSide(color: Colors.black)),
+      title: ControlBarRow(
+        height: barHeight,
+        children: [
+          iconCell(
+            IconButton(
+              padding: EdgeInsets.zero,
+              icon: Icon(_searchOpen ? Icons.close : Icons.arrow_back),
+              tooltip: _searchOpen ? 'Close search' : 'Back',
+              onPressed: _searchOpen
+                  ? _closeSearch
+                  : Navigator.of(context).canPop()
+                  ? () => Navigator.of(context).pop()
+                  : null,
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _searchOpen
+                  ? Center(
+                      child: TextField(
+                        controller: _searchController,
+                        autofocus: true,
+                        onChanged: _onSearchChanged,
+                        style: titleStyle,
+                        decoration: const InputDecoration(
+                          hintText: 'Search apps',
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Apps', style: titleStyle),
+                      ),
+                    ),
+            ),
+          ),
+          if (!_searchOpen) ...[
+            const SizedBox(
+              key: Key('apps-clock-cell'),
+              width: 72,
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: ClockText(
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            iconCell(
+              IconButton(
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.search),
+                tooltip: 'Search apps',
+                onPressed: _openSearch,
+              ),
+            ),
+            iconCell(
+              IconButton(
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh apps',
+                onPressed: _refresh,
+              ),
+            ),
+            iconCell(
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                tooltip: 'More options',
+                padding: EdgeInsets.zero,
+                popUpAnimationStyle: AnimationStyle.noAnimation,
+                position: PopupMenuPosition.under,
+                menuPadding: EdgeInsets.zero,
+                elevation: 0,
+                constraints: const BoxConstraints.tightFor(width: 240),
+                shape: const RoundedRectangleBorder(
+                  side: BorderSide(color: Colors.black),
+                ),
+                onSelected: (value) {
+                  if (value == 'toggleSystem') _toggleSystemApps();
+                },
+                itemBuilder: (context) => [
+                  CheckedPopupMenuItem<String>(
+                    value: 'toggleSystem',
+                    height: kReaderChromeRowHeight,
+                    checked: _includeSystemApps,
+                    child: const Text('Show system apps'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final loading = _apps == null;
@@ -209,84 +333,7 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
     final barHeight = mediaQuery.size.height / totalBars;
     final appRowCount = totalBars - 2;
     return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: barHeight,
-        leading: _searchOpen
-            ? IconButton(
-                icon: const Icon(Icons.close),
-                tooltip: 'Close search',
-                onPressed: _closeSearch,
-              )
-            : null,
-        title: _searchOpen
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                onChanged: _onSearchChanged,
-                style: TextStyle(
-                  fontSize: (barHeight * 0.4).clamp(17.0, 24.0).toDouble(),
-                  height: 1,
-                ),
-                decoration: const InputDecoration(
-                  hintText: 'Search apps',
-                  border: InputBorder.none,
-                ),
-              )
-            : Text(
-                'Apps',
-                style: TextStyle(
-                  fontSize: (barHeight * 0.4).clamp(17.0, 24.0).toDouble(),
-                  height: 1,
-                ),
-              ),
-        centerTitle: !_searchOpen,
-        actions: [
-          if (!_searchOpen)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Center(
-                child: ClockText(
-                  style: TextStyle(
-                    fontSize: (barHeight * 0.25).clamp(11.0, 15.0).toDouble(),
-                    height: 1,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-          if (!_searchOpen)
-            IconButton(
-              icon: const Icon(Icons.search),
-              tooltip: 'Search apps',
-              onPressed: _openSearch,
-            ),
-          if (!_searchOpen) ...[
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh apps',
-              onPressed: _refresh,
-            ),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              tooltip: 'More options',
-              popUpAnimationStyle: AnimationStyle.noAnimation,
-              onSelected: (value) {
-                if (value == 'toggleSystem') _toggleSystemApps();
-              },
-              itemBuilder: (context) => [
-                CheckedPopupMenuItem<String>(
-                  value: 'toggleSystem',
-                  checked: _includeSystemApps,
-                  child: const Text('Show system apps'),
-                ),
-              ],
-            ),
-          ],
-        ],
-        shape: const Border(
-          bottom: BorderSide(color: Colors.black, width: 0.5),
-        ),
-      ),
+      appBar: _buildAppBar(barHeight),
       body: _buildAppGrid(
         barHeight: barHeight,
         appRowCount: appRowCount,

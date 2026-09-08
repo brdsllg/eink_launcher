@@ -16,6 +16,12 @@ class BatteryStatus extends StatefulWidget {
 
 class _BatteryStatusState extends State<BatteryStatus> {
   static const _events = EventChannel('eink_launcher/battery_events');
+  // Browser and reader can be mounted together. Sharing the broadcast stream
+  // keeps one native receiver alive until the final display unsubscribes.
+  static final _sharedEvents = _events.receiveBroadcastStream();
+  static int _listeners = 0;
+  static int? _latestLevel;
+  static bool _latestCharging = false;
 
   StreamSubscription<dynamic>? _subscription;
   int? _level;
@@ -24,10 +30,10 @@ class _BatteryStatusState extends State<BatteryStatus> {
   @override
   void initState() {
     super.initState();
-    _subscription = _events.receiveBroadcastStream().listen(
-      _onBatteryEvent,
-      onError: (_) {},
-    );
+    _level = _latestLevel;
+    _charging = _latestCharging;
+    _listeners++;
+    _subscription = _sharedEvents.listen(_onBatteryEvent, onError: (_) {});
   }
 
   void _onBatteryEvent(dynamic event) {
@@ -38,6 +44,8 @@ class _BatteryStatusState extends State<BatteryStatus> {
     setState(() {
       _level = level.clamp(0, 100).toInt();
       _charging = charging;
+      _latestLevel = _level;
+      _latestCharging = _charging;
     });
   }
 
@@ -55,6 +63,10 @@ class _BatteryStatusState extends State<BatteryStatus> {
   @override
   void dispose() {
     _subscription?.cancel();
+    if (--_listeners == 0) {
+      _latestLevel = null;
+      _latestCharging = false;
+    }
     super.dispose();
   }
 

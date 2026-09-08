@@ -8,6 +8,7 @@ import '../../services/startup_health_service.dart';
 
 import '../models/book_state.dart';
 import '../models/reader_settings.dart';
+import '../models/reader_tabs_state.dart';
 
 class BookStoreService {
   static BookStoreService? _instance;
@@ -21,6 +22,7 @@ class BookStoreService {
   bool _isLoaded = false;
   ReaderSettings _globalSettings = const ReaderSettings();
   final Map<String, BookState> _books = {};
+  ReaderTabsState _tabsState = ReaderTabsState();
   Timer? _debounceTimer;
   Future<void> _pendingFlush = Future<void>.value();
   File? _storageFile;
@@ -33,6 +35,7 @@ class BookStoreService {
 
   ReaderSettings get globalSettings => _globalSettings;
   Map<String, BookState> get books => Map.unmodifiable(_books);
+  ReaderTabsState get tabsState => _tabsState;
 
   Future<void> init({File? customFile}) {
     if (_initialization != null) return _initialization!;
@@ -49,6 +52,7 @@ class BookStoreService {
     _writesBlocked = false;
     _recoveryWarning = null;
     _books.clear();
+    _tabsState = ReaderTabsState();
     _globalSettings = const ReaderSettings();
 
     if (customFile != null) {
@@ -77,8 +81,14 @@ class BookStoreService {
               _books[key] = BookState.fromJson(value as Map<String, dynamic>);
             });
           }
+          if (jsonMap.containsKey('tabs')) {
+            _tabsState = ReaderTabsState.fromJson(
+              jsonMap['tabs'] as Map<String, dynamic>,
+            );
+          }
         } catch (error, stack) {
           _books.clear();
+          _tabsState = ReaderTabsState();
           _globalSettings = const ReaderSettings();
           await _preserveCorruptFile();
           StartupHealthService.instance.recordError(error, stack);
@@ -126,6 +136,11 @@ class BookStoreService {
     _scheduleSave();
   }
 
+  void saveTabsState(ReaderTabsState tabsState) {
+    _tabsState = tabsState;
+    _scheduleSave();
+  }
+
   void _scheduleSave() {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(_debounceDuration, () => flush());
@@ -148,6 +163,7 @@ class BookStoreService {
       'version': 1,
       'globalSettings': _globalSettings.toJson(),
       'books': _books.map((k, v) => MapEntry(k, v.toJson())),
+      'tabs': _tabsState.toJson(),
     };
 
     final content = const JsonEncoder.withIndent('  ').convert(data);

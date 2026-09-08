@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import 'page_nav_bar.dart';
+import 'page_button_scope.dart';
 
 /// A reusable paginated list widget designed for e-ink devices.
 ///
@@ -17,6 +18,8 @@ class PaginatedList<T> extends StatelessWidget {
   final double navBarHeight;
   final int? preferredItemsPerPage;
   final WidgetBuilder? emptyItemBuilder;
+  final bool boxedNavigation;
+  final bool pageButtonsEnabled;
 
   /// Called after every layout with the real number of rows that fit in the
   /// available height. Optional — callers that don't need to know the page
@@ -35,6 +38,8 @@ class PaginatedList<T> extends StatelessWidget {
     this.navBarHeight = kNavBarHeight,
     this.preferredItemsPerPage,
     this.emptyItemBuilder,
+    this.boxedNavigation = true,
+    this.pageButtonsEnabled = true,
   });
 
   @override
@@ -86,32 +91,38 @@ class PaginatedList<T> extends StatelessWidget {
         final end = (start + itemsPerPage).clamp(0, items.length);
         final pageItems = items.sublist(start, end);
 
-        return Column(
-          children: [
-            Expanded(
-              child: Column(
-                children: [
-                  for (final item in pageItems) itemBuilder(context, item),
-                  if (emptyItemBuilder != null)
-                    for (var i = pageItems.length; i < itemsPerPage; i++)
-                      emptyItemBuilder!(context),
-                ],
+        return PageButtonScope(
+          enabled: pageButtonsEnabled,
+          onPrevious: page > 0 ? () => onPageChanged(page - 1) : null,
+          onNext: page < totalPages - 1 ? () => onPageChanged(page + 1) : null,
+          child: Column(
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    for (final item in pageItems) itemBuilder(context, item),
+                    if (emptyItemBuilder != null)
+                      for (var i = pageItems.length; i < itemsPerPage; i++)
+                        emptyItemBuilder!(context),
+                  ],
+                ),
               ),
-            ),
-            PageNavBar(
-              currentPage: page,
-              totalPages: totalPages,
-              onFirst: page > 0 ? () => onPageChanged(0) : null,
-              onPrevious: page > 0 ? () => onPageChanged(page - 1) : null,
-              onNext: page < totalPages - 1
-                  ? () => onPageChanged(page + 1)
-                  : null,
-              onLast: page < totalPages - 1
-                  ? () => onPageChanged(totalPages - 1)
-                  : null,
-              height: navBarHeight,
-            ),
-          ],
+              PageNavBar(
+                boxed: boxedNavigation,
+                currentPage: page,
+                totalPages: totalPages,
+                onFirst: page > 0 ? () => onPageChanged(0) : null,
+                onPrevious: page > 0 ? () => onPageChanged(page - 1) : null,
+                onNext: page < totalPages - 1
+                    ? () => onPageChanged(page + 1)
+                    : null,
+                onLast: page < totalPages - 1
+                    ? () => onPageChanged(totalPages - 1)
+                    : null,
+                height: navBarHeight,
+              ),
+            ],
+          ),
         );
       },
     );

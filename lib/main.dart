@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'reader/controllers/reader_session_registry.dart';
+import 'reader/services/book_store_service.dart';
 import 'screens/file_browser_screen.dart';
 import 'services/launcher_error_service.dart';
 
@@ -40,6 +42,16 @@ class ReaderMemoryPressureObserver with WidgetsBindingObserver {
 
   @override
   void didHaveMemoryPressure() => _registry.handleMemoryPressure();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _registry.suspendAll();
+      unawaited(BookStoreService.instance.flush());
+    }
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -83,7 +95,18 @@ class MyApp extends StatelessWidget {
           ),
         ),
         textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(foregroundColor: Colors.black),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.black,
+            shape: const RoundedRectangleBorder(),
+          ),
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          border: OutlineInputBorder(borderRadius: BorderRadius.zero),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.zero),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.zero,
+            borderSide: BorderSide(color: Colors.black, width: 2),
+          ),
         ),
         popupMenuTheme: const PopupMenuThemeData(
           color: Colors.white,

@@ -7,6 +7,7 @@ import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:eink_launcher/reader/models/reading_position.dart';
 import 'package:eink_launcher/reader/models/toc_entry.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/widgets.dart';
 
 void main() {
   test(
@@ -38,6 +39,16 @@ void main() {
         reason:
             'ReaderSession.handleMemoryPressure defaults to suspend(), '
             'which this session does not override',
+      );
+
+      await registry.obtain(doc);
+      expect(session.isSuspended, isFalse);
+      ReaderMemoryPressureObserver(registry: registry)
+          .didChangeAppLifecycleState(AppLifecycleState.paused);
+      expect(
+        session.isSuspended,
+        isTrue,
+        reason: 'Backgrounding must also release sessions after Back to files',
       );
     },
   );

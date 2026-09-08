@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../constants.dart';
+import '../../widgets/adaptive_grid.dart';
 import '../../widgets/paginated_list.dart';
 import '../models/toc_entry.dart';
 
@@ -30,13 +31,7 @@ class _ReaderTocScreenState extends State<ReaderTocScreen> {
   Widget build(BuildContext context) {
     final entries = _flatEntries;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Table of contents'),
-        centerTitle: true,
-        shape: const Border(
-          bottom: BorderSide(color: Colors.black, width: 1.5),
-        ),
-      ),
+      appBar: const GridAppBar(title: Text('Table of contents')),
       body: entries.isEmpty
           ? const Center(child: Text('No table of contents'))
           : PaginatedList<TocEntry>(
@@ -44,6 +39,7 @@ class _ReaderTocScreenState extends State<ReaderTocScreen> {
               currentPage: _page,
               onPageChanged: (page) => setState(() => _page = page),
               rowHeight: kRowHeight,
+              boxedNavigation: true,
               itemBuilder: (context, entry) => SizedBox(
                 height: kRowHeight,
                 child: InkWell(
@@ -53,7 +49,7 @@ class _ReaderTocScreenState extends State<ReaderTocScreen> {
                       : () => Navigator.of(context).pop(entry),
                   child: Container(
                     padding: EdgeInsetsDirectional.only(
-                      start: 16 + entry.level * 20,
+                      start: 16 + entry.level.clamp(0, 4) * 20,
                       end: 16,
                     ),
                     alignment: AlignmentDirectional.centerStart,
