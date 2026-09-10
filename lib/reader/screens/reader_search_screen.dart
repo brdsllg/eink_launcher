@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../widgets/adaptive_grid.dart';
 import '../../widgets/control_bar_row.dart';
+import '../../widgets/inverting_ink_well.dart';
 import '../../widgets/paginated_list.dart';
 import '../models/content_block.dart';
 import '../models/parsed_book.dart';
@@ -226,7 +227,7 @@ class _SearchResultRow extends StatelessWidget {
     final position = match.position;
     return SizedBox(
       height: 96,
-      child: InkWell(
+      child: InvertingInkWell(
         key: ValueKey(
           'search-${position.spineIndex}-${position.blockIndex}-${position.charOffset}',
         ),

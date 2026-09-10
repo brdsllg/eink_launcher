@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 
@@ -18,6 +21,7 @@ import '../widgets/clock_text.dart';
 import '../widgets/control_bar_row.dart';
 import '../widgets/file_action_dialogs.dart';
 import '../widgets/file_entry_tile.dart';
+import '../widgets/inverting_ink_well.dart';
 import '../widgets/paginated_list.dart';
 import '../widgets/search_overlay.dart';
 import 'app_drawer_screen.dart';
@@ -54,6 +58,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
   bool _initializing = false;
   String? _openingPath;
   bool _openingTabs = false;
+  bool? _browserLandscape;
 
   @override
   void initState() {
@@ -67,7 +72,29 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    unawaited(SystemChrome.setPreferredOrientations(const []));
     super.dispose();
+  }
+
+  Future<void> _toggleBrowserOrientation() async {
+    final currentlyLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+    final landscape = !currentlyLandscape;
+    _browserLandscape = landscape;
+    await _applyBrowserOrientation(landscape);
+  }
+
+  Future<void> _applyBrowserOrientation(bool landscape) {
+    return SystemChrome.setPreferredOrientations(
+      landscape
+          ? const [DeviceOrientation.landscapeLeft]
+          : const [DeviceOrientation.portraitUp],
+    );
+  }
+
+  Future<void> _restoreBrowserOrientation() async {
+    final landscape = _browserLandscape;
+    if (landscape != null) await _applyBrowserOrientation(landscape);
   }
 
   Future<void> _initialize({bool useStorageRoot = false}) async {
@@ -175,6 +202,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
         await Navigator.of(
           context,
         ).push(noTransitionRoute(ReaderScreen(doc: doc, registry: _registry)));
+        if (mounted) await _restoreBrowserOrientation();
         return;
       }
       final result = await OpenFilex.open(
@@ -198,6 +226,15 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
         .push(noTransitionRoute(const AppDrawerScreen()));
   }
 
+  void _openAppDrawerFromPaste() {
+    // Remove the popup route before opening Apps so returning to the browser
+    // cannot reveal the old menu underneath it.
+    Navigator.of(context).pop();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_openAppDrawer());
+    });
+  }
+
   Future<void> _openTabs() async {
     if (_openingPath != null || _openingTabs) return;
     _openingTabs = true;
@@ -211,6 +248,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
       }
       await Navigator.of(context)
           .push(noTransitionRoute(ReaderScreen(doc: doc, registry: _registry)));
+      if (mounted) await _restoreBrowserOrientation();
     } catch (_) {
       _showSnack('Could not restore open tabs. Please try again.');
     } finally {
@@ -303,18 +341,22 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
         isSelected: isSelected,
         isOpening: _openingPath == entry.path,
         height: barHeight,
-        onTap: () {
-          if (_controller.selecting) {
-            _controller.toggleSelect(entry.path);
-          } else {
-            _openEntry(entry);
-          }
-        },
-        onLongPress: () {
-          if (!_controller.selecting) {
-            _controller.enterSelectionFor(entry.path);
-          }
-        },
+        onTap: _openingPath != null || _openingTabs
+            ? null
+            : () {
+                if (_controller.selecting) {
+                  _controller.toggleSelect(entry.path);
+                } else {
+                  _openEntry(entry);
+                }
+              },
+        onLongPress: _openingPath != null || _openingTabs
+            ? null
+            : () {
+                if (!_controller.selecting) {
+                  _controller.enterSelectionFor(entry.path);
+                }
+              },
       ),
     );
   }
@@ -361,7 +403,6 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
         child: TextButton.icon(
           key: const Key('request-permission-button'),
           style: TextButton.styleFrom(
-            foregroundColor: Colors.black,
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.zero,
             ),
@@ -380,7 +421,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
         : _controller.goUp;
     return SizedBox(
       width: double.infinity,
-      child: InkWell(
+      child: InvertingInkWell(
         key: const Key('up-button'),
         onTap: onPressed,
         child: Padding(
@@ -419,7 +460,6 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
   }) {
     return TextButton(
       style: TextButton.styleFrom(
-        foregroundColor: Colors.black,
         minimumSize: Size.zero,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
@@ -566,15 +606,25 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
   }
 
   PreferredSizeWidget _buildBrowserBar(double barHeight) {
-    Widget statusCell(Key key, double width, Widget child) => SizedBox(
+    Widget statusCell(
+      Key key,
+      double width,
+      Widget child, {
+      bool fill = false,
+    }) => SizedBox(
       key: key,
       width: width,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: FittedBox(fit: BoxFit.scaleDown, child: child),
-        ),
-      ),
+      child: fill
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              child: child,
+            )
+          : Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: FittedBox(fit: BoxFit.scaleDown, child: child),
+              ),
+            ),
     );
     return AppBar(
       toolbarHeight: barHeight,
@@ -582,114 +632,130 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
       titleSpacing: 0,
       centerTitle: false,
       shape: const Border(bottom: BorderSide(color: Colors.black)),
-      title: ControlBarRow(
-        height: barHeight,
-        children: [
-          SizedBox(
-            key: const Key('browser-home-cell'),
-            width: 48,
-            child: Tooltip(
-              message: 'Home (long-press to set as Home)',
-              child: InkWell(
-                onTap: _controller.goHome,
-                onLongPress: _confirmSetHome,
-                child: const Icon(Icons.home, size: kReaderChromeIconSize),
-              ),
-            ),
-          ),
-          statusCell(
-            const Key('browser-clock-cell'),
-            72,
-            const ClockText(
-              style: TextStyle(fontSize: 12, height: 1, color: Colors.black),
-            ),
-          ),
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _displayName(_controller.currentPath),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: (barHeight * 0.4).clamp(17.0, 24.0),
-                      height: 1,
-                    ),
+      title: LayoutBuilder(
+        builder: (context, constraints) {
+          // At normal widths each unit is 64px. On very narrow screens all
+          // four side cells shrink together, preserving the requested
+          // 1:2:1:1 relationship while leaving a readable folder-title cell.
+          final unitWidth = ((constraints.maxWidth - 76) / 5).clamp(0.0, 64.0);
+          return ControlBarRow(
+            height: barHeight,
+            children: [
+              SizedBox(
+                key: const Key('browser-home-cell'),
+                width: unitWidth,
+                child: Tooltip(
+                  message: 'Home (long-press to set as Home)',
+                  child: InvertingInkWell(
+                    onTap: _controller.goHome,
+                    onLongPress: _confirmSetHome,
+                    child: const Icon(Icons.home, size: kReaderChromeIconSize),
                   ),
-                  if (_controller.status.isNotEmpty)
-                    Text(
-                      _controller.status,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: (barHeight * 0.21).clamp(10.0, 13.0),
-                        height: 1,
-                        color: Colors.grey,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          statusCell(
-            const Key('browser-battery-cell'),
-            64,
-            const BatteryStatus(
-              style: TextStyle(fontSize: 12, height: 1),
-              iconSize: kReaderChromeIconSize,
-            ),
-          ),
-          SizedBox(
-            key: const Key('browser-options-cell'),
-            width: 48,
-            child: PopupMenuButton<String>(
-              icon: const Icon(Icons.add, size: kReaderChromeIconSize),
-              tooltip: 'More options',
-              padding: EdgeInsets.zero,
-              popUpAnimationStyle: AnimationStyle.noAnimation,
-              position: PopupMenuPosition.under,
-              menuPadding: EdgeInsets.zero,
-              elevation: 0,
-              constraints: const BoxConstraints.tightFor(width: 216),
-              shape: const RoundedRectangleBorder(
-                side: BorderSide(color: Colors.black),
-              ),
-              onSelected: (value) {
-                switch (value) {
-                  case 'search':
-                    _controller.setSearchOpen(true);
-                  case 'apps':
-                    _openAppDrawer();
-                  case 'tabs':
-                    _openTabs();
-                  case 'newFolder':
-                    _promptNewFolder();
-                  case 'paste':
-                    _showSnackFrom(
-                      _controller.paste(
-                        onErrors: (errors) =>
-                            _showErrorsDialog('Paste errors', errors),
-                      ),
-                    );
-                }
-              },
-              itemBuilder: (context) => [
-                _boxedMenuItem('search', 'Search'),
-                _boxedMenuItem('tabs', 'Tabs'),
-                _boxedMenuItem('apps', 'Apps'),
-                _boxedMenuItem('newFolder', 'New Folder'),
-                _boxedMenuItem(
-                  'paste',
-                  'Paste',
-                  enabled: _controller.ops.hasClipboard,
-                  last: true,
                 ),
-              ],
-            ),
-          ),
-        ],
+              ),
+              statusCell(
+                const Key('browser-clock-cell'),
+                unitWidth * 2,
+                const ClockText(
+                  fillAvailableSpace: true,
+                  style: TextStyle(color: Colors.black),
+                ),
+                fill: true,
+              ),
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _displayName(_controller.currentPath),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: (barHeight * 0.4).clamp(17.0, 24.0),
+                          height: 1,
+                        ),
+                      ),
+                      if (_controller.status.isNotEmpty)
+                        Text(
+                          _controller.status,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: (barHeight * 0.21).clamp(10.0, 13.0),
+                            height: 1,
+                            color: Colors.grey,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              statusCell(
+                const Key('browser-battery-cell'),
+                unitWidth,
+                const BatteryStatus(
+                  style: TextStyle(fontSize: 12, height: 1),
+                  iconSize: kReaderChromeIconSize,
+                ),
+              ),
+              SizedBox(
+                key: const Key('browser-options-cell'),
+                width: unitWidth,
+                child: PopupMenuButton<String>(
+                  icon: const Icon(Icons.add, size: kReaderChromeIconSize),
+                  tooltip: 'More options',
+                  padding: EdgeInsets.zero,
+                  popUpAnimationStyle: AnimationStyle.noAnimation,
+                  position: PopupMenuPosition.under,
+                  menuPadding: EdgeInsets.zero,
+                  elevation: 0,
+                  constraints: const BoxConstraints.tightFor(width: 216),
+                  shape: const RoundedRectangleBorder(
+                    side: BorderSide(color: Colors.black),
+                  ),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'search':
+                        _controller.setSearchOpen(true);
+                      case 'tabs':
+                        _openTabs();
+                      case 'newFolder':
+                        _promptNewFolder();
+                      case 'orientation':
+                        _toggleBrowserOrientation();
+                      case 'paste':
+                        _showSnackFrom(
+                          _controller.paste(
+                            onErrors: (errors) =>
+                                _showErrorsDialog('Paste errors', errors),
+                          ),
+                        );
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    _boxedMenuItem('search', 'Search'),
+                    _boxedMenuItem('tabs', 'Tabs'),
+                    _boxedMenuItem('newFolder', 'New Folder'),
+                    _boxedMenuItem(
+                      'orientation',
+                      MediaQuery.orientationOf(context) == Orientation.landscape
+                          ? 'Portrait'
+                          : 'Landscape',
+                    ),
+                    _boxedMenuItem(
+                      'paste',
+                      'Paste',
+                      enabled: _controller.ops.hasClipboard,
+                      onLongPress: _openAppDrawerFromPaste,
+                      last: true,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -699,22 +765,30 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
     String label, {
     bool enabled = true,
     bool last = false,
+    VoidCallback? onLongPress,
   }) {
     return PopupMenuItem(
       value: value,
       enabled: enabled,
       padding: EdgeInsets.zero,
       height: kReaderChromeRowHeight,
-      child: Container(
-        height: kReaderChromeRowHeight,
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        foregroundDecoration: BoxDecoration(
-          border: last
-              ? null
-              : const Border(bottom: BorderSide(color: Colors.black)),
+      child: InvertingPressListener(
+        enabled: enabled || onLongPress != null,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onLongPress: onLongPress,
+          child: Container(
+            height: kReaderChromeRowHeight,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            foregroundDecoration: BoxDecoration(
+              border: last
+                  ? null
+                  : const Border(bottom: BorderSide(color: Colors.black)),
+            ),
+            child: Text(label),
+          ),
         ),
-        child: Text(label),
       ),
     );
   }

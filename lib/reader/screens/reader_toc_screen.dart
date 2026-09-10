@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../constants.dart';
 import '../../widgets/adaptive_grid.dart';
+import '../../widgets/inverting_ink_well.dart';
 import '../../widgets/paginated_list.dart';
 import '../models/toc_entry.dart';
 
@@ -42,7 +43,7 @@ class _ReaderTocScreenState extends State<ReaderTocScreen> {
               boxedNavigation: true,
               itemBuilder: (context, entry) => SizedBox(
                 height: kRowHeight,
-                child: InkWell(
+                child: InvertingInkWell(
                   key: ValueKey('toc-${entry.title}'),
                   onTap: entry.position == null
                       ? null

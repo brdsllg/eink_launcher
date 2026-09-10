@@ -4,6 +4,7 @@ import '../constants.dart';
 import '../models/file_entry.dart';
 import '../services/search_service.dart';
 import 'control_bar_row.dart';
+import 'inverting_ink_well.dart';
 
 class SearchOverlay extends StatefulWidget {
   final String initialPath;
@@ -96,11 +97,19 @@ class _SearchOverlayState extends State<SearchOverlay> {
       child: TextButton(
         key: ValueKey('search-scope-$wholeDevice'),
         onPressed: () => _selectScope(wholeDevice),
-        style: TextButton.styleFrom(
-          backgroundColor: selected ? Colors.black : Colors.white,
-          foregroundColor: selected ? Colors.white : Colors.black,
-          shape: const RoundedRectangleBorder(),
-        ),
+        style: TextButton.styleFrom(shape: const RoundedRectangleBorder())
+            .copyWith(
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) => selected || states.contains(WidgetState.pressed)
+                    ? Colors.black
+                    : Colors.white,
+              ),
+              foregroundColor: WidgetStateProperty.resolveWith(
+                (states) => selected || states.contains(WidgetState.pressed)
+                    ? Colors.white
+                    : Colors.black,
+              ),
+            ),
         child: Text(label, textAlign: TextAlign.center),
       ),
     );
@@ -203,27 +212,29 @@ class _SearchOverlayState extends State<SearchOverlay> {
                         decoration: const BoxDecoration(
                           border: Border(top: BorderSide(color: Colors.black)),
                         ),
-                        child: ListTile(
-                          minTileHeight: kReaderChromeRowHeight,
-                          leading: SizedBox(
-                            width: 24,
-                            child: Icon(
-                              entry.isDirectory
-                                  ? Icons.folder_outlined
-                                  : Icons.insert_drive_file_outlined,
+                        child: InvertingInkWell(
+                          onTap: () => widget.onEntrySelected(entry),
+                          child: ListTile(
+                            minTileHeight: kReaderChromeRowHeight,
+                            leading: SizedBox(
+                              width: 24,
+                              child: Icon(
+                                entry.isDirectory
+                                    ? Icons.folder_outlined
+                                    : Icons.insert_drive_file_outlined,
+                              ),
+                            ),
+                            title: Text(
+                              entry.isDirectory ? '${entry.name}/' : entry.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              entry.path,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          title: Text(
-                            entry.isDirectory ? '${entry.name}/' : entry.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            entry.path,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onTap: () => widget.onEntrySelected(entry),
                         ),
                       );
                     },

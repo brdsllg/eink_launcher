@@ -28,24 +28,17 @@ class PageNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (boxed) {
-      Widget arrow(
-        IconData icon,
-        String label,
-        VoidCallback? onPressed, {
-        bool boundary = false,
-      }) => SizedBox(
-        // The frequent one-page actions get larger targets; jumps to the
-        // beginning/end stay compact. Extra width belongs to the count.
-        width: boundary ? 48 : 64,
-        child: IconButton(
-          icon: Icon(icon, size: kReaderChromeIconSize),
-          color: Colors.black,
-          disabledColor: Colors.grey,
-          padding: EdgeInsets.zero,
-          tooltip: label,
-          onPressed: onPressed,
-        ),
-      );
+      Widget arrow(IconData icon, String label, VoidCallback? onPressed) =>
+          SizedBox(
+            width: 64,
+            child: IconButton(
+              icon: Icon(icon, size: kReaderChromeIconSize),
+              disabledColor: Colors.grey,
+              padding: EdgeInsets.zero,
+              tooltip: label,
+              onPressed: onPressed,
+            ),
+          );
       return DecoratedBox(
         position: DecorationPosition.foreground,
         decoration: const BoxDecoration(
@@ -54,12 +47,7 @@ class PageNavBar extends StatelessWidget {
         child: ControlBarRow(
           height: height,
           children: [
-            arrow(
-              Icons.keyboard_double_arrow_left,
-              'First page',
-              onFirst,
-              boundary: true,
-            ),
+            arrow(Icons.keyboard_double_arrow_left, 'First page', onFirst),
             arrow(Icons.chevron_left, 'Previous page', onPrevious),
             Expanded(
               child: Center(
@@ -76,12 +64,7 @@ class PageNavBar extends StatelessWidget {
               ),
             ),
             arrow(Icons.chevron_right, 'Next page', onNext),
-            arrow(
-              Icons.keyboard_double_arrow_right,
-              'Last page',
-              onLast,
-              boundary: true,
-            ),
+            arrow(Icons.keyboard_double_arrow_right, 'Last page', onLast),
           ],
         ),
       );

@@ -10,8 +10,9 @@ import 'package:flutter/material.dart';
 /// would cause visible ghosting for no benefit (seconds aren't shown anyway).
 class ClockText extends StatefulWidget {
   final TextStyle? style;
+  final bool fillAvailableSpace;
 
-  const ClockText({super.key, this.style});
+  const ClockText({super.key, this.style, this.fillAvailableSpace = false});
 
   @override
   State<ClockText> createState() => _ClockTextState();
@@ -59,9 +60,19 @@ class _ClockTextState extends State<ClockText> {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    final style =
+        widget.style ?? const TextStyle(fontSize: 12, color: Colors.black);
+    final text = Text(
       _format(_now),
-      style: widget.style ?? const TextStyle(fontSize: 12, color: Colors.black),
+      maxLines: 1,
+      softWrap: false,
+      // Start deliberately large when fitting so FittedBox uses the complete
+      // cell instead of preserving the clock's old 12px intrinsic size.
+      style: widget.fillAvailableSpace
+          ? style.copyWith(fontSize: 100, height: 1)
+          : style,
     );
+    if (!widget.fillAvailableSpace) return text;
+    return FittedBox(fit: BoxFit.contain, child: text);
   }
 }

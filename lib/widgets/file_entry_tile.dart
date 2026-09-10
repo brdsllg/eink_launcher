@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants.dart';
 import '../models/file_entry.dart';
+import 'inverting_ink_well.dart';
 
 /// A single row representation of a file or folder in the file browser list.
 ///
@@ -11,8 +12,8 @@ class FileEntryTile extends StatelessWidget {
   final FileEntry entry;
   final bool isSelected;
   final bool isOpening;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final double height;
 
   const FileEntryTile({
@@ -32,15 +33,15 @@ class FileEntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inverted = isSelected || isOpening;
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: inverted ? Colors.black : null,
-        border: const Border(bottom: BorderSide(color: Colors.black)),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
+    return InvertingInkWell(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: inverted ? Colors.black : Colors.white,
+          border: const Border(bottom: BorderSide(color: Colors.black)),
+        ),
         child: LayoutBuilder(
           builder: (context, constraints) => Row(
             crossAxisAlignment: CrossAxisAlignment.center,

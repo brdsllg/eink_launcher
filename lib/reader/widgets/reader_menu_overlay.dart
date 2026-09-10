@@ -81,7 +81,11 @@ class ReaderMenuOverlay extends StatelessWidget {
         ),
         const _StatusCell(
           key: Key('reader-clock-cell'),
-          child: ClockText(style: TextStyle(fontSize: 12, color: Colors.black)),
+          fill: true,
+          child: ClockText(
+            fillAvailableSpace: true,
+            style: TextStyle(color: Colors.black),
+          ),
         ),
         pageButton,
         _MenuButton(
@@ -245,10 +249,17 @@ class ReaderMenuOverlay extends StatelessWidget {
 
 class _StatusCell extends StatelessWidget {
   final Widget child;
-  const _StatusCell({super.key, required this.child});
+  final bool fill;
+  const _StatusCell({super.key, required this.child, this.fill = false});
 
   @override
   Widget build(BuildContext context) {
+    if (fill) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        child: child,
+      );
+    }
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -361,13 +372,25 @@ class _ModeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextButton(
       onPressed: onPressed,
-      style: TextButton.styleFrom(
-        foregroundColor: selected ? Colors.white : Colors.black,
-        backgroundColor: selected ? Colors.black : Colors.white,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
+      style:
+          TextButton.styleFrom(
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ).copyWith(
+            foregroundColor: WidgetStateProperty.resolveWith(
+              (states) => selected || states.contains(WidgetState.pressed)
+                  ? Colors.white
+                  : Colors.black,
+            ),
+            backgroundColor: WidgetStateProperty.resolveWith(
+              (states) => selected || states.contains(WidgetState.pressed)
+                  ? Colors.black
+                  : Colors.white,
+            ),
+          ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

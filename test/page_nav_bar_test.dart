@@ -82,4 +82,19 @@ void main() {
 
     expect(requestedPages, [0, 2]);
   });
+
+  testWidgets('all four boxed navigation buttons have equal widths', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildNavBar(currentPage: 1, totalPages: 3));
+
+    for (final tooltip in const [
+      'First page',
+      'Previous page',
+      'Next page',
+      'Last page',
+    ]) {
+      expect(tester.getSize(find.byTooltip(tooltip)).width, 64);
+    }
+  });
 }

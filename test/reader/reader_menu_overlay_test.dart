@@ -2,6 +2,7 @@ import 'package:eink_launcher/reader/models/doc_ref.dart';
 import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:eink_launcher/reader/widgets/reader_menu_overlay.dart';
 import 'package:eink_launcher/reader/widgets/reader_tab_strip.dart';
+import 'package:eink_launcher/widgets/clock_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -210,6 +211,17 @@ void main() {
       expect(
         tester.getSize(find.byKey(const Key('reader-settings-button'))).width,
         closeTo(800 / 9, 0.01),
+      );
+      final batteryWidth = tester
+          .getSize(find.byKey(const Key('reader-battery-cell')))
+          .width;
+      final clockWidth = tester
+          .getSize(find.byKey(const Key('reader-clock-cell')))
+          .width;
+      expect(clockWidth, closeTo(batteryWidth * 2, 0.01));
+      expect(
+        tester.widget<ClockText>(find.byType(ClockText)).fillAvailableSpace,
+        isTrue,
       );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

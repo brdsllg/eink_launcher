@@ -5,6 +5,7 @@ import '../models/launcher_app.dart';
 import '../services/app_list_service.dart';
 import '../widgets/clock_text.dart';
 import '../widgets/control_bar_row.dart';
+import '../widgets/inverting_ink_well.dart';
 import '../widgets/paginated_list.dart';
 
 class AppDrawerScreen extends StatefulWidget {
@@ -131,7 +132,7 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.black)),
       ),
-      child: InkWell(
+      child: InvertingInkWell(
         onTap: () => _launchApp(app.packageName),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -308,11 +309,28 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
                   if (value == 'toggleSystem') _toggleSystemApps();
                 },
                 itemBuilder: (context) => [
-                  CheckedPopupMenuItem<String>(
+                  PopupMenuItem<String>(
                     value: 'toggleSystem',
                     height: kReaderChromeRowHeight,
-                    checked: _includeSystemApps,
-                    child: const Text('Show system apps'),
+                    padding: EdgeInsets.zero,
+                    child: InvertingPressListener(
+                      child: Container(
+                        width: double.infinity,
+                        height: kReaderChromeRowHeight,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _includeSystemApps
+                                  ? Icons.check_box
+                                  : Icons.check_box_outline_blank,
+                            ),
+                            const SizedBox(width: 12),
+                            const Text('Show system apps'),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),

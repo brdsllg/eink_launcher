@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../constants.dart';
 import '../../widgets/adaptive_grid.dart';
 import '../../widgets/control_bar_row.dart';
+import '../../widgets/inverting_ink_well.dart';
 import '../../widgets/paginated_list.dart';
 import '../controllers/reader_session.dart';
 import '../models/bookmark.dart';
@@ -120,19 +121,19 @@ class _ReaderBookmarksScreenState extends State<ReaderBookmarksScreen> {
                   boxedNavigation: true,
                   itemBuilder: (context, bookmark) => SizedBox(
                     height: kRowHeight,
-                    child: InkWell(
-                      key: ValueKey('bookmark-${bookmark.id}'),
-                      onTap: () => Navigator.of(context).pop(bookmark),
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: Colors.black, width: 1),
-                          ),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(color: Colors.black, width: 1),
                         ),
-                        child: ControlBarRow(
-                          height: kRowHeight,
-                          children: [
-                            Expanded(
+                      ),
+                      child: ControlBarRow(
+                        height: kRowHeight,
+                        children: [
+                          Expanded(
+                            child: InvertingInkWell(
+                              key: ValueKey('bookmark-${bookmark.id}'),
+                              onTap: () => Navigator.of(context).pop(bookmark),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
@@ -148,17 +149,17 @@ class _ReaderBookmarksScreenState extends State<ReaderBookmarksScreen> {
                                 ),
                               ),
                             ),
-                            SizedBox(
-                              width: 56,
-                              child: IconButton(
-                                key: ValueKey('bookmark-delete-${bookmark.id}'),
-                                icon: const Icon(Icons.delete_outline),
-                                tooltip: 'Delete bookmark',
-                                onPressed: () => _confirmRemove(bookmark),
-                              ),
+                          ),
+                          SizedBox(
+                            width: 56,
+                            child: IconButton(
+                              key: ValueKey('bookmark-delete-${bookmark.id}'),
+                              icon: const Icon(Icons.delete_outline),
+                              tooltip: 'Delete bookmark',
+                              onPressed: () => _confirmRemove(bookmark),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

@@ -168,6 +168,7 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
         children: [
           _ChoiceButton(
             key: const Key('reader-settings-justify'),
+            toggle: true,
             label: _settings.justify ? 'Justified' : 'Ragged edge',
             selected: _settings.justify,
             onPressed: () => setState(
@@ -176,6 +177,7 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
           ),
           _ChoiceButton(
             key: const Key('reader-settings-hyphenation'),
+            toggle: true,
             label: _settings.hyphenate ? 'Hyphenation on' : 'Hyphenation off',
             selected: _settings.hyphenate,
             onPressed: () => setState(
@@ -186,6 +188,7 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
           ),
           _ChoiceButton(
             key: const Key('reader-settings-publisher-css'),
+            toggle: true,
             label: _settings.honorPublisherCss
                 ? 'Publisher style on'
                 : 'Publisher style off',
@@ -230,6 +233,7 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
               children: [
                 _ChoiceButton(
                   key: const Key('reader-settings-zoom-out'),
+                  toggle: true,
                   label: _settings.allowZoomOutBeyondFit
                       ? 'Enabled'
                       : 'Disabled',
@@ -264,6 +268,7 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
       children: [
         _ChoiceButton(
           key: const Key('reader-settings-crop'),
+          toggle: true,
           label: _settings.autoCrop ? 'Enabled' : 'Disabled',
           selected: _settings.autoCrop,
           onPressed: () => setState(
@@ -415,14 +420,33 @@ final _cellButtonStyle = OutlinedButton.styleFrom(
 class _ChoiceButton extends StatelessWidget {
   final String label;
   final bool selected;
+  final bool toggle;
   final VoidCallback onPressed;
 
   const _ChoiceButton({
     super.key,
     required this.label,
     required this.selected,
+    this.toggle = false,
     required this.onPressed,
   });
+
+  bool _reversesWhilePressed(Set<WidgetState> states) =>
+      states.contains(WidgetState.pressed) && (!selected || toggle);
+
+  Color _background(Set<WidgetState> states) {
+    if (_reversesWhilePressed(states)) {
+      return selected ? Colors.white : Colors.black;
+    }
+    return selected ? Colors.black : Colors.white;
+  }
+
+  Color _foreground(Set<WidgetState> states) {
+    if (_reversesWhilePressed(states)) {
+      return selected ? Colors.black : Colors.white;
+    }
+    return selected ? Colors.white : Colors.black;
+  }
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -431,12 +455,8 @@ class _ChoiceButton extends StatelessWidget {
     child: OutlinedButton(
       onPressed: onPressed,
       style: _cellButtonStyle.copyWith(
-        backgroundColor: WidgetStatePropertyAll(
-          selected ? Colors.black : Colors.white,
-        ),
-        foregroundColor: WidgetStatePropertyAll(
-          selected ? Colors.white : Colors.black,
-        ),
+        backgroundColor: WidgetStateProperty.resolveWith(_background),
+        foregroundColor: WidgetStateProperty.resolveWith(_foreground),
       ),
       child: Text(label, textAlign: TextAlign.center, maxLines: 2),
     ),

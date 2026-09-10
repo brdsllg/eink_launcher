@@ -9,6 +9,24 @@ import 'reader/services/book_store_service.dart';
 import 'screens/file_browser_screen.dart';
 import 'services/launcher_error_service.dart';
 
+Color? _buttonForeground(Set<WidgetState> states) {
+  if (states.contains(WidgetState.disabled)) return Colors.grey;
+  return states.contains(WidgetState.pressed) ? Colors.white : Colors.black;
+}
+
+Color? _buttonBackground(Set<WidgetState> states) =>
+    states.contains(WidgetState.pressed) ? Colors.black : Colors.transparent;
+
+final _pressedForeground = WidgetStateProperty.resolveWith<Color?>(
+  _buttonForeground,
+);
+final _pressedBackground = WidgetStateProperty.resolveWith<Color?>(
+  _buttonBackground,
+);
+const _squareButtonShape = WidgetStatePropertyAll<OutlinedBorder>(
+  RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+);
+
 void main() {
   // Required before any SystemChrome/plugin calls in main().
   WidgetsFlutterBinding.ensureInitialized();
@@ -85,19 +103,31 @@ class MyApp extends StatelessWidget {
         ),
         iconTheme: const IconThemeData(color: Colors.black),
         dividerColor: Colors.black,
+        iconButtonTheme: IconButtonThemeData(
+          style: ButtonStyle(
+            foregroundColor: _pressedForeground,
+            backgroundColor: _pressedBackground,
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+            shape: _squareButtonShape,
+          ),
+        ),
         outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.black,
-            side: const BorderSide(color: Colors.black, width: 1.5),
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.zero,
+          style: ButtonStyle(
+            foregroundColor: _pressedForeground,
+            backgroundColor: _pressedBackground,
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+            side: const WidgetStatePropertyAll(
+              BorderSide(color: Colors.black, width: 1.5),
             ),
+            shape: _squareButtonShape,
           ),
         ),
         textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.black,
-            shape: const RoundedRectangleBorder(),
+          style: ButtonStyle(
+            foregroundColor: _pressedForeground,
+            backgroundColor: _pressedBackground,
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+            shape: _squareButtonShape,
           ),
         ),
         inputDecorationTheme: const InputDecorationTheme(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../constants.dart';
 import '../../widgets/control_bar_row.dart';
+import '../../widgets/inverting_ink_well.dart';
 import '../models/doc_ref.dart';
 
 /// The reader's paged, title-only tab controls. The owning menu determines
@@ -139,7 +140,6 @@ class _PageArrow extends StatelessWidget {
     return IconButton(
       tooltip: label,
       onPressed: onPressed,
-      color: Colors.black,
       disabledColor: Colors.grey,
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
@@ -177,11 +177,10 @@ class _TabCell extends StatelessWidget {
               selected: selected,
               label: 'Open ${doc.title}',
               excludeSemantics: true,
-              child: InkWell(
+              child: InvertingInkWell(
                 onTap: () => onSelect(doc),
-                splashFactory: NoSplash.splashFactory,
-                highlightColor: Colors.transparent,
-                hoverColor: Colors.transparent,
+                invertOnPress: !selected,
+                color: selected ? Colors.black : Colors.white,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 5),
                   child: Align(
@@ -207,22 +206,33 @@ class _TabCell extends StatelessWidget {
           ),
           SizedBox(
             width: 40,
-            child: IconButton(
-              key: ValueKey('reader-tab-close-${doc.id}'),
-              tooltip: 'Close ${doc.title}',
-              onPressed: () => onClose(doc),
-              color: foreground,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              splashColor: Colors.transparent,
-              highlightColor: Colors.transparent,
-              icon: Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  border: Border.all(color: foreground),
+            child: InvertingPressListener(
+              color: selected ? Colors.black : Colors.white,
+              child: IconButton(
+                key: ValueKey('reader-tab-close-${doc.id}'),
+                tooltip: 'Close ${doc.title}',
+                onPressed: () => onClose(doc),
+                style: ButtonStyle(
+                  foregroundColor: WidgetStatePropertyAll(foreground),
+                  backgroundColor: const WidgetStatePropertyAll(
+                    Colors.transparent,
+                  ),
+                  overlayColor: const WidgetStatePropertyAll(
+                    Colors.transparent,
+                  ),
                 ),
-                child: const Icon(Icons.close, size: 22),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+                icon: Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: foreground),
+                  ),
+                  child: const Icon(Icons.close, size: 22),
+                ),
               ),
             ),
           ),

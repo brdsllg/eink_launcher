@@ -1,19 +1,21 @@
 # Layout decisions for the 1.0.8 trial
 
 The app shares rectangular cells, permanent rules, restrained spacing, and clear
-selected/disabled states. Each area chooses its own columns. Dimensions below
-are Flutter logical pixels; flexible tracks receive the remaining width.
+selected/disabled states. Every enabled button or tappable row reverses black
+and white while pressed; controls that are already selected and perform no new
+action remain black. Each area chooses its own columns. Dimensions below are
+Flutter logical pixels; flexible tracks receive the remaining width.
 
 | Area | Implemented layout | Why this choice |
 | --- | --- | --- |
 | Reader status and PDF modes | Battery, clock, page count, percentage, Contents, Settings use **1:2:3:1:1:1**. Modes use **1:1:1**. | This is the one place where ninths are useful: the page-count cell aligns exactly with the middle third, as requested. |
 | Reader title bar | Home and Bookmarks each **56px**, flexible title, **96px rotation**. Below 360px, icons become 48px and rotation 88px. Text search gets another icon cell. | Rotation has a word and an icon, so it needs more room. Fixed side tracks keep targets usable on a phone and give extra landscape width to the book title. Equal fractions made the rotation label too small and wasted wide-screen space on simple icons. |
 | Reader tabs | **56px arrows** (48px on narrow screens); three **equal** tabs divide the remainder. Each close target remains 40px. | All books retain equal visual weight. Equal arrows and fixed close targets leave as much space as possible for titles without making arrows enormous in landscape. |
-| Browser header | Home 48px, clock 72px, flexible folder name, battery 64px, plus 48px. | Time needs more characters than an icon, and battery needs both an icon and percentage. The folder name receives extra width rather than imposing the reader's thirds. |
-| List pagination | First 48px, Previous 64px, flexible page count, Next 64px, Last 48px. | Frequent single-page actions get larger targets than beginning/end jumps. The same layout serves files, apps, bookmarks, Contents, and search results. |
+| Browser header | Home, battery, and plus use matching 64px units; clock is 128px; folder name is flexible. On very narrow screens these four cells shrink proportionally as **1:2:1:1** to preserve title room. | Matching edge actions balance the bar, while the double-width clock has enough room for large, fitted text. |
+| List pagination | First, Previous, Next, and Last are all 64px, around a flexible page count. | Equal navigation targets give the four paging actions consistent visual weight and touch areas. |
 | Browser file rows | Flexible name plus a 72px metadata column (88px on wide screens). | Names have priority; file sizes and folder markers remain aligned in their own column. |
 | Browser selection | Full-width count/header, then equal action columns with at least 120px per cell. Additional rows occupy whole existing browser bands. | Labeled actions such as Open with need more room than navigation icons. The rows wrap deliberately instead of leaving irregular button widths. |
-| Browser and Apps popups | Single columns; 216px browser menu and 240px Apps menu, 56px option rows. | These are short command lists, so a simple vertical list is easier to scan than a multi-column grid. The longer Apps option gets more width. |
+| Browser and Apps popups | Single columns; 216px browser menu and 240px Apps menu, 56px option rows. The browser menu includes an orientation toggle; Apps is intentionally hidden behind a long-press on Paste, even when Paste is disabled. | These are short command lists, so a simple vertical list is easier to scan than a multi-column grid. The hidden Apps gesture keeps it out of the visible command list. |
 | Apps header | Fixed 48px navigation/action cells, 72px clock, flexible title. Search replaces the title/action region with a wide input. | Typing and filtering need width; spare space should not expand Refresh or More. App rows remain full-width names. |
 | Settings | Labels above full-width controls in portrait. At 640px content width, a 176px label column aligns all controls. Font choices use thirds, margins quarters, paragraph choices halves; step controls have 56px minus/plus cells. | The number and length of choices determine each group. A single app-wide ratio would squeeze font names or waste space on short values. Adjacent enabled settings retain visible separators. |
 | Secondary reader pages | Bounded 56px Back/Add/Save cells and a flexible title. Bookmarks use flexible labels plus 56px Delete cells. Contents uses a text column with bounded indentation. | List text stays readable, destructive actions have their own targets, and deep Contents nesting does not consume the entire row. |

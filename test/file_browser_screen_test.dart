@@ -11,6 +11,7 @@ import 'package:eink_launcher/reader/services/book_store_service.dart';
 import 'package:eink_launcher/screens/file_browser_screen.dart';
 import 'package:eink_launcher/widgets/file_entry_tile.dart';
 import 'package:eink_launcher/widgets/page_nav_bar.dart';
+import 'package:eink_launcher/widgets/clock_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -85,6 +86,38 @@ void main() {
     },
   );
 
+  testWidgets('long-pressing disabled Paste opens the hidden app drawer', (
+    tester,
+  ) async {
+    final controller = FileBrowserController(listFolder: (_) async => entries);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FileBrowserScreen(
+          controller: controller,
+          checkPermission: () async => true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(controller.ops.hasClipboard, isFalse);
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('Paste')),
+    );
+    // Render the pressed feedback while the pointer remains down, matching
+    // a physical long-press rather than advancing directly to pointer-up.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Apps'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets(
     'opening paints the inverted row before listing; bands survive rotation',
     (tester) async {
@@ -118,6 +151,26 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.getSize(find.byType(PageNavBar)).height, 60);
       expect(tester.getSize(find.byType(FileEntryTile).first).height, 60);
+      final homeWidth = tester
+          .getSize(find.byKey(const Key('browser-home-cell')))
+          .width;
+      final clockWidth = tester
+          .getSize(find.byKey(const Key('browser-clock-cell')))
+          .width;
+      final batteryWidth = tester
+          .getSize(find.byKey(const Key('browser-battery-cell')))
+          .width;
+      final optionsWidth = tester
+          .getSize(find.byKey(const Key('browser-options-cell')))
+          .width;
+      expect(homeWidth, 64);
+      expect(batteryWidth, homeWidth);
+      expect(optionsWidth, homeWidth);
+      expect(clockWidth, batteryWidth * 2);
+      expect(
+        tester.widget<ClockText>(find.byType(ClockText)).fillAvailableSpace,
+        isTrue,
+      );
       await tester.tap(find.text('Books/'));
       expect(opening, isFalse);
       await tester.pump();
