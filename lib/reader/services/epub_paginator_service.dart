@@ -223,14 +223,10 @@ class TextBlockLayout {
     }
 
     final prefix = prefixFor(block, settings);
-    final painter = TextPainter(
-      text: buildTextSpan(block, settings, prefix: prefix),
-      textDirection: directionFor(block),
-      textAlign: alignmentFor(block, settings),
-      textScaler: TextScaler.noScaling,
-    )..layout(maxWidth: width);
+    final painter = createPainter(block, settings, width);
     final lineMetrics = painter.computeLineMetrics();
     final lines = <TextLineLayout>[];
+    final sourceOffsets = _sourceOffsetsForDisplay(block, settings);
     for (final metric in lineMetrics) {
       final top = math.max(0.0, metric.baseline - metric.ascent);
       final bottom = math.max(top, metric.baseline + metric.descent);
@@ -238,26 +234,29 @@ class TextBlockLayout {
       final x = (metric.left + metric.width / 2).clamp(0.0, width);
       final position = painter.getPositionForOffset(Offset(x, y));
       final boundary = painter.getLineBoundary(position);
-      final displayedText = displayedPlainText(block, settings);
       lines.add(
         TextLineLayout(
           top: top,
           bottom: bottom,
-          startCharOffset: _sourceOffsetForDisplay(
-            displayedText,
-            boundary.start - prefix.length,
-          ).clamp(0, block.characterCount),
-          endCharOffset: _sourceOffsetForDisplay(
-            displayedText,
-            boundary.end - prefix.length,
-          ).clamp(0, block.characterCount),
+          startCharOffset:
+              sourceOffsets[(boundary.start - prefix.length).clamp(
+                0,
+                sourceOffsets.length - 1,
+              )],
+          endCharOffset:
+              sourceOffsets[(boundary.end - prefix.length).clamp(
+                0,
+                sourceOffsets.length - 1,
+              )],
         ),
       );
     }
+    final textHeight = painter.height;
+    painter.dispose();
     return TextBlockLayout(
-      textHeight: painter.height,
+      textHeight: textHeight,
       spacingAfter: spacing,
-      height: painter.height + spacing,
+      height: textHeight + spacing,
       lines: List<TextLineLayout>.unmodifiable(lines),
     );
   }
@@ -277,7 +276,7 @@ class TextBlockLayout {
           : run.text;
       children.add(
         TextSpan(
-          text: text,
+          text: text.replaceAll("\u00ad", "\u200b"),
           style: base.copyWith(
             fontWeight: run.bold ? FontWeight.bold : null,
             fontStyle: run.italic ? FontStyle.italic : null,
@@ -350,13 +349,93 @@ class TextBlockLayout {
       )
       .join();
 
-  static int _sourceOffsetForDisplay(String displayedText, int offset) {
-    final end = offset.clamp(0, displayedText.length);
-    var sourceOffset = 0;
-    for (var i = 0; i < end; i++) {
-      if (displayedText.codeUnitAt(i) != 0x00ad) sourceOffset++;
+  static List<int> _sourceOffsetsForDisplay(
+    ContentBlock block,
+    ReaderSettings settings,
+  ) {
+    final offsets = <int>[0];
+    var source = 0;
+    for (final run in block.runs) {
+      final display = settings.hyphenate
+          ? const HyphenationService().hyphenateLatinText(run.text)
+          : run.text;
+      var original = 0;
+      for (var i = 0; i < display.length; i++) {
+        if (original < run.text.length && display[i] == run.text[original]) {
+          original++;
+          source++;
+        }
+        offsets.add(source);
+      }
     }
-    return sourceOffset;
+    return offsets;
+  }
+
+  /// Reserve a glyph at the right edge, then paint discretionary hyphens
+  /// ourselves. Flutter's soft-hyphen break opportunities do not reliably
+  /// produce a visible glyph on all rendering backends.
+  static TextPainter createPainter(
+    ContentBlock block,
+    ReaderSettings settings,
+    double width,
+  ) {
+    final hyphen = TextPainter(
+      text: TextSpan(text: '-', style: baseStyleFor(block, settings)),
+      textDirection: TextDirection.ltr,
+      textScaler: TextScaler.noScaling,
+    )..layout();
+    final reserve =
+        block.direction == BlockTextDirection.ltr &&
+            block.type != BlockType.preformatted
+        ? hyphen.width
+        : 0.0;
+    hyphen.dispose();
+    return TextPainter(
+      text: buildTextSpan(block, settings),
+      textDirection: directionFor(block),
+      textAlign: alignmentFor(block, settings),
+      textScaler: TextScaler.noScaling,
+    )..layout(maxWidth: math.max(1, width - reserve));
+  }
+
+  static List<Offset> hyphenOffsets(
+    TextPainter painter,
+    ContentBlock block,
+    ReaderSettings settings,
+  ) {
+    if (block.direction != BlockTextDirection.ltr ||
+        block.type == BlockType.preformatted) {
+      return const [];
+    }
+    final text =
+        '${prefixFor(block, settings)}${displayedPlainText(block, settings)}';
+    final offsets = <Offset>[];
+    final metrics = painter.computeLineMetrics();
+    for (final line in metrics.take(math.max(0, metrics.length - 1))) {
+      final pos = painter.getPositionForOffset(
+        Offset(
+          line.left + line.width / 2,
+          line.baseline - line.ascent + line.height / 2,
+        ),
+      );
+      final boundary = painter.getLineBoundary(pos);
+      var end = boundary.end;
+      // Some engines put the discretionary character at the next line start.
+      var next = end;
+      while (end > 0 && text.codeUnitAt(end - 1) == 0x00ad) {
+        end--;
+      }
+      while (next < text.length && text.codeUnitAt(next) == 0x00ad) {
+        next++;
+      }
+      if (end > 0 &&
+          next < text.length &&
+          RegExp(r'[A-Za-zÀ-ž]').hasMatch(text[end - 1]) &&
+          RegExp(r'[A-Za-zÀ-ž]').hasMatch(text[next])) {
+        offsets.add(Offset(line.left + line.width, line.baseline));
+      }
+    }
+    return offsets;
   }
 
   static double spacingFor(ContentBlock block, ReaderSettings settings) {

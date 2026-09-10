@@ -67,21 +67,104 @@ class BlockSliceView extends StatelessWidget {
         height: layout.textHeight,
         child: imageBytes == null
             ? Center(child: Text(block.alternateText ?? 'Image'))
-            : Image.memory(
-                imageBytes!,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.none,
-                gaplessPlayback: true,
-                errorBuilder: (_, _, _) =>
-                    Center(child: Text(block.alternateText ?? 'Image')),
+            : ColorFiltered(
+                colorFilter: ColorFilter.matrix(
+                  settings.colorEnabled
+                      ? const [
+                          1,
+                          0,
+                          0,
+                          0,
+                          0,
+                          0,
+                          1,
+                          0,
+                          0,
+                          0,
+                          0,
+                          0,
+                          1,
+                          0,
+                          0,
+                          0,
+                          0,
+                          0,
+                          1,
+                          0,
+                        ]
+                      : const [
+                          .299,
+                          .587,
+                          .114,
+                          0,
+                          0,
+                          .299,
+                          .587,
+                          .114,
+                          0,
+                          0,
+                          .299,
+                          .587,
+                          .114,
+                          0,
+                          0,
+                          0,
+                          0,
+                          0,
+                          1,
+                          0,
+                        ],
+                ),
+                child: Image.memory(
+                  imageBytes!,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.none,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) =>
+                      Center(child: Text(block.alternateText ?? 'Image')),
+                ),
               ),
       );
     }
-    return RichText(
-      text: TextBlockLayout.buildTextSpan(block, settings),
-      textDirection: TextBlockLayout.directionFor(block),
-      textAlign: TextBlockLayout.alignmentFor(block, settings),
-      textScaler: TextScaler.noScaling,
+    return Semantics(
+      label: block.plainText,
+      child: CustomPaint(painter: _TextBlockPainter(block, settings)),
     );
   }
+}
+
+class _TextBlockPainter extends CustomPainter {
+  final ContentBlock block;
+  final ReaderSettings settings;
+  _TextBlockPainter(this.block, this.settings);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final painter = TextBlockLayout.createPainter(block, settings, size.width);
+    painter.paint(canvas, Offset.zero);
+    final hyphen = TextPainter(
+      text: TextSpan(
+        text: '-',
+        style: TextBlockLayout.baseStyleFor(block, settings),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: TextScaler.noScaling,
+    )..layout();
+    final baseline = hyphen.computeDistanceToActualBaseline(
+      TextBaseline.alphabetic,
+    );
+    for (final offset in TextBlockLayout.hyphenOffsets(
+      painter,
+      block,
+      settings,
+    )) {
+      hyphen.paint(canvas, offset - Offset(0, baseline));
+    }
+    hyphen.dispose();
+    painter.dispose();
+  }
+
+  @override
+  bool shouldRepaint(covariant _TextBlockPainter oldDelegate) =>
+      oldDelegate.block != block || oldDelegate.settings != settings;
 }

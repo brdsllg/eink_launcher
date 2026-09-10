@@ -60,6 +60,97 @@ void main() {
   }
 
   test(
+    'rapid turns prefetch two pages, reversal resets direction and depth',
+    () async {
+      final fake = _FakePdfDocument(
+        pageCount: 8,
+        pageWidth: 100,
+        pageHeight: 150,
+      );
+      final session = makeSession(fakeDoc: fake);
+      addTearDown(session.dispose);
+      await session.open();
+      await session.applySettings(session.settings.copyWith(autoCrop: false));
+      await session.nextPage();
+      await session.nextPage();
+      (await session.renderCurrentView(const Size(100, 150))).dispose();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(fake.renderedPages, [2, 3, 4]);
+      await session.prevPage();
+      (await session.renderCurrentView(const Size(100, 150))).dispose();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(fake.renderedPages, [2, 3, 4, 1, 0]);
+    },
+  );
+
+  test(
+    'settled turns prefetch one page and settings invalidate cached pixels',
+    () async {
+      final fake = _FakePdfDocument(
+        pageCount: 5,
+        pageWidth: 100,
+        pageHeight: 150,
+      );
+      final session = makeSession(fakeDoc: fake);
+      addTearDown(session.dispose);
+      await session.open();
+      await session.applySettings(session.settings.copyWith(autoCrop: false));
+      (await session.renderCurrentView(const Size(100, 150))).dispose();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(fake.renderedPages, [0, 1]);
+      expect(
+        fake.renderFlags.every((f) => f & PdfPageRenderFlags.grayscale != 0),
+        isTrue,
+      );
+      await session.applySettings(
+        session.settings.copyWith(colorEnabled: true),
+      );
+      (await session.renderCurrentView(const Size(100, 150))).dispose();
+      expect(fake.renderedPages, [0, 1, 0]);
+      expect(fake.renderFlags.last & PdfPageRenderFlags.grayscale, 0);
+    },
+  );
+
+  test(
+    'fit preview reuses completed pixels and slices a cached whole page',
+    () async {
+      final thumbnails = PdfThumbnailCacheService.forTesting(
+        cacheDirectory: Directory('${tempDir.path}/fit'),
+      );
+      final fake = _FakePdfDocument(
+        pageCount: 1,
+        pageWidth: 100,
+        pageHeight: 300,
+      );
+      final session = makeSession(fakeDoc: fake, thumbnailCache: thumbnails);
+      addTearDown(session.dispose);
+      await session.open();
+      await session.applySettings(session.settings.copyWith(autoCrop: false));
+      expect(await session.loadCurrentFitPreview(const Size(100, 150)), isNull);
+      (await session.renderCurrentView(const Size(100, 150))).dispose();
+      ui.Image? preview;
+      for (var i = 0; i < 50 && preview == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        preview = await session.loadCurrentFitPreview(const Size(100, 150));
+      }
+      expect(preview, isNotNull);
+      preview!.dispose();
+      await session.applySettings(
+        session.settings.copyWith(fitMode: PdfFitMode.fitWidth),
+      );
+      final slice = await session.loadCurrentFitPreview(const Size(100, 150));
+      expect(slice, isNotNull);
+      expect(slice!.width / slice.height, closeTo(100 / 150, .01));
+      slice.dispose();
+      expect(fake.renderCallCount, 1);
+      await session.applySettings(
+        session.settings.copyWith(colorEnabled: true),
+      );
+      expect(await session.loadCurrentFitPreview(const Size(100, 150)), isNull);
+    },
+  );
+
+  test(
     'continuous previews survive a new session through the disk cache',
     () async {
       final thumbnailCache = PdfThumbnailCacheService.forTesting(
@@ -972,11 +1063,15 @@ class _FakePdfDocument implements PdfDocument {
   }) {
     _pages = List.generate(
       pageCount,
-      (_) => _FakePdfPage(
+      (index) => _FakePdfPage(
         this,
         width: pageWidth,
         height: pageHeight,
-        onRender: () => renderCallCount++,
+        onRender: () {
+          renderCallCount++;
+          renderedPages.add(index);
+        },
+        onFlags: (flags) => renderFlags.add(flags),
         renderGate: renderGate,
       ),
     );
@@ -984,6 +1079,8 @@ class _FakePdfDocument implements PdfDocument {
 
   late final List<PdfPage> _pages;
   int renderCallCount = 0;
+  final List<int> renderedPages = [];
+  final List<int> renderFlags = [];
   bool wasDisposed = false;
 
   @override
@@ -1013,6 +1110,7 @@ class _FakePdfPage implements PdfPage {
     required this.width,
     required this.height,
     required this.onRender,
+    required this.onFlags,
     this.renderGate,
   });
 
@@ -1023,6 +1121,7 @@ class _FakePdfPage implements PdfPage {
   @override
   final double height;
   final void Function() onRender;
+  final void Function(int) onFlags;
   final Future<void>? renderGate;
 
   @override
@@ -1051,6 +1150,7 @@ class _FakePdfPage implements PdfPage {
   }) async {
     await renderGate;
     onRender();
+    onFlags(flags);
     final outputWidth = width ?? fullWidth?.round() ?? this.width.round();
     final outputHeight = height ?? fullHeight?.round() ?? this.height.round();
     final pixels = Uint8List(outputWidth * outputHeight * 4);

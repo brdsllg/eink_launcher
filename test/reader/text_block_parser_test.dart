@@ -18,9 +18,47 @@ void main() {
 
     expect(book.title, 'Notes');
     expect(book.spine.single.blocks, hasLength(2));
-    expect(book.spine.single.blocks.first.plainText, 'First line continues.');
+    expect(book.spine.single.blocks.first.plainText, 'First line\ncontinues.');
     expect(book.spine.single.blocks.last.direction, BlockTextDirection.rtl);
   });
+
+  test(
+    'unwraps fixed-width prose, preserving short endings and indented starts',
+    () {
+      final long = 'word ' * 14;
+      final source =
+          '$long\n$long\n$long\nA short ending.\n$long\n  Indented paragraph.';
+      final book = TextBlockParser.parseBytesSync(
+        Uint8List.fromList(utf8.encode(source)),
+        format: DocFormat.txt,
+        title: 'Prose',
+      );
+      final blocks = book.spine.single.blocks;
+      expect(blocks, hasLength(3));
+      expect(
+        blocks.first.plainText,
+        '${long.trim()} ${long.trim()} ${long.trim()} A short ending.',
+      );
+      expect(blocks.last.plainText, 'Indented paragraph.');
+    },
+  );
+
+  test(
+    'preserves intentional lines in verse and recognizes tab paragraphs',
+    () {
+      final book = TextBlockParser.parseBytesSync(
+        Uint8List.fromList(
+          utf8.encode('Roses are red\nViolets are blue\n\tA new paragraph'),
+        ),
+        format: DocFormat.txt,
+        title: 'Verse',
+      );
+      expect(book.spine.single.blocks.map((b) => b.plainText), [
+        'Roses are red\nViolets are blue',
+        'A new paragraph',
+      ]);
+    },
+  );
 
   test('decodes UTF-16 BOM and Windows-1255 Hebrew', () {
     final utf16 = Uint8List.fromList([

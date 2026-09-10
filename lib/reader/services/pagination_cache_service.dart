@@ -9,7 +9,7 @@ import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
 
 class PaginationCacheService {
-  static const int _cacheVersion = 2;
+  static const int _cacheVersion = 3;
 
   final Directory? cacheDirectory;
 

@@ -143,21 +143,55 @@ class TextBlockParser {
   static List<ContentBlock> _plainTextBlocks(String source) {
     final bidi = const BidiService();
     final normalized = source.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final lines = normalized.split('\n');
+    final lengths = List<int>.filled(101, 0);
+    for (final line in lines) {
+      final length = line.trimRight().length;
+      if (length >= 50 && length <= 100) lengths[length]++;
+    }
+    // Word wrapping varies by the word that didn't fit. Look for a dense band
+    // below a common right margin in linear time, even for book-length files.
+    var wrapWidth = 0;
+    var bestCount = 0;
+    for (var candidate = 50; candidate <= 100; candidate++) {
+      var count = 0;
+      for (var n = candidate - 10; n <= candidate; n++) {
+        count += lengths[n];
+      }
+      if (count > bestCount) {
+        bestCount = count;
+        wrapWidth = candidate;
+      }
+    }
+    final nonempty = lines.where((line) => line.trim().isNotEmpty).length;
+    final hardWrapped = bestCount >= 4 && bestCount >= nonempty * 0.6;
+    final paragraphs = <String>[];
+    var current = <String>[];
+    void finish() {
+      if (current.isNotEmpty) {
+        paragraphs.add(current.join(hardWrapped ? ' ' : '\n'));
+      }
+      current = [];
+    }
+
+    for (final line in lines) {
+      if (line.trim().isEmpty) {
+        finish();
+        continue;
+      }
+      if (RegExp(r'^(\t| {2,})').hasMatch(line)) finish();
+      current.add(line.trim());
+      if (hardWrapped && line.trimRight().length < wrapWidth - 10) finish();
+    }
+    finish();
     return List<ContentBlock>.unmodifiable(
-      normalized
-          .split(RegExp(r'\n[\t ]*\n+'))
-          .map(
-            (paragraph) =>
-                paragraph.replaceAll(RegExp(r'[\t ]*\n[\t ]*'), ' ').trim(),
-          )
-          .where((paragraph) => paragraph.isNotEmpty)
-          .map(
-            (paragraph) => ContentBlock(
-              type: BlockType.paragraph,
-              runs: [InlineRun(text: paragraph)],
-              direction: bidi.directionFor(paragraph),
-            ),
-          ),
+      paragraphs.map(
+        (paragraph) => ContentBlock(
+          type: BlockType.paragraph,
+          runs: [InlineRun(text: paragraph)],
+          direction: bidi.directionFor(paragraph),
+        ),
+      ),
     );
   }
 

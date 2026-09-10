@@ -101,7 +101,22 @@ PDF has three modes:
 
 EPUB, TXT, and Markdown share a paginated text pipeline with bundled Latin and
 Hebrew fonts, bidi paragraph handling, exact line-boundary splits, safe publisher
-styles, optional hyphenation, and typography controls.
+styles, optional hyphenation, and typography controls. Broken Latin words have
+explicitly painted hyphens, including at page boundaries. Parsed EPUB chapters
+and images are cached on disk (64 MiB limit); source changes and publisher-style
+changes invalidate the cache. TXT detects likely hard-wrapped prose and paragraph
+indents while preserving deliberate line breaks in other text.
+
+Reader settings default to **Black and white**. Toggle **Page color** to show
+color PDF content and EPUB/Markdown images; the choice is saved per document.
+PDF **Image dithering** is optional and off by default. It quantizes gradients
+to 16 levels, per channel in color mode. Try it for scanned pages or photographs
+on the Bigme B751C; device processing can affect whether it looks better.
+
+Fit modes prefetch one page in the reading direction, increasing to two during
+rapid turns. Cached previews appear while sharp pages render, including compatible
+whole-page previews when switching fit modes. Color and dithering changes
+invalidate retained raster images and use separate disk-preview keys.
 
 Reader sessions retain logical positions rather than display page numbers, so
 changes to font size, orientation, crop, or PDF mode keep the user's place.

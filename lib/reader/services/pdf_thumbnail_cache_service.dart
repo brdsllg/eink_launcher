@@ -21,7 +21,7 @@ class PdfThumbnailCacheService {
   static PdfThumbnailCacheService get instance =>
       _instance ??= PdfThumbnailCacheService._();
 
-  static const int cacheVersion = 1;
+  static const int cacheVersion = 2;
   static const int defaultMaxBytes = 64 * 1024 * 1024;
   static const int maxOpeningPreviews = 1024;
   static const String _openingIndexName = 'opening-previews.json';
@@ -54,10 +54,12 @@ class PdfThumbnailCacheService {
     required int pixelWidth,
     required int pixelHeight,
     required PdfCropRect crop,
+    String renderProfile = 'gray-false',
   }) {
     final source = jsonEncode({
       'version': cacheVersion,
       'docId': docId,
+      'renderProfile': renderProfile,
       'pageIndex': pageIndex,
       'pixelWidth': pixelWidth,
       'pixelHeight': pixelHeight,
@@ -285,7 +287,13 @@ class PdfThumbnailCacheService {
   Future<void> _ensureInitialized() {
     final existing = _initialization;
     if (existing != null) return existing;
-    final operation = _initialize();
+    final operation = _initialize().catchError((
+      Object error,
+      StackTrace stack,
+    ) {
+      _initialization = null;
+      Error.throwWithStackTrace(error, stack);
+    });
     _initialization = operation;
     return operation;
   }

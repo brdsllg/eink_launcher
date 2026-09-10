@@ -76,6 +76,9 @@ class PdfReaderSession extends ReaderSession {
   PdfRenderRequest? _prefetchRequest;
   int? _prefetchPageIndex;
   int _lastTurnDirection = 1;
+  final Stopwatch _turnClock = Stopwatch()..start();
+  int? _lastTurnMillis;
+  bool _rapidTurns = false;
   bool _previewBudgetReserved = false;
 
   static const prefetchDelay = Duration(milliseconds: 120);
@@ -178,6 +181,7 @@ class PdfReaderSession extends ReaderSession {
       if (_disposed || generation != _generation) return;
       _pageCount = _documentService!.pageCount;
       _restorePersistedState();
+      _configureRendering();
       _hasOpened = true;
       _isReady = true;
       _isSuspended = false;
@@ -224,6 +228,7 @@ class PdfReaderSession extends ReaderSession {
       _pageCount = _documentService!.pageCount;
       if (!_hasOpened) _restorePersistedState();
       _pageIndex = _pageIndex.clamp(0, _pageCount - 1);
+      _configureRendering();
       _hasOpened = true;
       _isSuspended = false;
       _isReady = true;
@@ -318,6 +323,8 @@ class PdfReaderSession extends ReaderSession {
   }
 
   void _invalidateNavigation() {
+    _lastTurnMillis = null;
+    _rapidTurns = false;
     _turnGeneration++;
     _turnRequest?.cancel();
   }
@@ -330,7 +337,7 @@ class PdfReaderSession extends ReaderSession {
 
   Future<void> _nextPage(PdfRenderRequest request) async {
     if (!_isReady) return;
-    _lastTurnDirection = 1;
+    _recordTurn(1);
     final viewport = _lastViewport;
     if (_isContinuous) {
       if (viewport != null && _continuousLayout != null) {
@@ -356,7 +363,7 @@ class PdfReaderSession extends ReaderSession {
 
   Future<void> _prevPage(PdfRenderRequest request) async {
     if (!_isReady) return;
-    _lastTurnDirection = -1;
+    _recordTurn(-1);
     final viewport = _lastViewport;
     if (_isContinuous) {
       if (viewport != null && _continuousLayout != null) {
@@ -452,17 +459,25 @@ class PdfReaderSession extends ReaderSession {
     _invalidateNavigation();
     final oldSettings = _settings;
     final modeChanged = oldSettings.fitMode != settings.fitMode;
+    final pixelsChanged =
+        oldSettings.colorEnabled != settings.colorEnabled ||
+        oldSettings.pdfDithering != settings.pdfDithering;
     final fitGeometryChanged =
         settings.fitMode != PdfFitMode.zoom &&
         (oldSettings.autoCrop != settings.autoCrop ||
             oldSettings.splitOverlap != settings.splitOverlap);
-    if (modeChanged || fitGeometryChanged) {
+    if (modeChanged || fitGeometryChanged || pixelsChanged) {
       _cancelAllRequests();
       // Every invalidated fit request must also change the view's signature.
       // Unchanged settings and zoom-floor changes leave useful work running.
       _navigationEpoch++;
     }
     _settings = settings;
+    _configureRendering();
+    if (pixelsChanged) {
+      _bitmapCache.clear();
+      _previewCache.clear();
+    }
     if (modeChanged) {
       _continuousLayout = null;
       // The incoming view must anchor itself to the preserved logical
@@ -476,6 +491,14 @@ class PdfReaderSession extends ReaderSession {
     notifyListeners();
     _persistState(settingsOverride: settings);
   }
+
+  void _configureRendering() {
+    _documentService?.colorEnabled = _settings.colorEnabled;
+    _documentService?.dithering = _settings.pdfDithering;
+  }
+
+  String get _renderProfile =>
+      '${_settings.colorEnabled ? "color" : "gray"}-${_settings.pdfDithering}';
 
   /// Reports the current render viewport so sub-screen math and prefetch
   /// have something to work with. Called by the reader widget (Step 1.5) on
@@ -862,6 +885,7 @@ class PdfReaderSession extends ReaderSession {
         pixelWidth: dimensions.width,
         pixelHeight: dimensions.height,
         crop: crop,
+        renderProfile: _renderProfile,
       ),
     );
   }
@@ -895,7 +919,182 @@ class PdfReaderSession extends ReaderSession {
       cropRight: geometry.crop.right,
       cropBottom: geometry.crop.bottom,
     );
-    return _renderBitmap(key, geometry.crop, request);
+    final image = await _renderBitmap(key, geometry.crop, request);
+    _storeFitPreview(key, geometry.crop, image);
+    return image;
+  }
+
+  String _fitPreviewKey(PdfBitmapCacheKey key, PdfCropRect crop) =>
+      _thumbnailCache.keyFor(
+        docId: doc.id,
+        pageIndex: key.pageIndex,
+        pixelWidth: key.pixelWidth,
+        pixelHeight: key.pixelHeight,
+        crop: crop,
+        renderProfile: 'fit-$_renderProfile',
+      );
+
+  final Set<String> _storingFitPreviews = {};
+  final Set<String> _storedFitPreviews = {};
+
+  void _storeFitPreview(PdfBitmapCacheKey key, PdfCropRect crop, Image image) {
+    final diskKey = _fitPreviewKey(key, crop);
+    if (_storedFitPreviews.contains(diskKey) ||
+        _storingFitPreviews.contains(diskKey) ||
+        _storingFitPreviews.length >= 2) {
+      return;
+    }
+    final size = PdfDocumentService.constrainedRenderSize(
+      image.width,
+      image.height,
+      maxDimension: kPdfPreviewMaxDimension,
+    );
+    final recorder = PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      Rect.fromLTWH(0, 0, size.width.toDouble(), size.height.toDouble()),
+      Paint()..filterQuality = FilterQuality.low,
+    );
+    final picture = recorder.endRecording();
+    try {
+      // Snapshot now, so background disk work never retains full-size handles.
+      final preview = picture.toImageSync(size.width, size.height);
+      _storingFitPreviews.add(diskKey);
+      unawaited(
+        _thumbnailCache
+            .store(diskKey, preview)
+            .then((_) {
+              _storedFitPreviews.add(diskKey);
+              if (_storedFitPreviews.length > 128) {
+                _storedFitPreviews.remove(_storedFitPreviews.first);
+              }
+            })
+            .catchError((Object _) {})
+            .whenComplete(() => _storingFitPreviews.remove(diskKey)),
+      );
+    } catch (_) {
+      // Optional thumbnail failures never fail the completed detail render.
+    } finally {
+      picture.dispose();
+    }
+  }
+
+  /// Cached pixels only: never queues a second PDFium render ahead of detail.
+  Future<Image?> loadCurrentFitPreview(
+    Size viewport, {
+    double devicePixelRatio = 1,
+    PdfRenderRequest? request,
+  }) async {
+    if (!_isReady || _isContinuous) return null;
+    final page = _pageIndex;
+    final within = _withinPage;
+    return _withRequest(request, (demand) async {
+      final crop = await _resolveCropRect(page, demand);
+      demand.throwIfCancelled();
+      final geometry = _geometryFor(
+        _documentService!.pageInfo(page),
+        crop,
+        viewport,
+        within,
+        devicePixelRatio,
+      );
+      final key = PdfBitmapCacheKey(
+        pageIndex: page,
+        pixelWidth: geometry.pixelWidth,
+        pixelHeight: geometry.pixelHeight,
+        cropLeft: geometry.crop.left,
+        cropTop: geometry.crop.top,
+        cropRight: geometry.crop.right,
+        cropBottom: geometry.crop.bottom,
+      );
+      final profile = _renderProfile;
+      final exact = await _thumbnailCache.load(
+        _fitPreviewKey(key, geometry.crop),
+      );
+      if (exact != null) return exact;
+      demand.throwIfCancelled();
+      final info = _documentService!.pageInfo(page);
+      final fullKey = PdfBitmapCacheKey(
+        pageIndex: page,
+        pixelWidth:
+            (viewport.height *
+                    info.width *
+                    crop.width /
+                    (info.height * crop.height) *
+                    devicePixelRatio)
+                .round(),
+        pixelHeight: (viewport.height * devicePixelRatio).round(),
+        cropLeft: crop.left,
+        cropTop: crop.top,
+        cropRight: crop.right,
+        cropBottom: crop.bottom,
+      );
+      Image? full = await _thumbnailCache.load(_fitPreviewKey(fullKey, crop));
+      var sourceCrop = crop;
+      // Zoom's whole-page preview can also cover a newly selected fit mode.
+      final uniform = _uniformCropRect;
+      if (full == null && uniform != null) {
+        sourceCrop = uniform;
+        final dimensions = PdfDocumentService.constrainedRenderSize(
+          viewport.width.round(),
+          (viewport.width *
+                  info.height *
+                  uniform.height /
+                  (info.width * uniform.width))
+              .round(),
+          maxDimension: kPdfPreviewMaxDimension,
+        );
+        full = await _thumbnailCache.load(
+          _thumbnailCache.keyFor(
+            docId: doc.id,
+            pageIndex: page,
+            pixelWidth: dimensions.width,
+            pixelHeight: dimensions.height,
+            crop: uniform,
+            renderProfile: profile,
+          ),
+        );
+      }
+      if (full == null) return null;
+      try {
+        demand.throwIfCancelled();
+        final target = geometry.crop;
+        // Never invent cropped-away margins or stretch a different page region.
+        if (target.left < sourceCrop.left - 0.0001 ||
+            target.top < sourceCrop.top - 0.0001 ||
+            target.right > sourceCrop.right + 0.0001 ||
+            target.bottom > sourceCrop.bottom + 0.0001) {
+          return null;
+        }
+        final size = PdfDocumentService.constrainedRenderSize(
+          key.pixelWidth,
+          key.pixelHeight,
+          maxDimension: kPdfPreviewMaxDimension,
+        );
+        final recorder = PictureRecorder();
+        Canvas(recorder).drawImageRect(
+          full,
+          Rect.fromLTRB(
+            (target.left - sourceCrop.left) / sourceCrop.width * full.width,
+            (target.top - sourceCrop.top) / sourceCrop.height * full.height,
+            (target.right - sourceCrop.left) / sourceCrop.width * full.width,
+            (target.bottom - sourceCrop.top) / sourceCrop.height * full.height,
+          ),
+          Rect.fromLTWH(0, 0, size.width.toDouble(), size.height.toDouble()),
+          Paint()..filterQuality = FilterQuality.low,
+        );
+        final picture = recorder.endRecording();
+        try {
+          return picture.toImageSync(size.width, size.height);
+        } finally {
+          picture.dispose();
+        }
+      } finally {
+        full.dispose();
+      }
+    }, fit: true);
   }
 
   Future<Image> _renderBitmap(
@@ -1132,20 +1331,55 @@ class PdfReaderSession extends ReaderSession {
   // Prefetch
   // ---------------------------------------------------------------------
 
+  void _recordTurn(int direction) {
+    final now = _turnClock.elapsedMilliseconds;
+    _rapidTurns =
+        direction == _lastTurnDirection &&
+        _lastTurnMillis != null &&
+        now - _lastTurnMillis! < 650;
+    if (direction != _lastTurnDirection) {
+      _prefetchRequest?.cancel();
+      _prefetchPageIndex = null;
+    }
+    _lastTurnDirection = direction;
+    _lastTurnMillis = now;
+  }
+
   void _schedulePrefetch(int epoch) {
     _prefetchTimer?.cancel();
     if (_isContinuous || !_isReady) return;
     _prefetchTimer = Timer(prefetchDelay, () {
       _prefetchTimer = null;
       if (!_isReady || epoch != _navigationEpoch || _isContinuous) return;
-      final target = _pageIndex + _lastTurnDirection;
-      if (target < 0 || target >= _pageCount) return;
+      final depth =
+          _rapidTurns &&
+              _lastTurnMillis != null &&
+              _turnClock.elapsedMilliseconds - _lastTurnMillis! < 900
+          ? 2
+          : 1;
       _prefetchRequest?.cancel();
       final request = PdfRenderRequest(priority: PdfRenderPriority.prefetch);
       _prefetchRequest = request;
-      _prefetchPageIndex = target;
-      unawaited(_prefetchPage(target, request));
+      unawaited(
+        _prefetchPages(_pageIndex, _lastTurnDirection, depth, epoch, request),
+      );
     });
+  }
+
+  Future<void> _prefetchPages(
+    int start,
+    int direction,
+    int depth,
+    int epoch,
+    PdfRenderRequest request,
+  ) async {
+    for (var distance = 1; distance <= depth; distance++) {
+      if (request.isCancelled || epoch != _navigationEpoch) return;
+      final target = start + direction * distance;
+      if (target < 0 || target >= _pageCount) return;
+      _prefetchPageIndex = target;
+      await _prefetchPage(target, request);
+    }
   }
 
   Future<void> _prefetchPage(int pageIndex, PdfRenderRequest request) async {

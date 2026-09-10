@@ -37,8 +37,9 @@ void main() {
     expect(
       find.byWidgetPredicate(
         (widget) =>
-            widget is RichText &&
-            widget.text.toPlainText().contains('A rendered paragraph'),
+            widget is Semantics &&
+            (widget.properties.label?.contains('A rendered paragraph') ??
+                false),
       ),
       findsOneWidget,
     );

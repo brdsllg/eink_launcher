@@ -9,6 +9,55 @@ void main() {
 
   const paginator = EpubPaginatorService();
 
+  test('broken Latin words have visible hyphens and source offsets survive authored soft hyphens', () {
+    const block = ContentBlock(
+      type: BlockType.paragraph,
+      runs: [
+        InlineRun(
+          text: 'extraordinary encyclopedia inter\u00adnationalization extraordinary',
+        ),
+      ],
+    );
+    const settings = ReaderSettings(fontSizeStep: 0, justify: false);
+    final painter = TextBlockLayout.createPainter(block, settings, 100);
+    final hyphens = TextBlockLayout.hyphenOffsets(painter, block, settings);
+    expect(hyphens, isNotEmpty);
+    for (final offset in hyphens) {
+      expect(offset.dx, lessThan(100));
+    }
+    painter.dispose();
+    final pages = paginator.paginateSpine(
+      spineIndex: 0,
+      blocks: const [block],
+      contentSize: const Size(100, 40),
+      settings: settings,
+    );
+    expect(pages.length, greaterThan(1));
+    expect(pages.last.end.charOffset, block.characterCount);
+    for (var i = 0; i < pages.length - 1; i++) {
+      expect(pages[i].end.charOffset, pages[i + 1].start.charOffset);
+    }
+  });
+
+  test('whole words and Hebrew lines receive no added hyphens', () {
+    for (final block in const [
+      ContentBlock(
+        type: BlockType.paragraph,
+        runs: [InlineRun(text: 'one two three')],
+      ),
+      ContentBlock(
+        type: BlockType.paragraph,
+        direction: BlockTextDirection.rtl,
+        runs: [InlineRun(text: 'שלום עולם שלום עולם')],
+      ),
+    ]) {
+      const settings = ReaderSettings(hyphenate: false);
+      final painter = TextBlockLayout.createPainter(block, settings, 200);
+      expect(TextBlockLayout.hyphenOffsets(painter, block, settings), isEmpty);
+      painter.dispose();
+    }
+  });
+
   test('packs short blocks and keeps logical positions stable', () {
     final blocks = [
       const ContentBlock(

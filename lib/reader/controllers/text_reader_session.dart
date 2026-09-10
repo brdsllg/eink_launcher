@@ -12,7 +12,7 @@ import '../models/reading_position.dart';
 import '../models/toc_entry.dart';
 import '../services/book_store_service.dart';
 import '../services/epub_paginator_service.dart';
-import '../services/epub_parser_service.dart';
+import '../services/parsed_epub_cache_service.dart';
 import '../services/pagination_cache_service.dart';
 import '../services/reader_error_service.dart';
 import '../services/text_block_parser.dart';
@@ -70,9 +70,9 @@ class TextReaderSession extends ReaderSession {
 
   static Future<ParsedBook> _loadBook(DocRef doc, bool honorPublisherCss) {
     return switch (doc.format) {
-      DocFormat.epub => const EpubParserService().parseFile(
-        doc.path,
-        honorPublisherCss: honorPublisherCss,
+      DocFormat.epub => const ParsedEpubCacheService().load(
+        doc,
+        honorPublisherCss,
       ),
       DocFormat.txt || DocFormat.markdown => const TextBlockParser().parseFile(
         doc.path,

@@ -2,6 +2,17 @@ import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('color defaults off and color/dithering choices round-trip', () {
+    final legacy = ReaderSettings.fromJson({});
+    expect(legacy.colorEnabled, isFalse);
+    expect(legacy.pdfDithering, isFalse);
+    final restored = ReaderSettings.fromJson(
+      legacy.copyWith(colorEnabled: true, pdfDithering: true).toJson(),
+    );
+    expect(restored.colorEnabled, isTrue);
+    expect(restored.pdfDithering, isTrue);
+  });
+
   test('PDF settings only persist user-configurable display choices', () {
     const settings = ReaderSettings();
 

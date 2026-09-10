@@ -256,7 +256,7 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
           const Text(
             'Zoom / Scroll always scrolls continuously, always allows pinch '
             'zoom, and crops margins uniformly across the whole document, so '
-            'it has no other options.',
+            'these geometry options are fixed.',
           ),
         ];
     }
@@ -307,7 +307,58 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
             child: ListView(
               physics: const ClampingScrollPhysics(),
               padding: const EdgeInsets.all(16),
-              children: textDocument ? _textControls() : _pdfControls(),
+              children: [
+                _SettingsGroup(
+                  label: 'Page color',
+                  child: GridActions(
+                    children: [
+                      _ChoiceButton(
+                        key: const Key('reader-settings-color'),
+                        toggle: true,
+                        label: _settings.colorEnabled
+                            ? 'Color'
+                            : 'Black and white',
+                        selected: _settings.colorEnabled,
+                        onPressed: () => setState(
+                          () => _settings = _settings.copyWith(
+                            colorEnabled: !_settings.colorEnabled,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!textDocument) ...[
+                  _SettingsGroup(
+                    label: 'Image dithering',
+                    child: GridActions(
+                      children: [
+                        _ChoiceButton(
+                          key: const Key('reader-settings-dithering'),
+                          toggle: true,
+                          label: _settings.pdfDithering
+                              ? 'Dithering on'
+                              : 'Dithering off',
+                          selected: _settings.pdfDithering,
+                          onPressed: () => setState(
+                            () => _settings = _settings.copyWith(
+                              pdfDithering: !_settings.pdfDithering,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 20),
+                    child: Text(
+                      'Try dithering for scanned pages and photos with banded gradients. '
+                      'It also works in color; leave it off if your device already smooths images well.',
+                    ),
+                  ),
+                ],
+                ...textDocument ? _textControls() : _pdfControls(),
+              ],
             ),
           ),
         ),

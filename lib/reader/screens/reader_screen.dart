@@ -532,10 +532,59 @@ class _ReaderScreenState extends State<ReaderScreen>
                 key: const Key('reader-opening-preview'),
                 color: Colors.white,
                 child: _openingPreview != null
-                    ? RawImage(
-                        image: _openingPreview,
-                        fit: BoxFit.fill,
-                        filterQuality: FilterQuality.none,
+                    ? ColorFiltered(
+                        colorFilter: ColorFilter.matrix(
+                          settings.colorEnabled
+                              ? const [
+                                  1,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                ]
+                              : const [
+                                  .299,
+                                  .587,
+                                  .114,
+                                  0,
+                                  0,
+                                  .299,
+                                  .587,
+                                  .114,
+                                  0,
+                                  0,
+                                  .299,
+                                  .587,
+                                  .114,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                ],
+                        ),
+                        child: RawImage(
+                          image: _openingPreview,
+                          fit: BoxFit.fill,
+                          filterQuality: FilterQuality.none,
+                        ),
                       )
                     : Center(
                         child: Padding(

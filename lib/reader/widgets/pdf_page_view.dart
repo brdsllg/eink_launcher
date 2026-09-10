@@ -71,6 +71,24 @@ class _PdfPageViewState extends State<PdfPageView> {
     _fitRetryTimer?.cancel();
     final request = _fitRequest = PdfRenderRequest();
     _fitError = null;
+    _replaceFitImage(null);
+    var detailReady = false;
+    unawaited(
+      widget.session
+          .loadCurrentFitPreview(
+            viewport,
+            devicePixelRatio: devicePixelRatio,
+            request: request,
+          )
+          .then((image) {
+            if (image == null) return;
+            if (!mounted || token != _fitRequestToken || detailReady) {
+              image.dispose();
+              return;
+            }
+            setState(() => _replaceFitImage(image));
+          }, onError: (Object _) {}),
+    );
     widget.session
         .renderCurrentView(
           viewport,
@@ -83,6 +101,7 @@ class _PdfPageViewState extends State<PdfPageView> {
               image.dispose();
               return;
             }
+            detailReady = true;
             setState(() => _replaceFitImage(image));
           },
           onError: (Object error) {
@@ -125,6 +144,7 @@ class _PdfPageViewState extends State<PdfPageView> {
               _fitError = null;
             }
             return _ContinuousPdfView(
+              key: ValueKey((settings.colorEnabled, settings.pdfDithering)),
               session: widget.session,
               viewport: viewport,
               devicePixelRatio: devicePixelRatio,
@@ -206,6 +226,7 @@ class _ContinuousPdfView extends StatefulWidget {
   final VoidCallback onContentReady;
 
   const _ContinuousPdfView({
+    super.key,
     required this.session,
     required this.viewport,
     required this.devicePixelRatio,

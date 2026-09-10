@@ -8,6 +8,7 @@ import '../../constants.dart';
 import '../models/reading_position.dart';
 import '../models/toc_entry.dart';
 import 'pdf_crop_service.dart';
+import 'pdf_dithering_service.dart';
 import 'pdf_runtime_service.dart';
 import 'pdf_render_scheduler.dart';
 
@@ -36,6 +37,8 @@ class PdfDocumentService {
   final PdfDocumentOpener _documentOpener;
   PdfDocument? _document;
   int _generation = 0;
+  bool colorEnabled = false;
+  bool dithering = false;
   final Set<PdfRenderRequest> _renders = {};
 
   PdfDocumentService(this.filePath, {PdfDocumentOpener? documentOpener})
@@ -100,6 +103,8 @@ class PdfDocumentService {
     PdfRenderRequest? request,
   }) async {
     final generation = _generation;
+    final renderColor = colorEnabled;
+    final renderDithering = dithering;
     final demand = request ?? PdfRenderRequest();
     _renders.add(demand);
     try {
@@ -116,6 +121,8 @@ class PdfDocumentService {
             crop: crop,
             rotationOverride: rotationOverride,
             maxDimension: maxDimension,
+            colorEnabled: renderColor,
+            dithering: renderDithering,
           );
         },
         request: demand,
@@ -133,6 +140,8 @@ class PdfDocumentService {
     required PdfCropRect crop,
     required PdfPageRotation? rotationOverride,
     required double maxDimension,
+    required bool colorEnabled,
+    required bool dithering,
   }) async {
     final dimensions = constrainedRenderSize(
       pixelWidth,
@@ -152,13 +161,33 @@ class PdfDocumentService {
       fullWidth: fullWidth,
       fullHeight: fullHeight,
       rotationOverride: rotationOverride,
-      flags: PdfPageRenderFlags.limitedImageCache,
+      flags:
+          PdfPageRenderFlags.limitedImageCache |
+          (colorEnabled ? 0 : PdfPageRenderFlags.grayscale),
     );
     if (rendered == null) {
       throw StateError('PDF page ${pageIndex + 1} render was cancelled');
     }
     try {
-      return await rendered.createImage();
+      if (!dithering) return await rendered.createImage();
+      final pixels = await PdfDitheringService.transform(
+        rendered.pixels,
+        rendered.width,
+        rendered.height,
+        colorEnabled: colorEnabled,
+        originX: x,
+        originY: y,
+      );
+      final processed = PdfImage.createFromBgraData(
+        pixels,
+        width: rendered.width,
+        height: rendered.height,
+      );
+      try {
+        return await processed.createImage();
+      } finally {
+        processed.dispose();
+      }
     } finally {
       rendered.dispose();
     }

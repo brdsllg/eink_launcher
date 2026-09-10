@@ -25,6 +25,10 @@ class ReaderSettings {
   /// shrink and roughly two pages fit on screen at once. Default on.
   final bool allowZoomOutBeyondFit;
 
+  // Shared display: grayscale by default, color opt-in.
+  final bool colorEnabled;
+  final bool pdfDithering;
+
   // Shared
   final bool landscape;
 
@@ -42,6 +46,8 @@ class ReaderSettings {
     this.autoCrop = true,
     this.splitOverlap = kPdfDefaultSplitOverlap,
     this.allowZoomOutBeyondFit = true,
+    this.colorEnabled = false,
+    this.pdfDithering = false,
     this.landscape = false,
   });
 
@@ -74,6 +80,8 @@ class ReaderSettings {
     bool? autoCrop,
     double? splitOverlap,
     bool? allowZoomOutBeyondFit,
+    bool? colorEnabled,
+    bool? pdfDithering,
     bool? landscape,
   }) {
     return ReaderSettings(
@@ -91,6 +99,8 @@ class ReaderSettings {
       splitOverlap: splitOverlap ?? this.splitOverlap,
       allowZoomOutBeyondFit:
           allowZoomOutBeyondFit ?? this.allowZoomOutBeyondFit,
+      colorEnabled: colorEnabled ?? this.colorEnabled,
+      pdfDithering: pdfDithering ?? this.pdfDithering,
       landscape: landscape ?? this.landscape,
     );
   }
@@ -109,6 +119,8 @@ class ReaderSettings {
     'autoCrop': autoCrop,
     'splitOverlap': splitOverlap,
     'allowZoomOutBeyondFit': allowZoomOutBeyondFit,
+    'colorEnabled': colorEnabled,
+    'pdfDithering': pdfDithering,
     'landscape': landscape,
   };
 
@@ -137,6 +149,8 @@ class ReaderSettings {
       splitOverlap:
           (json['splitOverlap'] as num?)?.toDouble() ?? kPdfDefaultSplitOverlap,
       allowZoomOutBeyondFit: json['allowZoomOutBeyondFit'] as bool? ?? true,
+      colorEnabled: json['colorEnabled'] as bool? ?? false,
+      pdfDithering: json['pdfDithering'] as bool? ?? false,
       landscape: json['landscape'] as bool? ?? false,
     );
   }
