@@ -17,6 +17,7 @@ import 'package:eink_launcher/reader/services/pagination_cache_service.dart';
 import 'package:eink_launcher/reader/services/pdf_render_scheduler.dart';
 import 'package:eink_launcher/reader/widgets/reader_menu_overlay.dart';
 import 'package:eink_launcher/reader/widgets/text_page_view.dart';
+import 'package:eink_launcher/reader/widgets/tap_zone_layer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -202,6 +203,44 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.pageUp);
     await tester.pumpAndSettle();
     expect(session.currentPage, 0);
+
+    final disableButtons = session.applySettings(
+      session.settings.copyWith(pageButtonsEnabled: false),
+    );
+    await tester.pumpAndSettle();
+    await disableButtons;
+    for (final key in [
+      LogicalKeyboardKey.pageDown,
+      LogicalKeyboardKey.arrowRight,
+      LogicalKeyboardKey.audioVolumeDown,
+    ]) {
+      await tester.sendKeyEvent(key);
+      await tester.pumpAndSettle();
+      expect(session.currentPage, 0);
+    }
+    final bounds = tester.getRect(find.byType(TapZoneLayer));
+    await tester.tapAt(Offset(bounds.right - 20, bounds.center.dy));
+    await tester.pumpAndSettle();
+    expect(session.currentPage, 1);
+
+    final disableTaps = session.applySettings(
+      session.settings.copyWith(
+        pageButtonsEnabled: true,
+        pageTurnTapZonesEnabled: false,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await disableTaps;
+    await tester.tapAt(Offset(bounds.left + 20, bounds.center.dy));
+    await tester.tapAt(Offset(bounds.right - 20, bounds.center.dy));
+    await tester.pumpAndSettle();
+    expect(session.currentPage, 1);
+    await tester.sendKeyEvent(LogicalKeyboardKey.pageUp);
+    await tester.pumpAndSettle();
+    expect(session.currentPage, 0);
+    await tester.tapAt(bounds.center);
+    await tester.pumpAndSettle();
+    expect(find.byType(ReaderMenuOverlay), findsOneWidget);
     await finish(tester);
   });
 

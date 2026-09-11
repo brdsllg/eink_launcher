@@ -2,6 +2,26 @@ import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('navigation preferences default on and persist independently', () {
+    final legacy = ReaderSettings.fromJson({});
+    expect(legacy.pageTurnTapZonesEnabled, isTrue);
+    expect(legacy.pageButtonsEnabled, isTrue);
+    for (final taps in [false, true]) {
+      for (final buttons in [false, true]) {
+        final restored = ReaderSettings.fromJson(
+          legacy
+              .copyWith(
+                pageTurnTapZonesEnabled: taps,
+                pageButtonsEnabled: buttons,
+              )
+              .toJson(),
+        );
+        expect(restored.pageTurnTapZonesEnabled, taps);
+        expect(restored.pageButtonsEnabled, buttons);
+      }
+    }
+  });
+
   test('color defaults off and color/dithering choices round-trip', () {
     final legacy = ReaderSettings.fromJson({});
     expect(legacy.colorEnabled, isFalse);

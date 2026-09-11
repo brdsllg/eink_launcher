@@ -914,7 +914,7 @@ void main() {
         layout,
         viewport.height,
       );
-      expect(afterNext, closeTo(650, 0.0001));
+      expect(afterNext, closeTo(632, 0.0001));
       expect(session.currentPage, 2);
 
       await session.prevPage();
@@ -924,13 +924,46 @@ void main() {
       );
 
       // At 2x zoom only half the base canvas height is visible, so tap
-      // navigation advances by that transformed viewport rather than by a
-      // fixed page or the Fit Width overlap preference.
+      // navigation retains the selected overlap in that transformed viewport.
       session.updateContinuousScrollOffset(350, layout, 150);
       await session.nextPage();
       expect(
         session.continuousOffsetForPosition(layout, 150),
-        closeTo(500, 0.0001),
+        closeTo(491, 0.0001),
+      );
+      await session.prevPage();
+      expect(
+        session.continuousOffsetForPosition(layout, 150),
+        closeTo(350, 0.0001),
+      );
+
+      // Changing overlap takes effect without resetting the scroll position.
+      for (final overlap in [0.0, 0.20]) {
+        await session.applySettings(
+          session.settings.copyWith(splitOverlap: overlap),
+        );
+        session.updateContinuousScrollOffset(350, layout, 150);
+        await session.nextPage();
+        expect(
+          session.continuousOffsetForPosition(layout, 150),
+          closeTo(350 + 150 * (1 - overlap), 0.0001),
+        );
+        await session.prevPage();
+        expect(
+          session.continuousOffsetForPosition(layout, 150),
+          closeTo(350, 0.0001),
+        );
+      }
+
+      session.updateContinuousScrollOffset(0, layout, 150);
+      await session.prevPage();
+      expect(session.continuousOffsetForPosition(layout, 150), 0);
+      final end = layout.maxScrollOffset(150);
+      session.updateContinuousScrollOffset(end, layout, 150);
+      await session.nextPage();
+      expect(
+        session.continuousOffsetForPosition(layout, 150),
+        closeTo(end, 0.0001),
       );
       expect(
         BookStoreService.instance.getBookState('doc-1')?.uniformPdfCrop,

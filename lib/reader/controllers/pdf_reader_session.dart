@@ -589,7 +589,8 @@ class PdfReaderSession extends ReaderSession {
     if (layout == null || viewport == null) return;
     final visibleHeight = _continuousViewportHeight ?? viewport.height;
     final current = continuousOffsetForPosition(layout, visibleHeight);
-    final target = (current + delta)
+    final overlap = clampDouble(_settings.splitOverlap, 0.0, 0.9);
+    final target = (current + delta * (1 - overlap))
         .clamp(0.0, layout.maxScrollOffset(visibleHeight))
         .toDouble();
     final logical = layout.positionForOffset(target);

@@ -1,4 +1,5 @@
 import 'package:eink_launcher/reader/models/reader_settings.dart';
+import 'package:eink_launcher/reader/models/doc_ref.dart';
 import 'package:eink_launcher/reader/screens/reader_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,7 +59,7 @@ void main() {
     expect(find.text('7%'), findsOneWidget);
   });
 
-  testWidgets('zoom / scroll offers zoom-out only, defaulting to on', (
+  testWidgets('zoom / scroll offers overlap and zoom-out controls', (
     tester,
   ) async {
     await pumpSettings(tester, PdfFitMode.zoom);
@@ -66,6 +67,10 @@ void main() {
     expect(find.text('Automatic margin crop'), findsNothing);
     expect(find.byKey(const Key('reader-settings-crop')), findsNothing);
     expect(find.text('Fit-width overlap'), findsNothing);
+    expect(find.text('Scroll-step overlap'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('reader-settings-overlap-increase')));
+    await tester.pump();
+    expect(find.text('7%'), findsOneWidget);
     expect(find.text('Continuous pages'), findsNothing);
     expect(find.text('Page by page'), findsNothing);
     expect(find.text('Continuous-scroll momentum'), findsNothing);
@@ -112,4 +117,55 @@ void main() {
     final legacy = on.toJson()..remove('allowZoomOutBeyondFit');
     expect(ReaderSettings.fromJson(legacy).allowZoomOutBeyondFit, isTrue);
   });
+
+  for (final format in [DocFormat.pdf, DocFormat.epub]) {
+    testWidgets('navigation settings save independently for $format', (
+      tester,
+    ) async {
+      ReaderSettings? saved;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                saved = await Navigator.of(context).push<ReaderSettings>(
+                  MaterialPageRoute(
+                    builder: (_) => ReaderSettingsScreen(
+                      initialSettings: const ReaderSettings(
+                        fitMode: PdfFitMode.zoom,
+                      ),
+                      format: format,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      final taps = find.byKey(const Key('reader-settings-tap-zones'));
+      final buttons = find.byKey(const Key('reader-settings-page-buttons'));
+      await tester.scrollUntilVisible(taps, 300);
+      await tester.tap(taps);
+      await tester.pump();
+      expect(
+        find.descendant(of: taps, matching: find.text('Disabled')),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(buttons, 150);
+      expect(
+        find.descendant(of: buttons, matching: find.text('Enabled')),
+        findsOneWidget,
+      );
+      await tester.tap(buttons);
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('reader-settings-save')));
+      await tester.pumpAndSettle();
+      expect(saved?.pageTurnTapZonesEnabled, isFalse);
+      expect(saved?.pageButtonsEnabled, isFalse);
+    });
+  }
 }

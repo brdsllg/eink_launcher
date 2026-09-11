@@ -15,6 +15,7 @@ class TapZoneLayer extends StatefulWidget {
   final VoidCallback onMenu;
   final VoidCallback onNext;
   final bool zoomMode;
+  final bool pageTurnTapZonesEnabled;
 
   const TapZoneLayer({
     super.key,
@@ -23,6 +24,7 @@ class TapZoneLayer extends StatefulWidget {
     required this.onMenu,
     required this.onNext,
     this.zoomMode = false,
+    this.pageTurnTapZonesEnabled = true,
   });
 
   static ReaderTapZone zoneForDx(
@@ -52,11 +54,11 @@ class _TapZoneLayerState extends State<TapZoneLayer> {
   void _dispatch(ReaderTapZone zone) {
     switch (zone) {
       case ReaderTapZone.previous:
-        widget.onPrevious();
+        if (widget.pageTurnTapZonesEnabled) widget.onPrevious();
       case ReaderTapZone.menu:
         widget.onMenu();
       case ReaderTapZone.next:
-        widget.onNext();
+        if (widget.pageTurnTapZonesEnabled) widget.onNext();
     }
   }
 

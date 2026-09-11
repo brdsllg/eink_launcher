@@ -210,23 +210,10 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
       case PdfFitMode.fitHeight:
         return [_cropControl()];
       case PdfFitMode.fitWidth:
-        return [
-          _cropControl(),
-          _SettingsGroup(
-            label: 'Fit-width overlap',
-            child: _StepControl(
-              value: '${(_settings.splitOverlap * 100).round()}%',
-              onDecrease: _settings.splitOverlap <= 0
-                  ? null
-                  : () => _changeOverlap(-0.01),
-              onIncrease: _settings.splitOverlap >= 0.20
-                  ? null
-                  : () => _changeOverlap(0.01),
-            ),
-          ),
-        ];
+        return [_cropControl(), _overlapControl('Fit-width overlap')];
       case PdfFitMode.zoom:
         return [
+          _overlapControl('Scroll-step overlap'),
           _SettingsGroup(
             label: 'Zoom out past the page',
             child: GridActions(
@@ -261,6 +248,60 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
         ];
     }
   }
+
+  Widget _overlapControl(String label) => _SettingsGroup(
+    label: label,
+    child: _StepControl(
+      value: '${(_settings.splitOverlap * 100).round()}%',
+      decreaseKey: const Key('reader-settings-overlap-decrease'),
+      increaseKey: const Key('reader-settings-overlap-increase'),
+      onDecrease: _settings.splitOverlap <= 0
+          ? null
+          : () => _changeOverlap(-0.01),
+      onIncrease: _settings.splitOverlap >= 0.20
+          ? null
+          : () => _changeOverlap(0.01),
+    ),
+  );
+
+  List<Widget> _navigationControls() => [
+    _SettingsGroup(
+      label: 'Left / right page-turn tap zones',
+      child: GridActions(
+        children: [
+          _ChoiceButton(
+            key: const Key('reader-settings-tap-zones'),
+            toggle: true,
+            label: _settings.pageTurnTapZonesEnabled ? 'Enabled' : 'Disabled',
+            selected: _settings.pageTurnTapZonesEnabled,
+            onPressed: () => setState(
+              () => _settings = _settings.copyWith(
+                pageTurnTapZonesEnabled: !_settings.pageTurnTapZonesEnabled,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+    _SettingsGroup(
+      label: 'Physical page buttons',
+      child: GridActions(
+        children: [
+          _ChoiceButton(
+            key: const Key('reader-settings-page-buttons'),
+            toggle: true,
+            label: _settings.pageButtonsEnabled ? 'Enabled' : 'Disabled',
+            selected: _settings.pageButtonsEnabled,
+            onPressed: () => setState(
+              () => _settings = _settings.copyWith(
+                pageButtonsEnabled: !_settings.pageButtonsEnabled,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  ];
 
   Widget _cropControl() => _SettingsGroup(
     label: 'Automatic margin crop',
@@ -358,6 +399,7 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
                   ),
                 ],
                 ...textDocument ? _textControls() : _pdfControls(),
+                ..._navigationControls(),
               ],
             ),
           ),

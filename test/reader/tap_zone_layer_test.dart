@@ -3,6 +3,50 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final zoomMode in [false, true]) {
+    testWidgets(
+      'disabled edge taps preserve menu and gestures (zoom: $zoomMode)',
+      (tester) async {
+        var previous = 0;
+        var next = 0;
+        var menu = 0;
+        var pans = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: TapZoneLayer(
+              zoomMode: zoomMode,
+              pageTurnTapZonesEnabled: false,
+              onPrevious: () => previous++,
+              onNext: () => next++,
+              onMenu: () => menu++,
+              child: zoomMode
+                  ? GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: (_) => pans++,
+                      child: const SizedBox.expand(),
+                    )
+                  : null,
+            ),
+          ),
+        );
+        final bounds = tester.getRect(find.byType(TapZoneLayer));
+        await tester.tapAt(Offset(bounds.left + 20, bounds.center.dy));
+        await tester.tapAt(bounds.center);
+        await tester.tapAt(Offset(bounds.right - 20, bounds.center.dy));
+        expect(previous, 0);
+        expect(next, 0);
+        expect(menu, 1);
+        await tester.dragFrom(bounds.center, const Offset(-200, 0));
+        if (zoomMode) {
+          expect(pans, greaterThan(0));
+          expect(next, 0);
+        } else {
+          expect(next, 1);
+        }
+      },
+    );
+  }
+
   test('zoneForDx keeps right side forward regardless of text direction', () {
     expect(TapZoneLayer.zoneForDx(10, 100), ReaderTapZone.previous);
     expect(TapZoneLayer.zoneForDx(50, 100), ReaderTapZone.menu);

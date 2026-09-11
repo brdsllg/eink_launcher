@@ -23,12 +23,17 @@ these are supported input mappings rather than an assumed firmware menu path.
 
 - PDF Height: previous/next document page.
 - PDF Width: previous/next screenful, continuing to the adjacent page at its edge.
-- PDF Zoom / Scroll: previous/next viewport-sized step through the document.
+- PDF Zoom / Scroll: previous/next screenful through the document, retaining
+  the overlap percentage selected in settings at the current zoom level.
 - EPUB, TXT, and Markdown: previous/next laid-out page.
 - A reader button press dismisses the reading menu and uses the same navigation
   logic as the existing touch controls. PDF turns keep their ordered queue.
 - Each physical press turns once. Holding a button does not run away through
   pages. The first and last positions remain bounded.
+- Reader settings offer independent toggles for physical page buttons and the
+  left/right page-turn tap zones. Both default to enabled. Disabling tap zones
+  keeps center-tap menu access and swipe/pinch gestures available. Disabling
+  physical buttons in the reader leaves their normal system handling available.
 
 ## Input boundaries
 

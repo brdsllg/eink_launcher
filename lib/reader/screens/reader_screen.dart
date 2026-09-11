@@ -515,7 +515,11 @@ class _ReaderScreenState extends State<ReaderScreen>
     final savedPosition = state?.position;
     final isPdf = _doc.format == DocFormat.pdf;
     return PageButtonScope(
-      enabled: !loading && !_backgrounded && session?.isReady == true,
+      enabled:
+          !loading &&
+          !_backgrounded &&
+          session?.isReady == true &&
+          settings.pageButtonsEnabled,
       onPrevious: session == null
           ? null
           : () => _turnFromButton(session, forward: false),
@@ -668,6 +672,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       // a new readiness callback even if the same session State would survive.
       key: ValueKey((session, _contentGeneration)),
       zoomMode: isPdf && session.settings.fitMode == PdfFitMode.zoom,
+      pageTurnTapZonesEnabled: session.settings.pageTurnTapZonesEnabled,
       onPrevious: () => _navigate(session.prevPage, orderedPdfTurn: isPdf),
       onMenu: () => setState(() => _menuVisible = !_menuVisible),
       onNext: () => _navigate(session.nextPage, orderedPdfTurn: isPdf),

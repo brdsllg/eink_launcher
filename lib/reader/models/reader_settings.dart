@@ -31,6 +31,8 @@ class ReaderSettings {
 
   // Shared
   final bool landscape;
+  final bool pageTurnTapZonesEnabled;
+  final bool pageButtonsEnabled;
 
   const ReaderSettings({
     this.latinFontFamily = 'Literata',
@@ -49,6 +51,8 @@ class ReaderSettings {
     this.colorEnabled = false,
     this.pdfDithering = false,
     this.landscape = false,
+    this.pageTurnTapZonesEnabled = true,
+    this.pageButtonsEnabled = true,
   });
 
   double get fontSize =>
@@ -83,6 +87,8 @@ class ReaderSettings {
     bool? colorEnabled,
     bool? pdfDithering,
     bool? landscape,
+    bool? pageTurnTapZonesEnabled,
+    bool? pageButtonsEnabled,
   }) {
     return ReaderSettings(
       latinFontFamily: latinFontFamily ?? this.latinFontFamily,
@@ -102,6 +108,9 @@ class ReaderSettings {
       colorEnabled: colorEnabled ?? this.colorEnabled,
       pdfDithering: pdfDithering ?? this.pdfDithering,
       landscape: landscape ?? this.landscape,
+      pageTurnTapZonesEnabled:
+          pageTurnTapZonesEnabled ?? this.pageTurnTapZonesEnabled,
+      pageButtonsEnabled: pageButtonsEnabled ?? this.pageButtonsEnabled,
     );
   }
 
@@ -122,6 +131,8 @@ class ReaderSettings {
     'colorEnabled': colorEnabled,
     'pdfDithering': pdfDithering,
     'landscape': landscape,
+    'pageTurnTapZonesEnabled': pageTurnTapZonesEnabled,
+    'pageButtonsEnabled': pageButtonsEnabled,
   };
 
   factory ReaderSettings.fromJson(Map<String, dynamic> json) {
@@ -152,6 +163,8 @@ class ReaderSettings {
       colorEnabled: json['colorEnabled'] as bool? ?? false,
       pdfDithering: json['pdfDithering'] as bool? ?? false,
       landscape: json['landscape'] as bool? ?? false,
+      pageTurnTapZonesEnabled: json['pageTurnTapZonesEnabled'] as bool? ?? true,
+      pageButtonsEnabled: json['pageButtonsEnabled'] as bool? ?? true,
     );
   }
 }
