@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/text_reader_session.dart';
 import 'block_slice_view.dart';
+import 'dictionary_dialog.dart';
 
 class TextPageView extends StatefulWidget {
   final TextReaderSession session;
@@ -63,6 +64,8 @@ class _TextPageViewState extends State<TextPageView> {
               children: [
                 for (final slice in page.slices)
                   BlockSliceView(
+                    onDefineWord: (word) =>
+                        showDictionaryDefinition(context, word),
                     block: book
                         .spine[page.start.spineIndex]
                         .blocks[slice.blockIndex],

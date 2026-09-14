@@ -6,13 +6,15 @@ import '../models/content_block.dart';
 import '../models/laid_out_page.dart';
 import '../models/reader_settings.dart';
 import '../services/epub_paginator_service.dart';
+import '../services/text_word_selection.dart';
 
-class BlockSliceView extends StatelessWidget {
+class BlockSliceView extends StatefulWidget {
   final ContentBlock block;
   final BlockSlice slice;
   final ReaderSettings settings;
   final double pageHeight;
   final Uint8List? imageBytes;
+  final Future<void> Function(String word)? onDefineWord;
 
   const BlockSliceView({
     super.key,
@@ -21,7 +23,48 @@ class BlockSliceView extends StatelessWidget {
     required this.settings,
     required this.pageHeight,
     this.imageBytes,
+    this.onDefineWord,
   });
+
+  @override
+  State<BlockSliceView> createState() => _BlockSliceViewState();
+}
+
+class _BlockSliceViewState extends State<BlockSliceView> {
+  TextSelection? _selection;
+  ContentBlock get block => widget.block;
+  BlockSlice get slice => widget.slice;
+  ReaderSettings get settings => widget.settings;
+  double get pageHeight => widget.pageHeight;
+  Uint8List? get imageBytes => widget.imageBytes;
+
+  @override
+  void didUpdateWidget(BlockSliceView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.block != block ||
+        oldWidget.slice != slice ||
+        oldWidget.settings != settings) {
+      _selection = null;
+    }
+  }
+
+  Future<void> _selectWord(Offset offset, double width) async {
+    if (_selection != null) return;
+    final painter = TextBlockLayout.createPainter(block, settings, width);
+    final selected = wordAtOffset(
+      painter,
+      offset,
+      prefixLength: TextBlockLayout.prefixFor(block, settings).length,
+    );
+    painter.dispose();
+    if (selected == null) return;
+    setState(() => _selection = selected.selection);
+    try {
+      await widget.onDefineWord!(selected.word);
+    } finally {
+      if (mounted) setState(() => _selection = null);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +88,7 @@ class BlockSliceView extends StatelessWidget {
                 child: SizedBox(
                   width: constraints.maxWidth,
                   height: layout.height,
-                  child: _buildBlock(layout),
+                  child: _buildBlock(layout, constraints.maxWidth),
                 ),
               ),
             ),
@@ -55,7 +98,7 @@ class BlockSliceView extends StatelessWidget {
     );
   }
 
-  Widget _buildBlock(TextBlockLayout layout) {
+  Widget _buildBlock(TextBlockLayout layout, double width) {
     if (block.type == BlockType.horizontalRule) {
       return Align(
         alignment: Alignment.topCenter,
@@ -128,7 +171,15 @@ class BlockSliceView extends StatelessWidget {
     }
     return Semantics(
       label: block.plainText,
-      child: CustomPaint(painter: _TextBlockPainter(block, settings)),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onLongPressStart: widget.onDefineWord == null
+            ? null
+            : (details) => _selectWord(details.localPosition, width),
+        child: CustomPaint(
+          painter: _TextBlockPainter(block, settings, _selection),
+        ),
+      ),
     );
   }
 }
@@ -136,11 +187,17 @@ class BlockSliceView extends StatelessWidget {
 class _TextBlockPainter extends CustomPainter {
   final ContentBlock block;
   final ReaderSettings settings;
-  _TextBlockPainter(this.block, this.settings);
+  final TextSelection? selection;
+  _TextBlockPainter(this.block, this.settings, this.selection);
 
   @override
   void paint(Canvas canvas, Size size) {
     final painter = TextBlockLayout.createPainter(block, settings, size.width);
+    if (selection != null) {
+      for (final box in painter.getBoxesForSelection(selection!)) {
+        canvas.drawRect(box.toRect(), Paint()..color = const Color(0xFFD0D0D0));
+      }
+    }
     painter.paint(canvas, Offset.zero);
     final hyphen = TextPainter(
       text: TextSpan(
@@ -166,5 +223,7 @@ class _TextBlockPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _TextBlockPainter oldDelegate) =>
-      oldDelegate.block != block || oldDelegate.settings != settings;
+      oldDelegate.block != block ||
+      oldDelegate.settings != settings ||
+      oldDelegate.selection != selection;
 }

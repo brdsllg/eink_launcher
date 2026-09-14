@@ -34,6 +34,10 @@ void main() {
     expect(find.text('Automatic margin crop'), findsOneWidget);
     expect(find.text('Fit-width overlap'), findsNothing);
     expect(find.byKey(const Key('reader-settings-zoom-out')), findsNothing);
+    expect(
+      find.byKey(const Key('reader-settings-overlap-guide')),
+      findsNothing,
+    );
 
     await tester.tap(find.byKey(const Key('reader-settings-crop')));
     await tester.pump();
@@ -57,6 +61,14 @@ void main() {
     await tester.tap(find.widgetWithIcon(OutlinedButton, Icons.add));
     await tester.pump();
     expect(find.text('7%'), findsOneWidget);
+    final guide = find.byKey(const Key('reader-settings-overlap-guide'));
+    await tester.ensureVisible(guide);
+    await tester.tap(guide);
+    await tester.pump();
+    expect(
+      find.descendant(of: guide, matching: find.text('Disabled')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('zoom / scroll offers overlap and zoom-out controls', (
@@ -146,6 +158,16 @@ void main() {
       );
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
+      if (format == DocFormat.pdf) {
+        final guide = find.byKey(const Key('reader-settings-overlap-guide'));
+        await tester.scrollUntilVisible(guide, 150);
+        expect(
+          find.descendant(of: guide, matching: find.text('Enabled')),
+          findsOneWidget,
+        );
+        await tester.tap(guide);
+        await tester.pump();
+      }
       final taps = find.byKey(const Key('reader-settings-tap-zones'));
       final buttons = find.byKey(const Key('reader-settings-page-buttons'));
       await tester.scrollUntilVisible(taps, 300);
@@ -166,6 +188,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(saved?.pageTurnTapZonesEnabled, isFalse);
       expect(saved?.pageButtonsEnabled, isFalse);
+      expect(saved?.overlapGuideEnabled, format != DocFormat.pdf);
     });
   }
 }

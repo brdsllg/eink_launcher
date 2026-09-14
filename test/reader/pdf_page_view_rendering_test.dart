@@ -13,6 +13,92 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'fit navigation keeps coverage and lays preview and detail out identically',
+    (tester) async {
+      final images = await tester.runAsync(() async {
+        final colors = [Colors.black, Colors.blue, Colors.green];
+        final sizes = [
+          const Size(40, 50),
+          const Size(80, 100),
+          const Size(800, 1000),
+        ];
+        return Future.wait(
+          List.generate(colors.length, (index) async {
+            final recorder = ui.PictureRecorder();
+            Canvas(recorder).drawRect(
+              Offset.zero & sizes[index],
+              Paint()..color = colors[index],
+            );
+            final picture = recorder.endRecording();
+            final image = await picture.toImage(
+              sizes[index].width.round(),
+              sizes[index].height.round(),
+            );
+            picture.dispose();
+            return image;
+          }),
+        );
+      });
+      final session = _DelayedFitPdfSession(images!);
+      addTearDown(() {
+        session.dispose();
+        for (final image in images) {
+          image.dispose();
+        }
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox(
+              width: 400,
+              height: 500,
+              child: ListenableBuilder(
+                listenable: session,
+                builder: (context, _) => PdfPageView(session: session),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      session.completeDetail(0, images[0]);
+      await tester.pump();
+      await tester.pump();
+      expect(_displayedCloneOf(tester, images[0]), isTrue);
+      expect(tester.getSize(find.byType(RawImage)), const Size(400, 500));
+
+      session.jump(1);
+      await tester.pump();
+      expect(
+        _displayedCloneOf(tester, images[0]),
+        isTrue,
+        reason: 'the previous page must cover the render handoff',
+      );
+
+      session.completePreview(1, images[1]);
+      await tester.pump();
+      await tester.pump();
+      expect(_displayedCloneOf(tester, images[1]), isTrue);
+      expect(
+        tester.getSize(find.byType(RawImage)),
+        const Size(400, 500),
+        reason: 'a low-resolution preview must not use its intrinsic size',
+      );
+
+      session.completeDetail(1, images[2]);
+      await tester.pump();
+      await tester.pump();
+      expect(_displayedCloneOf(tester, images[2]), isTrue);
+      expect(tester.getSize(find.byType(RawImage)), const Size(400, 500));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      session.finishOutstanding();
+      await tester.pump();
+    },
+  );
+
   Future<_DelayedPdfSession> mount(WidgetTester tester) async {
     final images = await tester.runAsync(() async {
       final colors = [Colors.black, Colors.blue, Colors.green, Colors.purple];
@@ -362,6 +448,100 @@ class _PendingTile {
   final result = Completer<ui.Image>();
 
   _PendingTile(this.page, this.scale, this.request);
+}
+
+class _PendingFitImage {
+  final int page;
+  final Completer<ui.Image?> result = Completer<ui.Image?>();
+
+  _PendingFitImage(this.page);
+}
+
+class _DelayedFitPdfSession extends PdfReaderSession {
+  final List<ui.Image> images;
+  final previews = <_PendingFitImage>[];
+  final details = <_PendingFitImage>[];
+  int page = 0;
+  int epoch = 0;
+
+  _DelayedFitPdfSession(this.images)
+    : super(
+        doc: const DocRef(
+          id: 'delayed-fit-widget-pdf',
+          path: '/fake-fit.pdf',
+          title: 'Fake fit PDF',
+          format: DocFormat.pdf,
+          fileSize: 1,
+        ),
+      );
+
+  void jump(int target) {
+    page = target;
+    epoch++;
+    notifyListeners();
+  }
+
+  void completePreview(int target, ui.Image image) {
+    previews
+        .firstWhere(
+          (pending) => pending.page == target && !pending.result.isCompleted,
+        )
+        .result
+        .complete(image.clone());
+  }
+
+  void completeDetail(int target, ui.Image image) {
+    details
+        .firstWhere(
+          (pending) => pending.page == target && !pending.result.isCompleted,
+        )
+        .result
+        .complete(image.clone());
+  }
+
+  void finishOutstanding() {
+    for (final pending in [...previews, ...details]) {
+      if (!pending.result.isCompleted) pending.result.complete(null);
+    }
+  }
+
+  @override
+  bool get isReady => true;
+
+  @override
+  int get navigationEpoch => epoch;
+
+  @override
+  int get currentPage => page;
+
+  @override
+  ReaderSettings get settings =>
+      const ReaderSettings(fitMode: PdfFitMode.fitHeight);
+
+  @override
+  PdfReadingPosition get position => PdfReadingPosition(pageIndex: page);
+
+  @override
+  Future<ui.Image?> loadCurrentFitPreview(
+    Size viewport, {
+    double devicePixelRatio = 1,
+    PdfRenderRequest? request,
+  }) {
+    final pending = _PendingFitImage(page);
+    previews.add(pending);
+    return pending.result.future;
+  }
+
+  @override
+  Future<ui.Image> renderCurrentView(
+    Size viewport, {
+    double devicePixelRatio = 1,
+    PdfRenderRequest? request,
+  }) {
+    final pending = _PendingFitImage(page);
+    details.add(pending);
+    return pending.result.future.then((image) => image!);
+  }
 }
 
 class _DelayedPdfSession extends PdfReaderSession {

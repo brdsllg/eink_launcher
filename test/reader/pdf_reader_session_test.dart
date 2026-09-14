@@ -14,6 +14,7 @@ import 'package:eink_launcher/reader/services/pdf_memory_service.dart';
 import 'package:eink_launcher/reader/services/pdf_render_scheduler.dart';
 import 'package:eink_launcher/reader/services/pdf_thumbnail_cache_service.dart';
 import 'package:eink_launcher/reader/widgets/pdf_page_view.dart' as reader;
+import 'package:eink_launcher/reader/widgets/reading_continuation_guide.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -649,8 +650,10 @@ void main() {
     session.updateViewport(const Size(400, 800));
 
     final seenWithinPage = <double>[0.0];
+    expect(session.fitOverlapGuideY, isNull);
     for (var i = 0; i < 4; i++) {
       await session.nextPage();
+      expect(session.fitOverlapGuideY, closeTo(i == 3 ? 656 : 48, 0.001));
       seenWithinPage.add((session.position as PdfReadingPosition).withinPage);
     }
 
@@ -663,6 +666,7 @@ void main() {
 
     await session.nextPage(); // crosses onto page 1
     expect(session.currentPage, 1);
+    expect(session.fitOverlapGuideY, isNull);
     expect((session.position as PdfReadingPosition).withinPage, 0.0);
 
     await session.prevPage(); // lands on page 0's last sub-screen
@@ -915,9 +919,11 @@ void main() {
         viewport.height,
       );
       expect(afterNext, closeTo(632, 0.0001));
+      expect(session.continuousOverlapGuideOffset, closeTo(650, 0.0001));
       expect(session.currentPage, 2);
 
       await session.prevPage();
+      expect(session.continuousOverlapGuideOffset, isNull);
       expect(
         session.continuousOffsetForPosition(layout, viewport.height),
         closeTo(350, 0.0001),
@@ -927,6 +933,7 @@ void main() {
       // navigation retains the selected overlap in that transformed viewport.
       session.updateContinuousScrollOffset(350, layout, 150);
       await session.nextPage();
+      expect(session.continuousOverlapGuideOffset, closeTo(500, 0.0001));
       expect(
         session.continuousOffsetForPosition(layout, 150),
         closeTo(491, 0.0001),
@@ -945,6 +952,10 @@ void main() {
         session.updateContinuousScrollOffset(350, layout, 150);
         await session.nextPage();
         expect(
+          session.continuousOverlapGuideOffset,
+          overlap == 0 ? isNull : closeTo(500, 0.0001),
+        );
+        expect(
           session.continuousOffsetForPosition(layout, 150),
           closeTo(350 + 150 * (1 - overlap), 0.0001),
         );
@@ -955,6 +966,15 @@ void main() {
         );
       }
 
+      session.updateContinuousScrollOffset(1000, layout, 150);
+      await session.nextPage();
+      expect(session.continuousOverlapGuideOffset, closeTo(1150, 0.0001));
+      expect(
+        session.continuousOffsetForPosition(layout, 150),
+        closeTo(1050, 0.0001),
+      );
+      await session.goToPage(0);
+      expect(session.continuousOverlapGuideOffset, isNull);
       session.updateContinuousScrollOffset(0, layout, 150);
       await session.prevPage();
       expect(session.continuousOffsetForPosition(layout, 150), 0);
@@ -971,6 +991,144 @@ void main() {
       );
     },
   );
+
+  for (final mode in [PdfFitMode.fitWidth, PdfFitMode.zoom]) {
+    testWidgets(
+      'continuation guide follows forward turns and clears for $mode',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final session = makeSession(
+          fakeDoc: _FakePdfDocument(
+            pageCount: 4,
+            pageWidth: 200,
+            pageHeight: 650,
+          ),
+        );
+        const viewport = Size(200, 300);
+        Future<void> nextScreen() => tester.runAsync(() async {
+          await session.nextPage();
+          if (mode == PdfFitMode.fitWidth) {
+            (await session.renderCurrentView(viewport)).dispose();
+          }
+        });
+        await tester.runAsync(() async {
+          await session.open();
+          await session.applySettings(
+            session.settings.copyWith(fitMode: mode, autoCrop: false),
+          );
+          if (mode == PdfFitMode.zoom) {
+            await session.continuousLayoutForViewport(viewport);
+          } else {
+            (await session.renderCurrentView(viewport)).dispose();
+          }
+        });
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: SizedBox(
+                width: viewport.width,
+                height: viewport.height,
+                child: ListenableBuilder(
+                  listenable: session,
+                  builder: (_, _) => reader.PdfPageView(session: session),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await nextScreen();
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<ReadingContinuationGuide>(
+                find.byType(ReadingContinuationGuide),
+              )
+              .y,
+          closeTo(18, 0.001),
+        );
+        if (mode == PdfFitMode.zoom) {
+          final center = tester.getCenter(
+            find.byKey(const Key('continuous-pdf-surface')),
+          );
+          final left = await tester.startGesture(
+            center - const Offset(25, 0),
+            pointer: 1,
+          );
+          final right = await tester.startGesture(
+            center + const Offset(25, 0),
+            pointer: 2,
+          );
+          await tester.pump();
+          for (var i = 1; i <= 5; i++) {
+            await left.moveTo(center - Offset(25 + i * 5, 0));
+            await right.moveTo(center + Offset(25 + i * 5, 0));
+            await tester.pump(const Duration(milliseconds: 25));
+          }
+          await left.up();
+          await right.up();
+          await tester.pumpAndSettle();
+          expect(session.continuousOverlapGuideOffset, isNull);
+          await nextScreen();
+          await tester.pumpAndSettle();
+          expect(
+            tester
+                .widget<ReadingContinuationGuide>(
+                  find.byType(ReadingContinuationGuide),
+                )
+                .y,
+            closeTo(18, 0.001),
+          );
+          await tester.drag(
+            find.byKey(const Key('continuous-pdf-surface')),
+            const Offset(0, -50),
+          );
+          await tester.pumpAndSettle();
+          expect(session.continuousOverlapGuideOffset, isNull);
+        } else {
+          await nextScreen();
+          await tester.pumpAndSettle();
+          expect(
+            tester
+                .widget<ReadingContinuationGuide>(
+                  find.byType(ReadingContinuationGuide),
+                )
+                .y,
+            closeTo(232, 0.001),
+          );
+        }
+        await session.applySettings(
+          session.settings.copyWith(overlapGuideEnabled: false),
+        );
+        await session.goToPage(0);
+        await nextScreen();
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<ReadingContinuationGuide>(
+                find.byType(ReadingContinuationGuide),
+              )
+              .y,
+          isNull,
+        );
+        await tester.pumpWidget(const SizedBox());
+        session.dispose();
+        // Let cancelled native image work finish before the next widget
+        // test replaces the fake clock that owns its completion callbacks.
+        final scheduler = PdfRenderScheduler.instance;
+        for (var i = 0; i < 100; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump();
+          if (scheduler.activeCount == 0 && scheduler.pendingCount == 0) break;
+        }
+        expect(scheduler.activeCount, 0);
+        expect(scheduler.pendingCount, 0);
+      },
+    );
+  }
 
   testWidgets('fit-mode image remains valid when the cache is cleared', (
     tester,

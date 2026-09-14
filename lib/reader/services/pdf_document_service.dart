@@ -6,6 +6,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../../constants.dart';
 import '../models/reading_position.dart';
+import '../models/pdf_word_selection.dart';
 import '../models/toc_entry.dart';
 import 'pdf_crop_service.dart';
 import 'pdf_dithering_service.dart';
@@ -196,6 +197,32 @@ class PdfDocumentService {
   Future<List<TocEntry>> loadOutline() async {
     final nodes = await _requireDocument().loadOutline();
     return _convertOutline(nodes, 0);
+  }
+
+  /// Extract only the pressed page, with no retained document-wide text cache.
+  /// Returned boxes use rotated, top-left-origin normalized page coordinates.
+  Future<PdfWordSelection?> wordAt(
+    int pageIndex,
+    Offset normalizedPoint,
+  ) async {
+    final generation = _generation;
+    return PdfRenderScheduler.instance.schedule(() async {
+      if (generation != _generation) throw const PdfRenderCancelledException();
+      final page = pageAt(pageIndex);
+      final text = await page.loadText();
+      if (generation != _generation) throw const PdfRenderCancelledException();
+      if (text == null || text.fullText.isEmpty) return null;
+      final boxes = text.charRects.map((box) {
+        final rect = box.toRect(page: page);
+        return Rect.fromLTRB(
+          rect.left / page.width,
+          rect.top / page.height,
+          rect.right / page.width,
+          rect.bottom / page.height,
+        );
+      }).toList();
+      return selectPdfWord(text.fullText, boxes, normalizedPoint);
+    });
   }
 
   Future<void> close() async {

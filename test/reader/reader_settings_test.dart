@@ -2,6 +2,18 @@ import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('continuation arrows default on and the disabled choice persists', () {
+    expect(const ReaderSettings().overlapGuideEnabled, isTrue);
+    final legacy = ReaderSettings.fromJson({});
+    expect(legacy.overlapGuideEnabled, isTrue);
+    expect(
+      ReaderSettings.fromJson(
+        legacy.copyWith(overlapGuideEnabled: false).toJson(),
+      ).overlapGuideEnabled,
+      isFalse,
+    );
+  });
+
   test('navigation preferences default on and persist independently', () {
     final legacy = ReaderSettings.fromJson({});
     expect(legacy.pageTurnTapZonesEnabled, isTrue);

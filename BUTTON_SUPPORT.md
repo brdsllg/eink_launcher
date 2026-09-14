@@ -25,6 +25,11 @@ these are supported input mappings rather than an assumed firmware menu path.
 - PDF Width: previous/next screenful, continuing to the adjacent page at its edge.
 - PDF Zoom / Scroll: previous/next screenful through the document, retaining
   the overlap percentage selected in settings at the current zoom level.
+- In Width and Zoom / Scroll, forward turns with overlap show inward arrows
+  at both screen edges where the previous screen ended. Reading continuation
+  arrows default to enabled and can be turned off in PDF settings. They clear
+  on backward turns, jumps, changes to settings or viewport size, and manual
+  pans or pinches.
 - EPUB, TXT, and Markdown: previous/next laid-out page.
 - A reader button press dismisses the reading menu and uses the same navigation
   logic as the existing touch controls. PDF turns keep their ordered queue.

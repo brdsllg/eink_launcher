@@ -12,6 +12,7 @@ import '../models/book_state.dart';
 import '../models/bookmark.dart';
 import '../models/doc_ref.dart';
 import '../models/pdf_continuous_layout.dart';
+import '../models/pdf_word_selection.dart';
 import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
 import '../models/toc_entry.dart';
@@ -87,6 +88,29 @@ class PdfReaderSession extends ReaderSession {
   PdfContinuousLayout? _continuousLayout;
   int? _continuousCurrentPage;
   double? _continuousViewportHeight;
+  double? _fitOverlapGuideY;
+  double? _continuousOverlapGuideOffset;
+
+  /// End of the preceding screen after a forward turn, in viewport pixels
+  /// for Width mode or document coordinates for Zoom / Scroll.
+  double? get fitOverlapGuideY =>
+      _settings.overlapGuideEnabled ? _fitOverlapGuideY : null;
+  double? get continuousOverlapGuideOffset =>
+      _settings.overlapGuideEnabled ? _continuousOverlapGuideOffset : null;
+
+  void _clearOverlapGuide() {
+    _fitOverlapGuideY = null;
+    _continuousOverlapGuideOffset = null;
+  }
+
+  /// A manual pan/pinch starts a new reading position without a page turn.
+  void clearOverlapGuide() {
+    if (_fitOverlapGuideY == null && _continuousOverlapGuideOffset == null) {
+      return;
+    }
+    _clearOverlapGuide();
+    notifyListeners();
+  }
 
   /// Bumped by every *programmatic* move (tap jump, page jump, TOC, percent).
   /// User scrolling deliberately leaves it alone: the continuous view only
@@ -323,6 +347,7 @@ class PdfReaderSession extends ReaderSession {
   }
 
   void _invalidateNavigation() {
+    _clearOverlapGuide();
     _lastTurnMillis = null;
     _rapidTurns = false;
     _turnGeneration++;
@@ -350,12 +375,27 @@ class PdfReaderSession extends ReaderSession {
       request.throwIfCancelled();
       final idx = _nearestIndex(starts, _withinPage);
       if (idx < starts.length - 1) {
+        final crop = await _resolveCropRect(_pageIndex, request);
+        request.throwIfCancelled();
+        final info = _documentService!.pageInfo(_pageIndex);
+        final scaledHeight =
+            info.height *
+            crop.height *
+            viewport.width /
+            (info.width * crop.width);
+        final guideY =
+            viewport.height - (starts[idx + 1] - _withinPage) * scaledHeight;
+        _clearOverlapGuide();
+        if (guideY > 0.01 && guideY < viewport.height) {
+          _fitOverlapGuideY = guideY;
+        }
         _withinPage = starts[idx + 1];
         _afterPositionChanged();
         return;
       }
     }
     if (_pageIndex >= _pageCount - 1) return;
+    _clearOverlapGuide();
     _pageIndex += 1;
     _withinPage = 0.0;
     _afterPositionChanged();
@@ -363,6 +403,7 @@ class PdfReaderSession extends ReaderSession {
 
   Future<void> _prevPage(PdfRenderRequest request) async {
     if (!_isReady) return;
+    clearOverlapGuide();
     _recordTurn(-1);
     final viewport = _lastViewport;
     if (_isContinuous) {
@@ -504,6 +545,7 @@ class PdfReaderSession extends ReaderSession {
   /// have something to work with. Called by the reader widget (Step 1.5) on
   /// every layout; cheap to call repeatedly since it no-ops when unchanged.
   void updateViewport(Size size, {double? devicePixelRatio}) {
+    if (_lastViewport != size) _clearOverlapGuide();
     _lastViewport = size;
     if (devicePixelRatio != null &&
         devicePixelRatio.isFinite &&
@@ -515,6 +557,96 @@ class PdfReaderSession extends ReaderSession {
   // ---------------------------------------------------------------------
   // Continuous-scroll geometry and position mapping
   // ---------------------------------------------------------------------
+
+  Future<PdfWordSelection?> wordAtFitOffset(
+    Offset offset,
+    Size viewport,
+    Size imageSize,
+  ) async {
+    if (!_isReady || _isContinuous || imageSize.isEmpty) return null;
+    final generation = _generation;
+    final epoch = navigationEpoch;
+    final pageIndex = _pageIndex;
+    final withinPage = _withinPage;
+    final crop = await _withRequest(
+      null,
+      (request) => _resolveCropRect(pageIndex, request),
+    );
+    _checkGeneration(generation);
+    if (epoch != navigationEpoch) return null;
+    final geometry = _geometryFor(
+      _documentService!.pageInfo(pageIndex),
+      crop,
+      viewport,
+      withinPage,
+      1,
+    );
+    final scale = math.min(
+      viewport.width / imageSize.width,
+      viewport.height / imageSize.height,
+    );
+    final display = Rect.fromLTWH(
+      (viewport.width - imageSize.width * scale) / 2,
+      (viewport.height - imageSize.height * scale) / 2,
+      imageSize.width * scale,
+      imageSize.height * scale,
+    );
+    if (!display.contains(offset)) return null;
+    final target = geometry.crop;
+    final point = Offset(
+      target.left + (offset.dx - display.left) / display.width * target.width,
+      target.top + (offset.dy - display.top) / display.height * target.height,
+    );
+    final selected = await _documentService!.wordAt(pageIndex, point);
+    _checkGeneration(generation);
+    if (epoch != navigationEpoch) return null;
+    return selected?.transform(
+      (box) => Rect.fromLTRB(
+        display.left + (box.left - target.left) / target.width * display.width,
+        display.top + (box.top - target.top) / target.height * display.height,
+        display.left + (box.right - target.left) / target.width * display.width,
+        display.top +
+            (box.bottom - target.top) / target.height * display.height,
+      ),
+    );
+  }
+
+  Future<PdfWordSelection?> wordAtContinuousOffset(
+    Offset offset,
+    PdfContinuousLayout layout,
+  ) async {
+    if (!_isReady ||
+        !_isContinuous ||
+        offset.dx < 0 ||
+        offset.dx >= layout.viewportWidth ||
+        offset.dy < 0 ||
+        offset.dy >= layout.totalHeight) {
+      return null;
+    }
+    final generation = _generation;
+    final epoch = navigationEpoch;
+    final crop = await _resolveUniformCropRect();
+    _checkGeneration(generation);
+    if (epoch != navigationEpoch) return null;
+    final page = layout.pageAtOffset(offset.dy);
+    final top = layout.pageTop(page);
+    final height = layout.pageHeights[page];
+    final point = Offset(
+      crop.left + offset.dx / layout.viewportWidth * crop.width,
+      crop.top + (offset.dy - top) / height * crop.height,
+    );
+    final selected = await _documentService!.wordAt(page, point);
+    _checkGeneration(generation);
+    if (epoch != navigationEpoch) return null;
+    return selected?.transform(
+      (box) => Rect.fromLTRB(
+        (box.left - crop.left) / crop.width * layout.viewportWidth,
+        top + (box.top - crop.top) / crop.height * height,
+        (box.right - crop.left) / crop.width * layout.viewportWidth,
+        top + (box.bottom - crop.top) / crop.height * height,
+      ),
+    );
+  }
 
   Future<PdfContinuousLayout> continuousLayoutForViewport(Size viewport) async {
     if (!_isReady || viewport.width <= 0 || viewport.height <= 0) {
@@ -593,6 +725,15 @@ class PdfReaderSession extends ReaderSession {
     final target = (current + delta * (1 - overlap))
         .clamp(0.0, layout.maxScrollOffset(visibleHeight))
         .toDouble();
+    if (target != current) {
+      _clearOverlapGuide();
+      final previousEnd = current + visibleHeight;
+      if (target > current &&
+          previousEnd > target + 0.01 &&
+          previousEnd < target + visibleHeight) {
+        _continuousOverlapGuideOffset = previousEnd;
+      }
+    }
     final logical = layout.positionForOffset(target);
     _pageIndex = logical.pageIndex;
     _withinPage = logical.withinPage;

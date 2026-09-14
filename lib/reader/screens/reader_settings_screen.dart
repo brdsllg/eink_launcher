@@ -210,10 +210,15 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
       case PdfFitMode.fitHeight:
         return [_cropControl()];
       case PdfFitMode.fitWidth:
-        return [_cropControl(), _overlapControl('Fit-width overlap')];
+        return [
+          _cropControl(),
+          _overlapControl('Fit-width overlap'),
+          _overlapGuideControl(),
+        ];
       case PdfFitMode.zoom:
         return [
           _overlapControl('Scroll-step overlap'),
+          _overlapGuideControl(),
           _SettingsGroup(
             label: 'Zoom out past the page',
             child: GridActions(
@@ -261,6 +266,25 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
       onIncrease: _settings.splitOverlap >= 0.20
           ? null
           : () => _changeOverlap(0.01),
+    ),
+  );
+
+  Widget _overlapGuideControl() => _SettingsGroup(
+    label: 'Reading continuation arrows',
+    child: GridActions(
+      children: [
+        _ChoiceButton(
+          key: const Key('reader-settings-overlap-guide'),
+          toggle: true,
+          label: _settings.overlapGuideEnabled ? 'Enabled' : 'Disabled',
+          selected: _settings.overlapGuideEnabled,
+          onPressed: () => setState(
+            () => _settings = _settings.copyWith(
+              overlapGuideEnabled: !_settings.overlapGuideEnabled,
+            ),
+          ),
+        ),
+      ],
     ),
   );
 

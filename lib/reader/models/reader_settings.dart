@@ -20,6 +20,7 @@ class ReaderSettings {
   final PdfFitMode fitMode;
   final bool autoCrop;
   final double splitOverlap;
+  final bool overlapGuideEnabled;
 
   /// Zoom / Scroll only: allow pinching in below the fit-width size, so pages
   /// shrink and roughly two pages fit on screen at once. Default on.
@@ -47,6 +48,7 @@ class ReaderSettings {
     this.fitMode = PdfFitMode.fitHeight,
     this.autoCrop = true,
     this.splitOverlap = kPdfDefaultSplitOverlap,
+    this.overlapGuideEnabled = true,
     this.allowZoomOutBeyondFit = true,
     this.colorEnabled = false,
     this.pdfDithering = false,
@@ -83,6 +85,7 @@ class ReaderSettings {
     PdfFitMode? fitMode,
     bool? autoCrop,
     double? splitOverlap,
+    bool? overlapGuideEnabled,
     bool? allowZoomOutBeyondFit,
     bool? colorEnabled,
     bool? pdfDithering,
@@ -103,6 +106,7 @@ class ReaderSettings {
       fitMode: fitMode ?? this.fitMode,
       autoCrop: autoCrop ?? this.autoCrop,
       splitOverlap: splitOverlap ?? this.splitOverlap,
+      overlapGuideEnabled: overlapGuideEnabled ?? this.overlapGuideEnabled,
       allowZoomOutBeyondFit:
           allowZoomOutBeyondFit ?? this.allowZoomOutBeyondFit,
       colorEnabled: colorEnabled ?? this.colorEnabled,
@@ -127,6 +131,7 @@ class ReaderSettings {
     'fitMode': fitMode.name,
     'autoCrop': autoCrop,
     'splitOverlap': splitOverlap,
+    'overlapGuideEnabled': overlapGuideEnabled,
     'allowZoomOutBeyondFit': allowZoomOutBeyondFit,
     'colorEnabled': colorEnabled,
     'pdfDithering': pdfDithering,
@@ -159,6 +164,7 @@ class ReaderSettings {
       autoCrop: json['autoCrop'] as bool? ?? true,
       splitOverlap:
           (json['splitOverlap'] as num?)?.toDouble() ?? kPdfDefaultSplitOverlap,
+      overlapGuideEnabled: json['overlapGuideEnabled'] as bool? ?? true,
       allowZoomOutBeyondFit: json['allowZoomOutBeyondFit'] as bool? ?? true,
       colorEnabled: json['colorEnabled'] as bool? ?? false,
       pdfDithering: json['pdfDithering'] as bool? ?? false,

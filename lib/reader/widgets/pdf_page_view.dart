@@ -12,6 +12,8 @@ import '../models/reader_settings.dart';
 import '../services/pdf_render_scheduler.dart';
 import '../services/reader_error_service.dart';
 import 'reader_error_view.dart';
+import 'reading_continuation_guide.dart';
+import 'pdf_dictionary_region.dart';
 
 /// Thin PDF presenter. Rendering geometry, crop detection, and bitmap caching
 /// remain owned by [PdfReaderSession].
@@ -35,6 +37,7 @@ class _PdfPageViewState extends State<PdfPageView> {
   ui.Image? _fitImage;
   Object? _fitError;
   int _fitRequestToken = 0;
+  int? _fitLoadedToken;
   Object? _renderSignature;
   PdfRenderRequest? _fitRequest;
   Timer? _fitRetryTimer;
@@ -71,7 +74,9 @@ class _PdfPageViewState extends State<PdfPageView> {
     _fitRetryTimer?.cancel();
     final request = _fitRequest = PdfRenderRequest();
     _fitError = null;
-    _replaceFitImage(null);
+    // Keep the last completed frame covering the viewport until the target's
+    // preview or detail is ready. Clearing it here produces a white page-turn
+    // flash, especially when PDFium is busy.
     var detailReady = false;
     unawaited(
       widget.session
@@ -86,7 +91,10 @@ class _PdfPageViewState extends State<PdfPageView> {
               image.dispose();
               return;
             }
-            setState(() => _replaceFitImage(image));
+            setState(() {
+              _fitLoadedToken = token;
+              _replaceFitImage(image);
+            });
           }, onError: (Object _) {}),
     );
     widget.session
@@ -102,7 +110,10 @@ class _PdfPageViewState extends State<PdfPageView> {
               return;
             }
             detailReady = true;
-            setState(() => _replaceFitImage(image));
+            setState(() {
+              _fitLoadedToken = token;
+              _replaceFitImage(image);
+            });
           },
           onError: (Object error) {
             if (!mounted || token != _fitRequestToken) return;
@@ -184,11 +195,36 @@ class _PdfPageViewState extends State<PdfPageView> {
           }
           if (_fitImage != null) _reportContent();
           // The reader shell retains its opening preview until this image arrives.
-          return Center(
-            child: RawImage(
-              image: _fitImage,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.none,
+          return PdfDictionaryRegion(
+            identity: (widget.session, signature, _fitLoadedToken),
+            selectWord: (point) async {
+              final image = _fitImage;
+              if (image == null || _fitLoadedToken != _fitRequestToken) {
+                return null;
+              }
+              return widget.session.wordAtFitOffset(
+                point,
+                viewport,
+                Size(image.width.toDouble(), image.height.toDouble()),
+              );
+            },
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Center(
+                  child: RawImage(
+                    image: _fitImage,
+                    // Preview and detail have different pixel dimensions but
+                    // must occupy identical logical bounds during the handoff.
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.none,
+                  ),
+                ),
+                if (_fitImage != null)
+                  ReadingContinuationGuide(y: widget.session.fitOverlapGuideY),
+              ],
             ),
           );
         },
@@ -450,6 +486,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
   }
 
   void _onScaleStart(ScaleStartDetails details) {
+    widget.session.clearOverlapGuide();
     _stopFling();
     _refinementTimer?.cancel();
     _cancelThumbnailWarmup();
@@ -795,27 +832,67 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
         if (layout == null) return const ColoredBox(color: Colors.white);
         _layout = layout;
         _synchronizeTransform(layout);
+        final previousEnd = widget.session.continuousOverlapGuideOffset;
 
-        return Listener(
-          key: const Key('continuous-pdf-surface'),
-          behavior: HitTestBehavior.opaque,
-          // Raw down events stop momentum immediately, before a stationary
-          // finger has moved far enough to win the gesture arena.
-          onPointerDown: _onPointerDown,
-          onPointerUp: _onPointerFinished,
-          onPointerCancel: _onPointerFinished,
-          child: GestureDetector(
+        final origin = Offset(_originX, _originY);
+        final scale = _scale;
+        return PdfDictionaryRegion(
+          identity: (
+            widget.session,
+            widget.session.navigationEpoch,
+            origin,
+            scale,
+            widget.viewport,
+          ),
+          selectWord: (point) async {
+            final selected = await widget.session.wordAtContinuousOffset(
+              origin + point / scale,
+              layout,
+            );
+            if (!mounted ||
+                origin != Offset(_originX, _originY) ||
+                scale != _scale) {
+              return null;
+            }
+            return selected?.transform(
+              (box) => Rect.fromLTRB(
+                (box.left - origin.dx) * scale,
+                (box.top - origin.dy) * scale,
+                (box.right - origin.dx) * scale,
+                (box.bottom - origin.dy) * scale,
+              ),
+            );
+          },
+          child: Listener(
+            key: const Key('continuous-pdf-surface'),
             behavior: HitTestBehavior.opaque,
-            // ScaleGestureRecognizer covers both one-finger pans and two-finger
-            // pinches, and loses the arena to a stationary tap, so the tap zones
-            // wrapping this widget keep working.
-            onScaleStart: _onScaleStart,
-            onScaleUpdate: _onScaleUpdate,
-            onScaleEnd: _onScaleEnd,
-            child: ClipRect(
-              child: Stack(
-                clipBehavior: Clip.hardEdge,
-                children: _buildRasterLayers(layout),
+            // Raw down events stop momentum immediately, before a stationary
+            // finger has moved far enough to win the gesture arena.
+            onPointerDown: _onPointerDown,
+            onPointerUp: _onPointerFinished,
+            onPointerCancel: _onPointerFinished,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              // ScaleGestureRecognizer covers both one-finger pans and two-finger
+              // pinches, and loses the arena to a stationary tap, so the tap zones
+              // wrapping this widget keep working.
+              onScaleStart: _onScaleStart,
+              onScaleUpdate: _onScaleUpdate,
+              onScaleEnd: _onScaleEnd,
+              child: ClipRect(
+                child: Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: [
+                    ..._buildRasterLayers(layout),
+                    Positioned.fill(
+                      child: ReadingContinuationGuide(
+                        y: previousEnd != null
+                            ? (previousEnd - _originY) * _scale
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
