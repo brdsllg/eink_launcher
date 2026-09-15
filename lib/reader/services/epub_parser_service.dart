@@ -4,6 +4,11 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
+
+import '../models/reader_settings.dart';
+import 'tanach_layout_service.dart';
+
 import 'package:html/dom.dart' as html_dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:xml/xml.dart';
@@ -93,6 +98,17 @@ class EpubParserService {
 
     final obfuscatedFonts = _checkEncryption(archive, manifest, spineRefs);
 
+    final xhtmlDocuments = <String, String>{};
+    for (final item in manifest.values.where(
+      (item) => item.mediaType == 'application/xhtml+xml',
+    )) {
+      xhtmlDocuments[item.resolvedPath] = _readText(
+        archive,
+        item.resolvedPath,
+        description: 'XHTML resource',
+      );
+    }
+    final hasStudy = xhtmlDocuments.values.any(TanachLayoutService.recognizes);
     final spine = <ParsedSpineItem>[];
     for (final idref in spineRefs) {
       final item = manifest[idref];
@@ -102,12 +118,13 @@ class EpubParserService {
         item.resolvedPath,
         description: 'spine item ${item.href}',
       );
+      final anchors = <String, int>{};
       final blocks = HtmlBlockParser.parseSync(
         xhtml,
+        anchors: anchors,
         honorPublisherCss: honorPublisherCss,
         resourceBasePath: _directoryOf(item.resolvedPath),
       );
-      final anchors = <String, int>{};
       for (var index = 0; index < blocks.length; index++) {
         final id = blocks[index].id;
         if (id != null && id.isNotEmpty) anchors.putIfAbsent(id, () => index);
@@ -159,13 +176,20 @@ class EpubParserService {
     }
     if (toc.isEmpty) toc = _fallbackToc(spine);
 
-    return ParsedBook(
-      title: _metadataText(package, 'title') ?? 'Untitled',
-      author: _metadataText(package, 'creator'),
-      language: _metadataText(package, 'language'),
-      spine: List<ParsedSpineItem>.unmodifiable(spine),
-      resources: Map<String, Uint8List>.unmodifiable(resources),
-      tableOfContents: List<TocEntry>.unmodifiable(toc),
+    return TanachLayoutService.layout(
+      ParsedBook(
+        studyDocuments: hasStudy ? xhtmlDocuments : const {},
+        contentFingerprint: sha256.convert(bytes).toString(),
+        rightToLeft:
+            _attribute(spineElement, 'page-progression-direction') == 'rtl',
+        title: _metadataText(package, 'title') ?? 'Untitled',
+        author: _metadataText(package, 'creator'),
+        language: _metadataText(package, 'language'),
+        spine: List<ParsedSpineItem>.unmodifiable(spine),
+        resources: Map<String, Uint8List>.unmodifiable(resources),
+        tableOfContents: List<TocEntry>.unmodifiable(toc),
+      ),
+      ReaderSettings(honorPublisherCss: honorPublisherCss),
     );
   }
 }

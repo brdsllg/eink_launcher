@@ -47,11 +47,17 @@ class PdfReadingPosition extends ReadingPosition {
 }
 
 class TextReadingPosition extends ReadingPosition {
+  final String? documentPath;
+  final String? blockId;
+  final String? verseId;
   final int spineIndex;
   final int blockIndex;
   final int charOffset;
 
   const TextReadingPosition({
+    this.documentPath,
+    this.blockId,
+    this.verseId,
     required this.spineIndex,
     required this.blockIndex,
     required this.charOffset,
@@ -60,6 +66,9 @@ class TextReadingPosition extends ReadingPosition {
   @override
   Map<String, dynamic> toJson() => {
     'type': 'text',
+    if (documentPath != null) 'documentPath': documentPath,
+    if (blockId != null) 'blockId': blockId,
+    if (verseId != null) 'verseId': verseId,
     'spineIndex': spineIndex,
     'blockIndex': blockIndex,
     'charOffset': charOffset,
@@ -67,6 +76,9 @@ class TextReadingPosition extends ReadingPosition {
 
   factory TextReadingPosition.fromJson(Map<String, dynamic> json) =>
       TextReadingPosition(
+        documentPath: json['documentPath'] as String?,
+        blockId: json['blockId'] as String?,
+        verseId: json['verseId'] as String?,
         spineIndex: json['spineIndex'] as int,
         blockIndex: json['blockIndex'] as int,
         charOffset: json['charOffset'] as int,

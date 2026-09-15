@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'dart:isolate';
+
+import '../services/tanach_layout_service.dart';
+
 import 'dart:ui';
 
 import '../models/book_state.dart';
@@ -33,6 +37,9 @@ class TextReaderSession extends ReaderSession {
   final TextBookLoader _bookLoader;
 
   ParsedBook? _book;
+  int _settingsGeneration = 0;
+  final List<TextReadingPosition> _linkHistory = [];
+  bool get canGoBackFromLink => _linkHistory.isNotEmpty;
   ReaderSettings _settings = const ReaderSettings();
   TextReadingPosition _position = const TextReadingPosition(
     spineIndex: 0,
@@ -84,6 +91,13 @@ class TextReaderSession extends ReaderSession {
     };
   }
 
+  // Keep isolate closures outside the session so they cannot capture its
+  // listeners, platform handles, or other unsendable UI state.
+  static Future<ParsedBook> _project(
+    ParsedBook source,
+    ReaderSettings settings,
+  ) => Isolate.run(() => TanachLayoutService.layout(source, settings));
+
   @override
   bool get isReady => _isReady;
 
@@ -119,7 +133,7 @@ class TextReaderSession extends ReaderSession {
   }
 
   @override
-  ReadingPosition get position => _position;
+  ReadingPosition get position => _anchoredPosition(_position);
 
   @override
   List<TocEntry> get toc => _book?.tableOfContents ?? _retainedToc;
@@ -151,10 +165,15 @@ class TextReaderSession extends ReaderSession {
       if (book.spine.isEmpty) {
         throw const FormatException('The document contains no reading spine.');
       }
-      _book = book;
+      final settings = _settings;
+      final projected = book.studyDocuments.isEmpty
+          ? book
+          : await _project(book, settings);
+      if (_disposed || generation != _lifecycleGeneration) return;
+      _book = projected;
       _clampPositionToBook();
       _hasLoadedBook = true;
-      _retainedToc = book.tableOfContents;
+      _retainedToc = projected.tableOfContents;
       _isReady = true;
       _isSuspended = false;
       _error = null;
@@ -271,6 +290,35 @@ class TextReaderSession extends ReaderSession {
     _goToPosition(target);
   }
 
+  bool openLink(String href) {
+    final book = _book;
+    if (book == null || !_isReady) return false;
+    final target = href.startsWith('#')
+        ? '${book.spine[_position.spineIndex].href}$href'
+        : href;
+    final path = target.split('#').first;
+    final spineIndex = book.spine.indexWhere((item) => item.href == path);
+    if (spineIndex < 0) return false;
+    final anchor = target.contains('#')
+        ? Uri.decodeComponent(target.substring(target.indexOf('#') + 1))
+        : null;
+    final block = anchor == null ? 0 : book.spine[spineIndex].anchors[anchor];
+    if (block == null) return false;
+    _linkHistory.add(_anchoredPosition(_position));
+    _goToPosition(
+      TextReadingPosition(
+        spineIndex: spineIndex,
+        blockIndex: block,
+        charOffset: 0,
+      ),
+    );
+    return true;
+  }
+
+  void backFromLink() {
+    if (_linkHistory.isNotEmpty) _goToPosition(_linkHistory.removeLast());
+  }
+
   @override
   Future<void> goToPercent(double pct) async {
     final book = _book;
@@ -308,7 +356,7 @@ class TextReaderSession extends ReaderSession {
       docId: doc.id,
       createdAt: DateTime.now(),
       label: label,
-      position: _position,
+      position: _anchoredPosition(_position),
     );
     _bookmarks = List<Bookmark>.unmodifiable([..._bookmarks, bookmark]);
     notifyListeners();
@@ -327,8 +375,11 @@ class TextReaderSession extends ReaderSession {
   @override
   Future<void> applySettings(ReaderSettings settings) async {
     final generation = _lifecycleGeneration;
+    final settingsGeneration = ++_settingsGeneration;
+    _position = _anchoredPosition(_position);
     final mustReparse =
         settings.honorPublisherCss != _settings.honorPublisherCss;
+    _paginationGeneration++;
     _settings = settings;
     _persistState(settingsOverride: settings);
     if (mustReparse) {
@@ -349,13 +400,28 @@ class TextReaderSession extends ReaderSession {
         return;
       }
     }
+    final source = _book;
+    if (source != null && source.studyDocuments.isNotEmpty) {
+      final projected = await _project(source, settings);
+      if (_disposed ||
+          generation != _lifecycleGeneration ||
+          settingsGeneration != _settingsGeneration) {
+        return;
+      }
+      _book = projected;
+      _clampPositionToBook();
+      _retainedToc = projected.tableOfContents;
+    }
     _error = null;
     final viewport = _viewport;
     if (viewport != null) {
       _contentSize = null;
       await prepareViewport(viewport);
     }
-    if (!_disposed && generation == _lifecycleGeneration) notifyListeners();
+    if (!_disposed && generation == _lifecycleGeneration) {
+      _persistState(settingsOverride: settings);
+      notifyListeners();
+    }
   }
 
   Future<void> _repaginate(Size contentSize) async {
@@ -378,7 +444,7 @@ class TextReaderSession extends ReaderSession {
       for (final spineIndex in order) {
         if (generation != _paginationGeneration || _isSuspended) return;
         final cacheKey = _paginationCache.keyFor(
-          docId: doc.id,
+          docId: '${doc.id}:${book.contentFingerprint}',
           spineIndex: spineIndex,
           width: contentSize.width,
           height: contentSize.height,
@@ -389,12 +455,40 @@ class TextReaderSession extends ReaderSession {
           return;
         }
         if (pages == null) {
-          pages = _paginator.paginateSpine(
-            spineIndex: spineIndex,
-            blocks: book.spine[spineIndex].blocks,
-            contentSize: contentSize,
-            settings: _settings,
-          );
+          final blocks = book.spine[spineIndex].blocks;
+          if (blocks.length > 256) {
+            pages = await _paginator.paginateSpineResponsive(
+              spineIndex: spineIndex,
+              blocks: blocks,
+              contentSize: contentSize,
+              settings: _settings,
+              isCancelled: () =>
+                  _disposed ||
+                  _isSuspended ||
+                  generation != _paginationGeneration,
+              onProgress: (partial) {
+                if (_disposed ||
+                    _isSuspended ||
+                    generation != _paginationGeneration ||
+                    partial.isEmpty) {
+                  return;
+                }
+                _chapterPages[spineIndex] = partial;
+                _rebuildPages();
+                notifyListeners();
+              },
+            );
+          } else {
+            pages = _paginator.paginateSpine(
+              spineIndex: spineIndex,
+              blocks: blocks,
+              contentSize: contentSize,
+              settings: _settings,
+            );
+          }
+          if (_disposed || _isSuspended || generation != _paginationGeneration) {
+            return;
+          }
           unawaited(_savePages(cacheKey, pages));
         }
         if (generation != _paginationGeneration || _isSuspended) return;
@@ -504,14 +598,19 @@ class TextReaderSession extends ReaderSession {
 
   void _clampPositionToBook() {
     final book = _book!;
-    _position = _clampPosition(_position, book);
+    _position = _anchoredPosition(_clampPosition(_position, book));
   }
 
   TextReadingPosition _clampPosition(
     TextReadingPosition position,
     ParsedBook book,
   ) {
-    final spineIndex = position.spineIndex.clamp(0, book.spine.length - 1);
+    final byPath = book.spine.indexWhere(
+      (item) => item.href == position.documentPath,
+    );
+    final spineIndex = byPath >= 0
+        ? byPath
+        : position.spineIndex.clamp(0, book.spine.length - 1);
     final blocks = book.spine[spineIndex].blocks;
     if (blocks.isEmpty) {
       return TextReadingPosition(
@@ -520,14 +619,34 @@ class TextReaderSession extends ReaderSession {
         charOffset: 0,
       );
     }
-    final blockIndex = position.blockIndex.clamp(0, blocks.length - 1);
+    final anchors = book.spine[spineIndex].anchors;
+    final exact = anchors[position.blockId];
+    final fallback = anchors[position.verseId];
+    final blockIndex =
+        exact ?? fallback ?? position.blockIndex.clamp(0, blocks.length - 1);
     return TextReadingPosition(
       spineIndex: spineIndex,
       blockIndex: blockIndex,
-      charOffset: position.charOffset.clamp(
-        0,
-        blocks[blockIndex].characterCount,
-      ),
+      charOffset: (exact == null && fallback != null ? 0 : position.charOffset)
+          .clamp(0, blocks[blockIndex].characterCount),
+    );
+  }
+
+  TextReadingPosition _anchoredPosition(TextReadingPosition position) {
+    final book = _book;
+    if (book == null || book.studyDocuments.isEmpty) return position;
+    final item =
+        book.spine[position.spineIndex.clamp(0, book.spine.length - 1)];
+    if (item.blocks.isEmpty) return position;
+    final id =
+        item.blocks[position.blockIndex.clamp(0, item.blocks.length - 1)].id;
+    return TextReadingPosition(
+      spineIndex: position.spineIndex,
+      blockIndex: position.blockIndex,
+      charOffset: position.charOffset,
+      documentPath: item.href,
+      blockId: id,
+      verseId: id?.startsWith('v-') == true ? id!.split('--').first : null,
     );
   }
 
@@ -541,7 +660,7 @@ class TextReaderSession extends ReaderSession {
         lastPath: doc.path,
         format: doc.format,
         lastRead: DateTime.now(),
-        position: _position,
+        position: _anchoredPosition(_position),
         percent: percent,
         settingsOverride: settingsOverride ?? previous?.settingsOverride,
         bookmarks: _bookmarks,

@@ -16,6 +16,15 @@ class ReaderSettings {
   final ParagraphMode paragraphMode;
   final bool honorPublisherCss;
 
+  final bool inlineCommentary;
+
+  /// Empty means all sources; exact EPUB source names are preserved.
+  final List<String> commentarySources;
+  final String commentaryLanguage;
+
+  /// Empty means the exported per-verse default.
+  final String studyTranslation;
+
   // PDF display
   final PdfFitMode fitMode;
   final bool autoCrop;
@@ -36,6 +45,10 @@ class ReaderSettings {
   final bool pageButtonsEnabled;
 
   const ReaderSettings({
+    this.inlineCommentary = true,
+    this.commentarySources = const [],
+    this.commentaryLanguage = 'both',
+    this.studyTranslation = '',
     this.latinFontFamily = 'Literata',
     this.hebrewFontFamily = 'Frank Ruhl Libre',
     this.fontSizeStep = 3, // 18.0 pt
@@ -73,6 +86,10 @@ class ReaderSettings {
       allowZoomOutBeyondFit ? kPdfMinZoomScaleBeyondFit : kPdfMinZoomScale;
 
   ReaderSettings copyWith({
+    bool? inlineCommentary,
+    List<String>? commentarySources,
+    String? commentaryLanguage,
+    String? studyTranslation,
     String? latinFontFamily,
     String? hebrewFontFamily,
     int? fontSizeStep,
@@ -94,6 +111,10 @@ class ReaderSettings {
     bool? pageButtonsEnabled,
   }) {
     return ReaderSettings(
+      inlineCommentary: inlineCommentary ?? this.inlineCommentary,
+      commentarySources: commentarySources ?? this.commentarySources,
+      commentaryLanguage: commentaryLanguage ?? this.commentaryLanguage,
+      studyTranslation: studyTranslation ?? this.studyTranslation,
       latinFontFamily: latinFontFamily ?? this.latinFontFamily,
       hebrewFontFamily: hebrewFontFamily ?? this.hebrewFontFamily,
       fontSizeStep: fontSizeStep ?? this.fontSizeStep,
@@ -119,6 +140,10 @@ class ReaderSettings {
   }
 
   Map<String, dynamic> toJson() => {
+    'inlineCommentary': inlineCommentary,
+    'commentarySources': commentarySources,
+    'commentaryLanguage': commentaryLanguage,
+    'studyTranslation': studyTranslation,
     'latinFontFamily': latinFontFamily,
     'hebrewFontFamily': hebrewFontFamily,
     'fontSizeStep': fontSizeStep,
@@ -148,6 +173,12 @@ class ReaderSettings {
       _ => PdfFitMode.fitHeight,
     };
     return ReaderSettings(
+      inlineCommentary: json['inlineCommentary'] as bool? ?? true,
+      commentarySources: List<String>.from(
+        json['commentarySources'] as List? ?? const [],
+      ),
+      commentaryLanguage: json['commentaryLanguage'] as String? ?? 'both',
+      studyTranslation: json['studyTranslation'] as String? ?? '',
       latinFontFamily: json['latinFontFamily'] as String? ?? 'Literata',
       hebrewFontFamily:
           json['hebrewFontFamily'] as String? ?? 'Frank Ruhl Libre',

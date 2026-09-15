@@ -323,6 +323,19 @@ class _ReaderScreenState extends State<ReaderScreen>
         ReaderSettingsScreen(
           initialSettings: session.settings,
           format: session.doc.format,
+          onBackToText:
+              session is TextReaderSession && session.canGoBackFromLink
+              ? () {
+                  Navigator.of(context).pop();
+                  session.backFromLink();
+                }
+              : null,
+          studySources: session is TextReaderSession
+              ? session.book?.studySources ?? const []
+              : const [],
+          studyTranslations: session is TextReaderSession
+              ? session.book?.studyTranslations ?? const []
+              : const [],
         ),
       ),
     );
@@ -673,9 +686,19 @@ class _ReaderScreenState extends State<ReaderScreen>
       key: ValueKey((session, _contentGeneration)),
       zoomMode: isPdf && session.settings.fitMode == PdfFitMode.zoom,
       pageTurnTapZonesEnabled: session.settings.pageTurnTapZonesEnabled,
-      onPrevious: () => _navigate(session.prevPage, orderedPdfTurn: isPdf),
+      onPrevious: () => _navigate(
+        session is TextReaderSession && session.book?.rightToLeft == true
+            ? session.nextPage
+            : session.prevPage,
+        orderedPdfTurn: isPdf,
+      ),
       onMenu: () => setState(() => _menuVisible = !_menuVisible),
-      onNext: () => _navigate(session.nextPage, orderedPdfTurn: isPdf),
+      onNext: () => _navigate(
+        session is TextReaderSession && session.book?.rightToLeft == true
+            ? session.prevPage
+            : session.nextPage,
+        orderedPdfTurn: isPdf,
+      ),
       child: isPdf
           ? PdfPageView(
               session: session,

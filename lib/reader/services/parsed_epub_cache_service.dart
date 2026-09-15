@@ -14,7 +14,7 @@ import 'epub_parser_service.dart';
 /// Disposable, versioned parse cache. Images are included so a hit never needs
 /// to reopen the ZIP. Source metadata and CSS mode invalidate stale blocks.
 class ParsedEpubCacheService {
-  static const version = 1;
+  static const version = 2;
   static const maxBytes = 64 * 1024 * 1024;
   final Directory? cacheDirectory;
   const ParsedEpubCacheService({this.cacheDirectory});
@@ -31,7 +31,7 @@ class ParsedEpubCacheService {
       if (stat.type != FileSystemEntityType.file) {
         throw FileSystemException('EPUB is missing', doc.path);
       }
-      fingerprint = '${stat.size}:${stat.modified.microsecondsSinceEpoch}';
+      fingerprint = await _fingerprint(doc.path);
       final key = sha256
           .convert(
             utf8.encode('$version:${doc.id}:$fingerprint:$honorPublisherCss'),
@@ -57,9 +57,7 @@ class ParsedEpubCacheService {
             ));
     if (cachePath != null) {
       try {
-        final stat = await File(doc.path).stat();
-        if ('${stat.size}:${stat.modified.microsecondsSinceEpoch}' ==
-            fingerprint) {
+        if (await _fingerprint(doc.path) == fingerprint) {
           final path = cachePath;
           await Isolate.run(() => _write(path, book));
         }
@@ -67,6 +65,9 @@ class ParsedEpubCacheService {
     }
     return book;
   }
+
+  static Future<String> _fingerprint(String path) async =>
+      (await sha256.bind(File(path).openRead()).first).toString();
 
   static ParsedBook? _read(String path) {
     try {
@@ -117,6 +118,11 @@ class ParsedEpubCacheService {
 
   static Map<String, dynamic> _encode(ParsedBook book) => {
     'version': version,
+    'studyDocuments': book.studyDocuments,
+    'studySources': book.studySources,
+    'studyTranslations': book.studyTranslations,
+    'contentFingerprint': book.contentFingerprint,
+    'rightToLeft': book.rightToLeft,
     'title': book.title,
     'author': book.author,
     'language': book.language,
@@ -160,6 +166,15 @@ class ParsedEpubCacheService {
   };
 
   static ParsedBook _decode(Map<String, dynamic> json) => ParsedBook(
+    studyDocuments: Map<String, String>.from(
+      json['studyDocuments'] as Map? ?? const {},
+    ),
+    studySources: List<String>.from(json['studySources'] as List? ?? const []),
+    studyTranslations: List<String>.from(
+      json['studyTranslations'] as List? ?? const [],
+    ),
+    contentFingerprint: json['contentFingerprint'] as String? ?? '',
+    rightToLeft: json['rightToLeft'] as bool? ?? false,
     title: json['title'] as String,
     author: json['author'] as String?,
     language: json['language'] as String?,

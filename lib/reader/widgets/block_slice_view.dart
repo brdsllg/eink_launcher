@@ -15,6 +15,7 @@ class BlockSliceView extends StatefulWidget {
   final double pageHeight;
   final Uint8List? imageBytes;
   final Future<void> Function(String word)? onDefineWord;
+  final void Function(String href)? onOpenLink;
 
   const BlockSliceView({
     super.key,
@@ -24,6 +25,7 @@ class BlockSliceView extends StatefulWidget {
     required this.pageHeight,
     this.imageBytes,
     this.onDefineWord,
+    this.onOpenLink,
   });
 
   @override
@@ -173,6 +175,19 @@ class _BlockSliceViewState extends State<BlockSliceView> {
       label: block.plainText,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        onTapUp:
+            widget.onOpenLink != null &&
+                block.runs.any((run) => run.href?.isNotEmpty == true)
+            ? (details) {
+                final href = TextBlockLayout.linkAtOffset(
+                  block,
+                  settings,
+                  width,
+                  details.localPosition,
+                );
+                if (href != null) widget.onOpenLink!(href);
+              }
+            : null,
         onLongPressStart: widget.onDefineWord == null
             ? null
             : (details) => _selectWord(details.localPosition, width),

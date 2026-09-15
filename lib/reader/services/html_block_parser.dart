@@ -27,6 +27,7 @@ class HtmlBlockParser {
     String xhtml, {
     bool honorPublisherCss = true,
     String resourceBasePath = '',
+    Map<String, int>? anchors,
   }) {
     final fragment = html_parser.parseFragment(xhtml);
     final walker = _HtmlWalker(
@@ -34,6 +35,7 @@ class HtmlBlockParser {
       resourceBasePath: resourceBasePath,
     );
     walker.parseContainer(fragment);
+    anchors?.addAll(walker.anchors);
     return List<ContentBlock>.unmodifiable(walker.blocks);
   }
 }
@@ -78,6 +80,7 @@ class _HtmlWalker {
   final String resourceBasePath;
   final BidiService _bidi = const BidiService();
   final List<ContentBlock> blocks = [];
+  final Map<String, int> anchors = {};
 
   _HtmlWalker({
     required this.honorPublisherCss,
@@ -89,9 +92,15 @@ class _HtmlWalker {
 
     void flushInlineBuffer() {
       if (inlineBuffer.isEmpty) return;
-      final runs = _inlineRuns(inlineBuffer, const _RunStyle());
+      final element = container is Element ? container : null;
+      final runs = _inlineRuns(
+        inlineBuffer,
+        element == null
+            ? const _RunStyle()
+            : _styleFor(element, const _RunStyle()),
+      );
       inlineBuffer.clear();
-      _addTextBlock(BlockType.paragraph, runs: runs);
+      _addTextBlock(BlockType.paragraph, element: element, runs: runs);
     }
 
     for (final node in container.nodes) {
@@ -107,7 +116,21 @@ class _HtmlWalker {
       }
 
       flushInlineBuffer();
+      final start = blocks.length;
       _parseBlockElement(node, listDepth: listDepth);
+      if (blocks.length > start) {
+        if (node.id.isNotEmpty) anchors.putIfAbsent(node.id, () => start);
+        if (!_containerTags.contains(tag)) {
+          for (final anchor in node.querySelectorAll('[id], a[name]')) {
+            final id = anchor.id.isEmpty
+                ? anchor.attributes['name']
+                : anchor.id;
+            if (id != null && id.isNotEmpty) {
+              anchors.putIfAbsent(id, () => start);
+            }
+          }
+        }
+      }
     }
     flushInlineBuffer();
   }
@@ -270,7 +293,7 @@ class _HtmlWalker {
     final tag = node.localName ?? '';
     if (_ignoredTags.contains(tag) || tag == 'ul' || tag == 'ol') return;
     if (tag == 'br') {
-      output.add(inherited.toRun('\n'));
+      output.add(inherited.toRun('\u2028'));
       return;
     }
     if (tag == 'img') {
@@ -296,7 +319,10 @@ class _HtmlWalker {
     final merged = <InlineRun>[];
     for (final source in runs) {
       var text = source.text;
-      if (!preserveWhitespace) text = text.replaceAll(RegExp(r'\s+'), ' ');
+      if (!preserveWhitespace && text != '\u2028') {
+        text = text.replaceAll(RegExp(r'\s+'), ' ');
+      }
+      text = text.replaceAll('\u2028', '\n');
       if (text.isEmpty) continue;
       if (merged.isNotEmpty && _sameStyle(merged.last, source)) {
         final previous = merged.removeLast();
@@ -344,11 +370,18 @@ class _HtmlWalker {
       href: tag == 'a'
           ? _resolveReference(resourceBasePath, element.attributes['href'])
           : inherited.href,
-      language:
-          element.attributes['lang'] ??
-          element.attributes['xml:lang'] ??
-          inherited.language,
+      language: _languageFor(element) ?? inherited.language,
     );
+  }
+
+  String? _languageFor(Element? element) {
+    while (element != null) {
+      final value =
+          element.attributes['lang'] ?? element.attributes['xml:lang'];
+      if (value != null) return value;
+      element = element.parent;
+    }
+    return null;
   }
 
   BlockTextDirection _directionFor(Element? element, String text) {

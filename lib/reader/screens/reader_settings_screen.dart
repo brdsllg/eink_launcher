@@ -10,11 +10,17 @@ import '../models/reader_settings.dart';
 class ReaderSettingsScreen extends StatefulWidget {
   final ReaderSettings initialSettings;
   final DocFormat format;
+  final VoidCallback? onBackToText;
+  final List<String> studySources;
+  final List<String> studyTranslations;
 
   const ReaderSettingsScreen({
     super.key,
     required this.initialSettings,
     this.format = DocFormat.pdf,
+    this.onBackToText,
+    this.studySources = const [],
+    this.studyTranslations = const [],
   });
 
   @override
@@ -55,6 +61,101 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
   }
 
   List<Widget> _textControls() => [
+    if (widget.onBackToText != null)
+      TextButton(
+        onPressed: widget.onBackToText,
+        child: const Text("Back to previous reading position"),
+      ),
+    if (widget.studySources.isNotEmpty ||
+        widget.studyTranslations.isNotEmpty) ...[
+      SwitchListTile(
+        title: const Text('Inline commentary'),
+        value: _settings.inlineCommentary,
+        onChanged: (value) => setState(
+          () => _settings = _settings.copyWith(inlineCommentary: value),
+        ),
+      ),
+      const Text(
+        'Selected commentary appears after each verse. If a language or translation is missing, the available text is kept.',
+      ),
+      DropdownButtonFormField<String>(
+        initialValue: _settings.commentaryLanguage,
+        decoration: const InputDecoration(labelText: 'Commentary language'),
+        items: const [
+          DropdownMenuItem(value: 'both', child: Text('Hebrew and English')),
+          DropdownMenuItem(value: 'he', child: Text('Hebrew')),
+          DropdownMenuItem(value: 'en', child: Text('English')),
+        ],
+        onChanged: (value) => setState(
+          () => _settings = _settings.copyWith(commentaryLanguage: value),
+        ),
+      ),
+      DropdownButtonFormField<String>(
+        isExpanded: true,
+        initialValue:
+            widget.studyTranslations.contains(_settings.studyTranslation)
+            ? _settings.studyTranslation
+            : '',
+        decoration: const InputDecoration(labelText: 'Main translation'),
+        items: [
+          const DropdownMenuItem(value: '', child: Text('Book default')),
+          for (final source in widget.studyTranslations)
+            DropdownMenuItem(
+              value: source,
+              child: Text(source, overflow: TextOverflow.ellipsis),
+            ),
+        ],
+        onChanged: (value) => setState(
+          () => _settings = _settings.copyWith(studyTranslation: value),
+        ),
+      ),
+      ExpansionTile(
+        title: const Text('Commentary sources'),
+        subtitle: Text(
+          _settings.commentarySources.isEmpty
+              ? 'All sources'
+              : '${_settings.commentarySources.length} selected',
+        ),
+        children: [
+          TextButton(
+            onPressed: () => setState(
+              () => _settings = _settings.copyWith(
+                commentarySources: [],
+                inlineCommentary: true,
+              ),
+            ),
+            child: const Text('Show all sources'),
+          ),
+          for (final source in widget.studySources)
+            CheckboxListTile(
+              title: Text(source),
+              value:
+                  _settings.inlineCommentary &&
+                  (_settings.commentarySources.isEmpty ||
+                      _settings.commentarySources.contains(source)),
+              onChanged: (value) => setState(() {
+                final selected =
+                    (!_settings.inlineCommentary
+                            ? <String>[]
+                            : _settings.commentarySources.isEmpty
+                            ? widget.studySources
+                            : _settings.commentarySources)
+                        .toSet();
+                if (value == true) {
+                  selected.add(source);
+                } else {
+                  selected.remove(source);
+                }
+                _settings = _settings.copyWith(
+                  commentarySources: selected.toList(),
+                  inlineCommentary: selected.isNotEmpty,
+                );
+              }),
+            ),
+        ],
+      ),
+      const SizedBox(height: 20),
+    ],
     _SettingsGroup(
       label: 'Latin font',
       child: GridActions(

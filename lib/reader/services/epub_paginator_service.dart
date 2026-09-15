@@ -23,8 +23,49 @@ class EpubPaginatorService {
     required ReaderSettings settings,
     Map<String, Size> imageSizes = const {},
   }) {
+    return _steps(
+      spineIndex: spineIndex,
+      blocks: blocks,
+      contentSize: contentSize,
+      settings: settings,
+      imageSizes: imageSizes,
+    ).last;
+  }
+
+  /// Yield between batches while keeping the same page state and geometry.
+  Future<List<LaidOutPage>> paginateSpineResponsive({
+    required int spineIndex,
+    required List<ContentBlock> blocks,
+    required Size contentSize,
+    required ReaderSettings settings,
+    required bool Function() isCancelled,
+    required void Function(List<LaidOutPage>) onProgress,
+  }) async {
+    List<LaidOutPage> latest = const [];
+    for (final pages in _steps(
+      spineIndex: spineIndex,
+      blocks: blocks,
+      contentSize: contentSize,
+      settings: settings,
+    )) {
+      if (isCancelled()) return const [];
+      latest = pages;
+      onProgress(pages);
+      await Future<void>.delayed(Duration.zero);
+    }
+    return latest;
+  }
+
+  Iterable<List<LaidOutPage>> _steps({
+    required int spineIndex,
+    required List<ContentBlock> blocks,
+    required Size contentSize,
+    required ReaderSettings settings,
+    Map<String, Size> imageSizes = const {},
+  }) sync* {
     if (contentSize.width <= 0 || contentSize.height <= 0 || blocks.isEmpty) {
-      return const [];
+      yield const [];
+      return;
     }
 
     final pages = <LaidOutPage>[];
@@ -56,6 +97,9 @@ class EpubPaginatorService {
     }
 
     for (var blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+      if (blockIndex > 0 && blockIndex % 32 == 0) {
+        yield List<LaidOutPage>.unmodifiable(pages);
+      }
       final block = blocks[blockIndex];
       final layout = TextBlockLayout.measure(
         block: block,
@@ -145,7 +189,7 @@ class EpubPaginatorService {
       }
     }
     finishPage();
-    return List<LaidOutPage>.unmodifiable(pages);
+    yield List<LaidOutPage>.unmodifiable(pages);
   }
 }
 
@@ -349,6 +393,40 @@ class TextBlockLayout {
       )
       .join();
 
+  static String? linkAtOffset(
+    ContentBlock block,
+    ReaderSettings settings,
+    double width,
+    Offset offset,
+  ) {
+    final painter = createPainter(block, settings, width);
+    final displayOffset = painter.getPositionForOffset(offset).offset;
+    final prefix = prefixFor(block, settings).length;
+    final offsets = _sourceOffsetsForDisplay(block, settings);
+    final index = (displayOffset - prefix).clamp(0, offsets.length - 1);
+    final sourceOffset = offsets[index];
+    var start = 0;
+    for (final run in block.runs) {
+      final end = start + run.text.length;
+      if (sourceOffset >= start &&
+          sourceOffset < end &&
+          run.href?.isNotEmpty == true) {
+        final from = offsets.indexOf(start) + prefix;
+        final to = offsets.lastIndexOf(end) + prefix;
+        final boxes = painter.getBoxesForSelection(
+          TextSelection(baseOffset: from, extentOffset: to),
+        );
+        if (boxes.any((box) => box.toRect().contains(offset))) {
+          painter.dispose();
+          return run.href;
+        }
+      }
+      start = end;
+    }
+    painter.dispose();
+    return null;
+  }
+
   static List<int> _sourceOffsetsForDisplay(
     ContentBlock block,
     ReaderSettings settings,
@@ -395,7 +473,10 @@ class TextBlockLayout {
       textDirection: directionFor(block),
       textAlign: alignmentFor(block, settings),
       textScaler: TextScaler.noScaling,
-    )..layout(maxWidth: math.max(1, width - reserve));
+    )..layout(
+      minWidth: math.max(1, width - reserve),
+      maxWidth: math.max(1, width - reserve),
+    );
   }
 
   static List<Offset> hyphenOffsets(

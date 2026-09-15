@@ -9,7 +9,7 @@ import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
 
 class PaginationCacheService {
-  static const int _cacheVersion = 3;
+  static const int _cacheVersion = 4;
 
   final Directory? cacheDirectory;
 
@@ -24,6 +24,12 @@ class PaginationCacheService {
   }) {
     final source = jsonEncode({
       'version': _cacheVersion,
+      'study': [
+        settings.inlineCommentary,
+        [...settings.commentarySources]..sort(),
+        settings.commentaryLanguage,
+        settings.studyTranslation,
+      ],
       'docId': docId,
       'spineIndex': spineIndex,
       // Fractional logical pixels can change a TextPainter line break. Keep

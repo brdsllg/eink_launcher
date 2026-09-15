@@ -24,6 +24,11 @@ class ParsedSpineItem {
 }
 
 class ParsedBook {
+  final Map<String, String> studyDocuments;
+  final List<String> studySources;
+  final List<String> studyTranslations;
+  final String contentFingerprint;
+  final bool rightToLeft;
   final String title;
   final String? author;
   final String? language;
@@ -33,6 +38,11 @@ class ParsedBook {
   final List<int> cumulativeCharacterCounts;
 
   ParsedBook({
+    this.studyDocuments = const {},
+    this.studySources = const [],
+    this.studyTranslations = const [],
+    this.contentFingerprint = '',
+    this.rightToLeft = false,
     required this.title,
     this.author,
     this.language,
