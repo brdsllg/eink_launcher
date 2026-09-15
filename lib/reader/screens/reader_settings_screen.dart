@@ -78,35 +78,42 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
       const Text(
         'Selected commentary appears after each verse. If a language or translation is missing, the available text is kept.',
       ),
-      DropdownButtonFormField<String>(
-        initialValue: _settings.commentaryLanguage,
-        decoration: const InputDecoration(labelText: 'Commentary language'),
-        items: const [
-          DropdownMenuItem(value: 'both', child: Text('Hebrew and English')),
-          DropdownMenuItem(value: 'he', child: Text('Hebrew')),
-          DropdownMenuItem(value: 'en', child: Text('English')),
-        ],
-        onChanged: (value) => setState(
-          () => _settings = _settings.copyWith(commentaryLanguage: value),
+      _StudySelector(
+        label: 'Commentary language',
+        child: DropdownButtonFormField<String>(
+          isExpanded: true,
+          initialValue: _settings.commentaryLanguage,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+          items: const [
+            DropdownMenuItem(value: 'both', child: Text('Hebrew and English')),
+            DropdownMenuItem(value: 'he', child: Text('Hebrew')),
+            DropdownMenuItem(value: 'en', child: Text('English')),
+          ],
+          onChanged: (value) => setState(
+            () => _settings = _settings.copyWith(commentaryLanguage: value),
+          ),
         ),
       ),
-      DropdownButtonFormField<String>(
-        isExpanded: true,
-        initialValue:
-            widget.studyTranslations.contains(_settings.studyTranslation)
-            ? _settings.studyTranslation
-            : '',
-        decoration: const InputDecoration(labelText: 'Main translation'),
-        items: [
-          const DropdownMenuItem(value: '', child: Text('Book default')),
-          for (final source in widget.studyTranslations)
-            DropdownMenuItem(
-              value: source,
-              child: Text(source, overflow: TextOverflow.ellipsis),
-            ),
-        ],
-        onChanged: (value) => setState(
-          () => _settings = _settings.copyWith(studyTranslation: value),
+      _StudySelector(
+        label: 'Main translation',
+        child: DropdownButtonFormField<String>(
+          isExpanded: true,
+          initialValue:
+              widget.studyTranslations.contains(_settings.studyTranslation)
+              ? _settings.studyTranslation
+              : '',
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+          items: [
+            const DropdownMenuItem(value: '', child: Text('Book default')),
+            for (final source in widget.studyTranslations)
+              DropdownMenuItem(
+                value: source,
+                child: Text(source, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: (value) => setState(
+            () => _settings = _settings.copyWith(studyTranslation: value),
+          ),
         ),
       ),
       ExpansionTile(
@@ -450,6 +457,8 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
     final textDocument = widget.format != DocFormat.pdf;
     return Scaffold(
       appBar: GridAppBar(
+        leadingWidth: 56,
+        actionWidth: 88,
         leading: IconButton(
           tooltip: 'Cancel',
           onPressed: () => Navigator.of(context).pop(),
@@ -532,6 +541,28 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
       ),
     );
   }
+}
+
+class _StudySelector extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _StudySelector({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 16, bottom: 16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(label, style: Theme.of(context).textTheme.titleSmall),
+        ),
+        child,
+      ],
+    ),
+  );
 }
 
 /// Portrait keeps the complete width for choices. Wider screens line up the

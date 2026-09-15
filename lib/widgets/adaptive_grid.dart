@@ -11,6 +11,7 @@ class GridAppBar extends StatelessWidget implements PreferredSizeWidget {
   final List<Widget> actions;
   final double height;
   final double actionWidth;
+  final double? leadingWidth;
   final bool automaticallyImplyLeading;
 
   const GridAppBar({
@@ -20,6 +21,7 @@ class GridAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.actions = const [],
     this.height = 56,
     this.actionWidth = 56,
+    this.leadingWidth,
     this.automaticallyImplyLeading = true,
   });
 
@@ -42,7 +44,8 @@ class GridAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: ControlBarRow(
         height: height,
         children: [
-          if (back != null) SizedBox(width: actionWidth, child: back),
+          if (back != null)
+            SizedBox(width: leadingWidth ?? actionWidth, child: back),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),

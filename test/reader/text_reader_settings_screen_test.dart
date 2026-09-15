@@ -45,4 +45,44 @@ void main() {
 
     expect(saved?.fontSizeStep, 4);
   });
+
+  testWidgets('study selectors and Save stay separate at enlarged text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(630, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(1.5)),
+          child: const ReaderSettingsScreen(
+            initialSettings: ReaderSettings(),
+            format: DocFormat.epub,
+            studySources: ['Commentary A'],
+            studyTranslations: ['A very long translation title from this EPUB'],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final save = tester.getRect(find.byKey(const Key('reader-settings-save')));
+    final saveText = tester.getRect(find.text('Save'));
+    expect(save.width, greaterThanOrEqualTo(88));
+    expect(save.contains(saveText.center), isTrue);
+    expect(saveText.height, lessThan(save.height));
+
+    final selectors = find.byType(DropdownButtonFormField<String>);
+    expect(selectors, findsNWidgets(2));
+    final languageLabel = tester.getRect(find.text('Commentary language'));
+    final translationLabel = tester.getRect(find.text('Main translation'));
+    final languageField = tester.getRect(selectors.at(0));
+    final translationField = tester.getRect(selectors.at(1));
+    expect(languageLabel.bottom, lessThan(languageField.top));
+    expect(languageField.bottom, lessThan(translationLabel.top));
+    expect(translationLabel.bottom, lessThan(translationField.top));
+  });
 }
