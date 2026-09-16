@@ -11,7 +11,7 @@ The full collection is NOT built. Nine representative chapter samples have been 
 ## Settled content requirements
 
 - Use 39 book divisions, not the traditional merged count of 24. The precise order is in source-selection.json.
-- Hebrew: vowels, no cantillation; qere/kri in the main text and ketiv/ksiv in brackets. Preserve Divine names as in the source.
+- Hebrew: vowels, no cantillation; it is fine to keep the kri in brackets and ksiv plain as is supplied by Sefaria. Preserve Divine names as in the source.
 - English: include approved Orthodox Jewish translations. Prefer Metsudah for each verse; fall back to Koren when Metsudah is unavailable. Do not invent fallback text for missing content.
 - Ask about genuinely uncertain translation or modern-commentary provenance. Do not ask whether obviously Orthodox commentators such as Ramban are Orthodox.
 - Commentary: full text, Hebrew and available approved English. Missing English must not hide available Hebrew.

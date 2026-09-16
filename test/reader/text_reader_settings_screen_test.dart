@@ -63,7 +63,7 @@ void main() {
             initialSettings: ReaderSettings(),
             format: DocFormat.epub,
             studySources: ['Commentary A'],
-            studyTranslations: const [
+            studyTranslations: [
               StudyTranslationOption(
                 id: 'long-edition',
                 label: 'A very long translation title from this EPUB',

@@ -99,7 +99,7 @@ void main() {
             initialSettings: ReaderSettings(),
             format: DocFormat.epub,
             studySources: ['Rashi on Genesis', 'Other'],
-            studyTranslations: const [
+            studyTranslations: [
               StudyTranslationOption(id: 'default-ed', label: 'Metsudah'),
               StudyTranslationOption(id: 'alternate-ed', label: 'Koren'),
             ],
