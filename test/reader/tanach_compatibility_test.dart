@@ -22,18 +22,20 @@ Uint8List fixture({bool broken = false}) {
     '''<package><metadata><title>Study</title></metadata><manifest>
     <item id="c" href="chapter.xhtml" media-type="application/xhtml+xml"/>
     <item id="n" href="notes.xhtml" media-type="application/xhtml+xml"/>
-    </manifest><spine page-progression-direction="rtl"><itemref idref="c"/><itemref idref="n"/></spine></package>''',
+    </manifest><spine page-progression-direction="ltr"><itemref idref="c"/><itemref idref="n"/></spine></package>''',
   );
   add(
     'Book/chapter.xhtml',
     '''<html xmlns:ops="http://www.idpf.org/2007/ops"><body><h1>Genesis</h1>
     <section class="verse" id="v-one" data-ref="Genesis 1:1">
+      <h2 class="verse-heading" dir="ltr"><span dir="ltr">Verse 1</span> <span dir="rtl">פסוק א׳</span></h2>
       <p class="hebrew" dir="rtl" lang="he">בְּרֵאשִׁית [כתיב]</p>
-      <div class="translation" dir="ltr" data-source="Default" data-edition="default">First verse</div>
+      <div class="translation" dir="ltr" data-edition="metsudah-ed" data-primary="true" data-translation-label="Metsudah">First verse</div>
       <p><a ops:type="noteref" href="notes.xhtml#index">Notes</a></p>
     </section>
     <section class="verse" id="v-two" data-ref="Genesis 1:2">
-      <p dir="rtl">שֵׁנִי</p><div class="translation" data-source="Default">Second verse</div>
+      <h2 class="verse-heading" dir="ltr"><span dir="ltr">Verse 2</span> <span dir="rtl">פסוק ב׳</span></h2>
+      <p dir="rtl">שֵׁנִי</p><div class="translation" data-edition="koren-ed" data-primary="true" data-translation-label="Koren">Second verse</div>
       <p><a ops:type="noteref" href="notes.xhtml#index-two">Notes</a></p>
     </section><aside id="ordinary">Unrelated aside remains</aside></body></html>''',
   );
@@ -51,15 +53,15 @@ Uint8List fixture({bool broken = false}) {
       <a ops:type="noteref" href="#rashi">Shared Rashi</a>
     </aside>
     <aside ops:type="footnote" data-category="rishon" data-source="Rashi on Genesis" id="rashi">
-      <h3>Rashi 1:1</h3><div class="note-he" dir="rtl" lang="he" data-editions="he-one he-two">רַשִׁי<br/>שורה</div>
-      <div class="note-en" dir="ltr" lang="en" data-editions="en-one">Full <b>English</b> note</div>
+      <p class="note-title">Rashi 1:1</p><div class="note-he" dir="rtl" lang="he" data-editions="he-one he-two"><div class="comment-segment"><div class="note-paragraph">רַשִׁי<br/>שורה</div></div></div>
+      <div class="note-en" dir="ltr" lang="en" data-editions="en-one"><div class="comment-segment"><div class="note-paragraph">Full <b>English</b> note</div></div></div>
       <p class="label">Edition attribution</p><p class="backlinks"><a href="chapter.xhtml#v-one">Back</a></p>
     </aside>
     <aside ops:type="footnote" data-category="modern" data-source="Other" id="other">
       <h3>Other heading</h3><div class="note-he" dir="rtl">עברית בלבד</div>
     </aside>
-    <aside ops:type="footnote" data-category="translation" data-source="Alternate" id="alternate">
-      <h3>Alternate translation</h3><div dir="ltr">Alternate verse</div><p class="label">Alternate edition</p>
+    <aside ops:type="footnote" data-category="translation" data-source="Alternate" data-edition="alternate-ed" id="alternate">
+      <div dir="ltr" lang="en">Alternate verse</div><p class="backlinks">Back</p>
     </aside></section></body></html>''',
   );
   return Uint8List.fromList(ZipEncoder().encode(archive));
@@ -85,7 +87,18 @@ void main() {
       BlockTextDirection.rtl,
     );
     expect(book.studySources, ['Other', 'Rashi on Genesis']);
-    expect(book.rightToLeft, isTrue);
+    expect(book.studyTranslations.map((option) => option.label), [
+      'Metsudah',
+      'Koren',
+      'Alternate',
+    ]);
+    expect(book.primaryStudyTranslationId, 'metsudah-ed');
+    expect(book.rightToLeft, isFalse);
+    final heading = book.spine.first.blocks.firstWhere(
+      (block) => block.plainText == 'Verse 1 פסוק א׳',
+    );
+    expect(heading.hasSplitLayout, isTrue);
+    expect(heading.fontSizeMultiplier, 1.15);
   });
 
   test(
@@ -140,14 +153,17 @@ void main() {
     final selected = TanachLayoutService.layout(
       original,
       const ReaderSettings(
-        studyTranslation: 'Alternate',
+        studyTranslation: 'alternate-ed',
         inlineCommentary: false,
       ),
     );
     final text = selected.spine.first.blocks.map((b) => b.plainText).join('\n');
     expect(text, contains('Alternate verse'));
     expect(text, isNot(contains('First verse')));
-    expect(text, contains('Second verse\nDefault'));
+    expect(text, contains('Second verse'));
+    expect(text, isNot(contains('Metsudah')));
+    expect(text, isNot(contains('Koren')));
+    expect(text, isNot(contains('Alternate edition')));
     expect(text, contains('בְּרֵאשִׁית [כתיב]'));
     expect(text, isNot(contains('Rashi 1:1')));
   });
@@ -179,13 +195,36 @@ void main() {
           final watch = Stopwatch()..start();
           final book = await const EpubParserService().parseFile(file.path);
           expect(book.studySources, isNotEmpty, reason: file.path);
-          final text = book.spine
-              .expand((s) => s.blocks)
-              .map((b) => b.plainText)
-              .join('\n');
+          expect(book.rightToLeft, isFalse, reason: file.path);
+          expect(book.studyTranslations, isNotEmpty, reason: file.path);
+          expect(
+            book.studyTranslations.map((option) => option.label),
+            isNot(contains('Book default')),
+            reason: file.path,
+          );
+          final chapter = book.spine.firstWhere(
+            (item) => item.href.contains('chapter-'),
+          );
+          final text = chapter.blocks.map((b) => b.plainText).join('\n');
           expect(
             text,
-            isNot(contains('Translations & commentary')),
+            isNot(contains('Translations and commentary')),
+            reason: file.path,
+          );
+          final headings = chapter.blocks
+              .where(
+                (block) =>
+                    block.type == BlockType.heading2 &&
+                    block.id?.startsWith('v-') == true,
+              )
+              .toList();
+          expect(headings, isNotEmpty, reason: file.path);
+          expect(
+            headings.every(
+              (block) =>
+                  block.hasSplitLayout && block.fontSizeMultiplier == 1.15,
+            ),
+            isTrue,
             reason: file.path,
           );
           final filtered = TanachLayoutService.layout(

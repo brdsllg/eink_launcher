@@ -171,6 +171,12 @@ class _BlockSliceViewState extends State<BlockSliceView> {
               ),
       );
     }
+    if (block.hasSplitLayout) {
+      return Semantics(
+        label: block.plainText,
+        child: CustomPaint(painter: _SplitHeadingPainter(block, settings)),
+      );
+    }
     return Semantics(
       label: block.plainText,
       child: GestureDetector(
@@ -197,6 +203,32 @@ class _BlockSliceViewState extends State<BlockSliceView> {
       ),
     );
   }
+}
+
+class _SplitHeadingPainter extends CustomPainter {
+  final ContentBlock block;
+  final ReaderSettings settings;
+
+  _SplitHeadingPainter(this.block, this.settings);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final painters = TextBlockLayout.createSplitPainters(
+      block,
+      settings,
+      size.width,
+    );
+    painters.leading.paint(canvas, Offset(0, painters.leadingTop));
+    painters.trailing.paint(
+      canvas,
+      Offset(size.width - painters.trailing.width, painters.trailingTop),
+    );
+    painters.dispose();
+  }
+
+  @override
+  bool shouldRepaint(covariant _SplitHeadingPainter oldDelegate) =>
+      oldDelegate.block != block || oldDelegate.settings != settings;
 }
 
 class _TextBlockPainter extends CustomPainter {

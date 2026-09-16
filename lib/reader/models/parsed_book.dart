@@ -3,6 +3,13 @@ import 'dart:typed_data';
 import 'content_block.dart';
 import 'toc_entry.dart';
 
+class StudyTranslationOption {
+  final String id;
+  final String label;
+
+  const StudyTranslationOption({required this.id, required this.label});
+}
+
 class ParsedSpineItem {
   final String id;
   final String href;
@@ -26,7 +33,9 @@ class ParsedSpineItem {
 class ParsedBook {
   final Map<String, String> studyDocuments;
   final List<String> studySources;
-  final List<String> studyTranslations;
+  final List<StudyTranslationOption> studyTranslations;
+  final String? primaryStudyTranslationId;
+  final String? studyProjectionKey;
   final String contentFingerprint;
   final bool rightToLeft;
   final String title;
@@ -41,6 +50,8 @@ class ParsedBook {
     this.studyDocuments = const {},
     this.studySources = const [],
     this.studyTranslations = const [],
+    this.primaryStudyTranslationId,
+    this.studyProjectionKey,
     this.contentFingerprint = '',
     this.rightToLeft = false,
     required this.title,

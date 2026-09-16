@@ -15,7 +15,7 @@ enum BlockType {
 
 enum BlockTextDirection { ltr, rtl }
 
-enum BlockAlignment { start, center, end, justify }
+enum BlockAlignment { start, center, end, left, right, justify }
 
 class InlineRun {
   final String text;
@@ -51,27 +51,48 @@ class InlineRun {
 class ContentBlock {
   final BlockType type;
   final List<InlineRun> runs;
+  final List<InlineRun> trailingRuns;
   final BlockTextDirection direction;
+  final BlockTextDirection trailingDirection;
   final BlockAlignment alignment;
   final int nestingLevel;
   final bool orderedList;
   final String? id;
   final String? resourcePath;
   final String? alternateText;
+  final double? fontSizeMultiplier;
+  final double? lineHeight;
+  final double? spacingAfterEm;
+  final double? textIndentEm;
+  final bool forceBold;
 
   const ContentBlock({
     required this.type,
     this.runs = const [],
+    this.trailingRuns = const [],
     this.direction = BlockTextDirection.ltr,
+    this.trailingDirection = BlockTextDirection.rtl,
     this.alignment = BlockAlignment.start,
     this.nestingLevel = 0,
     this.orderedList = false,
     this.id,
     this.resourcePath,
     this.alternateText,
+    this.fontSizeMultiplier,
+    this.lineHeight,
+    this.spacingAfterEm,
+    this.textIndentEm,
+    this.forceBold = false,
   });
 
-  String get plainText => runs.map((run) => run.text).join();
+  bool get hasSplitLayout => trailingRuns.isNotEmpty;
+
+  String get plainText {
+    final leading = runs.map((run) => run.text).join();
+    if (trailingRuns.isEmpty) return leading;
+    final trailing = trailingRuns.map((run) => run.text).join();
+    return '$leading $trailing';
+  }
 
   int get characterCount => plainText.length;
 }

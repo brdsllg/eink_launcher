@@ -71,6 +71,51 @@ void main() {
     expect(blocks.single.direction, BlockTextDirection.rtl);
   });
 
+  test('preserves revision-5 Tanach layout semantics without a CSS engine', () {
+    final blocks = HtmlBlockParser.parseSync('''
+      <section class="verse" id="v-ruth-3-1">
+        <h2 class="verse-heading" dir="ltr">
+          <span lang="en" dir="ltr">Verse 1</span>
+          <span lang="he" dir="rtl">פסוק א׳</span>
+        </h2>
+        <p class="hebrew" dir="rtl">בְּרֵאשִׁית</p>
+        <div class="translation" dir="ltr">In the beginning</div>
+        <aside class="commentary-note">
+          <p class="note-title">Ibn Ezra on Ruth 3:1</p>
+          <div class="note-he" dir="rtl">
+            <div class="comment-segment"><div class="note-paragraph">אחד</div></div>
+            <div class="comment-segment"><div class="note-paragraph">שנים</div></div>
+          </div>
+        </aside>
+      </section>
+    ''');
+
+    final heading = blocks.first;
+    expect(heading.plainText, 'Verse 1 פסוק א׳');
+    expect(heading.hasSplitLayout, isTrue);
+    expect(heading.direction, BlockTextDirection.ltr);
+    expect(heading.trailingDirection, BlockTextDirection.rtl);
+    expect(heading.fontSizeMultiplier, 1.15);
+    expect(heading.forceBold, isTrue);
+
+    final hebrew = blocks.firstWhere((block) => block.plainText == 'בְּרֵאשִׁית');
+    expect(hebrew.alignment, BlockAlignment.right);
+    expect(hebrew.lineHeight, 1.8);
+    expect(hebrew.textIndentEm, 0);
+    final english = blocks.firstWhere(
+      (block) => block.plainText == 'In the beginning',
+    );
+    expect(english.alignment, BlockAlignment.left);
+    expect(english.lineHeight, 1.65);
+    final title = blocks.firstWhere(
+      (block) => block.plainText == 'Ibn Ezra on Ruth 3:1',
+    );
+    expect(title.fontSizeMultiplier, 0.8);
+    expect(title.forceBold, isTrue);
+    expect(blocks.where((block) => {'אחד', 'שנים'}.contains(block.plainText)),
+        hasLength(2));
+  });
+
   test('parses a complete XHTML document on a background isolate', () async {
     final blocks = await parser.parse('''
       <?xml version="1.0" encoding="utf-8"?>

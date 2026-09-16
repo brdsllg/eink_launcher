@@ -33,6 +33,11 @@ void main() {
           title: 'Book',
           author: 'Writer',
           language: 'en',
+          studyTranslations: const [
+            StudyTranslationOption(id: 'metsudah-ed', label: 'Metsudah'),
+          ],
+          primaryStudyTranslationId: 'metsudah-ed',
+          studyProjectionKey: 'projection',
           spine: [
             ParsedSpineItem(
               id: 'one',
@@ -46,6 +51,12 @@ void main() {
                   alignment: BlockAlignment.center,
                   nestingLevel: 2,
                   orderedList: true,
+                  trailingDirection: BlockTextDirection.ltr,
+                  fontSizeMultiplier: 1.15,
+                  lineHeight: 1.8,
+                  spacingAfterEm: 0.35,
+                  textIndentEm: 0,
+                  forceBold: true,
                   runs: [
                     InlineRun(
                       text: 'Text',
@@ -55,6 +66,9 @@ void main() {
                       href: 'link',
                       language: 'he',
                     ),
+                  ],
+                  trailingRuns: [
+                    InlineRun(text: 'Trailing', language: 'en'),
                   ],
                 ),
                 ContentBlock(
@@ -91,6 +105,16 @@ void main() {
       expect(block.direction, BlockTextDirection.rtl);
       expect(block.runs.single.bold, isTrue);
       expect(block.runs.single.language, 'he');
+      expect(block.trailingRuns.single.text, 'Trailing');
+      expect(block.trailingDirection, BlockTextDirection.ltr);
+      expect(block.fontSizeMultiplier, 1.15);
+      expect(block.lineHeight, 1.8);
+      expect(block.spacingAfterEm, 0.35);
+      expect(block.textIndentEm, 0);
+      expect(block.forceBold, isTrue);
+      expect(book.studyTranslations.single.label, 'Metsudah');
+      expect(book.primaryStudyTranslationId, 'metsudah-ed');
+      expect(book.studyProjectionKey, 'projection');
       expect(book.tableOfContents.single.targetHref, 'one.xhtml#anchor');
       await cache.load(doc, false, parser: parse);
       expect(calls, 2);

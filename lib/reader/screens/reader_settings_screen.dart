@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../widgets/adaptive_grid.dart';
 import '../../widgets/control_bar_row.dart';
 import '../models/doc_ref.dart';
+import '../models/parsed_book.dart';
 import '../models/reader_settings.dart';
 
 /// Discrete controls with a grid appropriate to each choice group. The active
@@ -12,7 +13,8 @@ class ReaderSettingsScreen extends StatefulWidget {
   final DocFormat format;
   final VoidCallback? onBackToText;
   final List<String> studySources;
-  final List<String> studyTranslations;
+  final List<StudyTranslationOption> studyTranslations;
+  final String? primaryStudyTranslationId;
 
   const ReaderSettingsScreen({
     super.key,
@@ -21,6 +23,7 @@ class ReaderSettingsScreen extends StatefulWidget {
     this.onBackToText,
     this.studySources = const [],
     this.studyTranslations = const [],
+    this.primaryStudyTranslationId,
   });
 
   @override
@@ -34,6 +37,20 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
   void initState() {
     super.initState();
     _settings = widget.initialSettings;
+    final ids = widget.studyTranslations.map((option) => option.id).toSet();
+    if (widget.studyTranslations.isNotEmpty &&
+        !ids.contains(_settings.studyTranslation)) {
+      final primary = widget.primaryStudyTranslationId;
+      final legacy = widget.studyTranslations
+          .where((option) => option.label == _settings.studyTranslation)
+          .firstOrNull;
+      _settings = _settings.copyWith(
+        studyTranslation: legacy?.id ??
+            (primary != null && ids.contains(primary)
+            ? primary
+            : widget.studyTranslations.first.id),
+      );
+    }
   }
 
   void _changeOverlap(double delta) {
@@ -94,28 +111,25 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
           ),
         ),
       ),
-      _StudySelector(
-        label: 'Main translation',
-        child: DropdownButtonFormField<String>(
-          isExpanded: true,
-          initialValue:
-              widget.studyTranslations.contains(_settings.studyTranslation)
-              ? _settings.studyTranslation
-              : '',
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-          items: [
-            const DropdownMenuItem(value: '', child: Text('Book default')),
-            for (final source in widget.studyTranslations)
-              DropdownMenuItem(
-                value: source,
-                child: Text(source, overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged: (value) => setState(
-            () => _settings = _settings.copyWith(studyTranslation: value),
+      if (widget.studyTranslations.isNotEmpty)
+        _StudySelector(
+          label: 'Main translation',
+          child: DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: _settings.studyTranslation,
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+            items: [
+              for (final option in widget.studyTranslations)
+                DropdownMenuItem(
+                  value: option.id,
+                  child: Text(option.label, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: (value) => setState(
+              () => _settings = _settings.copyWith(studyTranslation: value),
+            ),
           ),
         ),
-      ),
       ExpansionTile(
         title: const Text('Commentary sources'),
         subtitle: Text(

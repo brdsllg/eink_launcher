@@ -162,4 +162,51 @@ void main() {
       TextAlign.center,
     );
   });
+
+  test('Tanach bilingual heading is measured as one baseline-aligned row', () {
+    const block = ContentBlock(
+      type: BlockType.heading2,
+      runs: [InlineRun(text: 'Verse 15', language: 'en')],
+      trailingRuns: [InlineRun(text: 'פסוק ט״ו', language: 'he')],
+      direction: BlockTextDirection.ltr,
+      trailingDirection: BlockTextDirection.rtl,
+      fontSizeMultiplier: 1.15,
+      forceBold: true,
+    );
+    const settings = ReaderSettings(hyphenate: false);
+    final layout = TextBlockLayout.measure(
+      block: block,
+      width: 320,
+      pageHeight: 500,
+      settings: settings,
+    );
+    final painters = TextBlockLayout.createSplitPainters(
+      block,
+      settings,
+      320,
+    );
+    addTearDown(painters.dispose);
+
+    expect(layout.lines, hasLength(1));
+    expect(layout.lines.single.endCharOffset, block.characterCount);
+    expect(painters.leading.width, lessThan(160));
+    expect(painters.trailing.width, lessThan(160));
+    expect(
+      TextBlockLayout.baseStyleFor(block, settings).fontSize,
+      settings.fontSize * 1.15,
+    );
+  });
+
+  test('physical right alignment stays right for an RTL block', () {
+    const block = ContentBlock(
+      type: BlockType.paragraph,
+      direction: BlockTextDirection.rtl,
+      alignment: BlockAlignment.right,
+      runs: [InlineRun(text: 'עברית')],
+    );
+    expect(
+      TextBlockLayout.alignmentFor(block, const ReaderSettings()),
+      TextAlign.right,
+    );
+  });
 }

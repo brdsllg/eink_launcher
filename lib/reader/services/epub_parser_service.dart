@@ -108,16 +108,35 @@ class EpubParserService {
         description: 'XHTML resource',
       );
     }
-    final hasStudy = xhtmlDocuments.values.any(TanachLayoutService.recognizes);
+    final studyPaths = {
+      for (final entry in xhtmlDocuments.entries)
+        if (entry.value.contains('data-ref') &&
+            TanachLayoutService.recognizes(entry.value))
+          entry.key,
+    };
+    final hasStudy = studyPaths.isNotEmpty;
     final spine = <ParsedSpineItem>[];
     for (final idref in spineRefs) {
       final item = manifest[idref];
       if (item == null) continue;
-      final xhtml = _readText(
-        archive,
-        item.resolvedPath,
-        description: 'spine item ${item.href}',
-      );
+      final xhtml =
+          xhtmlDocuments[item.resolvedPath] ??
+          _readText(
+            archive,
+            item.resolvedPath,
+            description: 'spine item ${item.href}',
+          );
+      if (studyPaths.contains(item.resolvedPath)) {
+        spine.add(
+          ParsedSpineItem(
+            id: item.id,
+            href: item.resolvedPath,
+            title: _firstHeadingInSource(xhtml),
+            blocks: const [],
+          ),
+        );
+        continue;
+      }
       final anchors = <String, int>{};
       final blocks = HtmlBlockParser.parseSync(
         xhtml,
@@ -473,6 +492,17 @@ TextReadingPosition? _positionFor(String target, List<ParsedSpineItem> spine) {
 String? _metadataText(XmlDocument package, String localName) {
   final value = _elements(package, localName).firstOrNull?.innerText.trim();
   return value == null || value.isEmpty ? null : value;
+}
+
+String? _firstHeadingInSource(String source) {
+  final match = RegExp(
+    r'<h[1-6]\b[^>]*>.*?</h[1-6]\s*>',
+    caseSensitive: false,
+    dotAll: true,
+  ).firstMatch(source);
+  if (match == null) return null;
+  final value = html_parser.parseFragment(match.group(0)!).text.trim();
+  return value.isEmpty ? null : value;
 }
 
 String? _firstHeading(List<ContentBlock> blocks) {

@@ -218,6 +218,33 @@ class _HtmlWalker {
   }
 
   void _addTextElement(Element element, BlockType type) {
+    if (element.classes.contains('verse-heading')) {
+      final spans = element.children
+          .where((child) => child.localName == 'span')
+          .toList();
+      if (spans.length == 2) {
+        final inherited = _styleFor(element, const _RunStyle());
+        final leading = _inlineRuns(
+          spans.first.nodes,
+          _styleFor(spans.first, inherited),
+        );
+        final trailing = _inlineRuns(
+          spans.last.nodes,
+          _styleFor(spans.last, inherited),
+        );
+        _addTextBlock(
+          type,
+          element: element,
+          runs: leading,
+          trailingRuns: trailing,
+          trailingDirection: _directionFor(
+            spans.last,
+            trailing.map((run) => run.text).join(),
+          ),
+        );
+        return;
+      }
+    }
     final style = _styleFor(element, const _RunStyle());
     final runs = _inlineRuns(
       element.nodes,
@@ -231,20 +258,33 @@ class _HtmlWalker {
     BlockType type, {
     Element? element,
     required List<InlineRun> runs,
+    List<InlineRun> trailingRuns = const [],
+    BlockTextDirection trailingDirection = BlockTextDirection.rtl,
     int nestingLevel = 0,
     bool orderedList = false,
   }) {
-    final text = runs.map((run) => run.text).join();
+    final text = [
+      ...runs.map((run) => run.text),
+      ...trailingRuns.map((run) => run.text),
+    ].join();
     if (text.trim().isEmpty) return;
+    final presentation = _presentationFor(element);
     blocks.add(
       ContentBlock(
         type: type,
         runs: runs,
+        trailingRuns: trailingRuns,
         direction: _directionFor(element, text),
+        trailingDirection: trailingDirection,
         alignment: _alignmentFor(element),
         nestingLevel: nestingLevel,
         orderedList: orderedList,
         id: element == null ? null : _elementId(element),
+        fontSizeMultiplier: presentation.fontSizeMultiplier,
+        lineHeight: presentation.lineHeight,
+        spacingAfterEm: presentation.spacingAfterEm,
+        textIndentEm: presentation.textIndentEm,
+        forceBold: presentation.forceBold,
       ),
     );
   }
@@ -397,17 +437,92 @@ class _HtmlWalker {
 
   BlockAlignment _alignmentFor(Element? element) {
     if (element == null || !honorPublisherCss) return BlockAlignment.start;
-    final alignment =
+    var alignment =
         element.attributes['align']?.toLowerCase() ??
         _cssDeclarations(
           element.attributes['style'],
         )['text-align']?.toLowerCase();
+    if (alignment == null) {
+      Element? current = element;
+      while (current != null && alignment == null) {
+        if (current.classes.contains('hebrew') ||
+            current.classes.contains('note-he')) {
+          alignment = 'right';
+        } else if (current.classes.contains('translation') ||
+            current.classes.contains('note-en') ||
+            current.classes.contains('note-title')) {
+          alignment = 'left';
+        }
+        current = current.parent;
+      }
+    }
     return switch (alignment) {
       'center' => BlockAlignment.center,
-      'right' || 'end' => BlockAlignment.end,
+      'left' => BlockAlignment.left,
+      'right' => BlockAlignment.right,
+      'end' => BlockAlignment.end,
       'justify' => BlockAlignment.justify,
       _ => BlockAlignment.start,
     };
+  }
+
+  _BlockPresentation _presentationFor(Element? element) {
+    if (element == null) return const _BlockPresentation();
+    final isVerseHeading = element.classes.contains('verse-heading');
+    final isNoteTitle = element.classes.contains('note-title');
+    if (!honorPublisherCss) {
+      return _BlockPresentation(forceBold: isVerseHeading || isNoteTitle);
+    }
+
+    var inTanach = false;
+    var inHebrewNote = false;
+    var inEnglishNote = false;
+    Element? current = element;
+    while (current != null) {
+      inTanach =
+          inTanach ||
+          current.classes.contains('verse') ||
+          current.classes.contains('commentary-note');
+      inHebrewNote = inHebrewNote || current.classes.contains('note-he');
+      inEnglishNote = inEnglishNote || current.classes.contains('note-en');
+      current = current.parent;
+    }
+    if (!inTanach && !isVerseHeading && !isNoteTitle) {
+      return const _BlockPresentation();
+    }
+
+    final classes = element.classes;
+    final isHebrew = classes.contains('hebrew') || inHebrewNote;
+    final isTranslation = classes.contains('translation');
+    final isEnglish = isTranslation || inEnglishNote;
+    final isNoteParagraph = classes.contains('note-paragraph');
+    return _BlockPresentation(
+      fontSizeMultiplier: isVerseHeading
+          ? 1.15
+          : isNoteTitle
+          ? 0.8
+          : null,
+      lineHeight: isNoteTitle
+          ? 1.45
+          : isHebrew
+          ? 1.8
+          : isEnglish
+          ? 1.65
+          : null,
+      spacingAfterEm: isVerseHeading
+          ? 0.35
+          : isNoteTitle
+          ? 0.7
+          : isNoteParagraph
+          ? 0.65
+          : classes.contains('hebrew')
+          ? 0.4
+          : isTranslation
+          ? 0.55
+          : null,
+      textIndentEm: inTanach ? 0 : null,
+      forceBold: isVerseHeading || isNoteTitle,
+    );
   }
 
   Map<String, String> _cssDeclarations(String? style) {
@@ -450,6 +565,22 @@ class _HtmlWalker {
     'pre' => BlockType.preformatted,
     _ => BlockType.paragraph,
   };
+}
+
+class _BlockPresentation {
+  final double? fontSizeMultiplier;
+  final double? lineHeight;
+  final double? spacingAfterEm;
+  final double? textIndentEm;
+  final bool forceBold;
+
+  const _BlockPresentation({
+    this.fontSizeMultiplier,
+    this.lineHeight,
+    this.spacingAfterEm,
+    this.textIndentEm,
+    this.forceBold = false,
+  });
 }
 
 class _RunStyle {

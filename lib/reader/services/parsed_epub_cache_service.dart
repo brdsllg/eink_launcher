@@ -14,7 +14,7 @@ import 'epub_parser_service.dart';
 /// Disposable, versioned parse cache. Images are included so a hit never needs
 /// to reopen the ZIP. Source metadata and CSS mode invalidate stale blocks.
 class ParsedEpubCacheService {
-  static const version = 2;
+  static const version = 3;
   static const maxBytes = 64 * 1024 * 1024;
   final Directory? cacheDirectory;
   const ParsedEpubCacheService({this.cacheDirectory});
@@ -120,7 +120,12 @@ class ParsedEpubCacheService {
     'version': version,
     'studyDocuments': book.studyDocuments,
     'studySources': book.studySources,
-    'studyTranslations': book.studyTranslations,
+    'studyTranslations': [
+      for (final option in book.studyTranslations)
+        {'id': option.id, 'label': option.label},
+    ],
+    'primaryStudyTranslationId': book.primaryStudyTranslationId,
+    'studyProjectionKey': book.studyProjectionKey,
     'contentFingerprint': book.contentFingerprint,
     'rightToLeft': book.rightToLeft,
     'title': book.title,
@@ -148,8 +153,25 @@ class ParsedEpubCacheService {
                 'id': block.id,
                 'resourcePath': block.resourcePath,
                 'alternateText': block.alternateText,
+                'fontSizeMultiplier': block.fontSizeMultiplier,
+                'lineHeight': block.lineHeight,
+                'spacingAfterEm': block.spacingAfterEm,
+                'textIndentEm': block.textIndentEm,
+                'forceBold': block.forceBold,
+                'trailingDirection': block.trailingDirection.name,
                 'runs': [
                   for (final run in block.runs)
+                    {
+                      'text': run.text,
+                      'bold': run.bold,
+                      'italic': run.italic,
+                      'code': run.code,
+                      'href': run.href,
+                      'language': run.language,
+                    },
+                ],
+                'trailingRuns': [
+                  for (final run in block.trailingRuns)
                     {
                       'text': run.text,
                       'bold': run.bold,
@@ -170,9 +192,15 @@ class ParsedEpubCacheService {
       json['studyDocuments'] as Map? ?? const {},
     ),
     studySources: List<String>.from(json['studySources'] as List? ?? const []),
-    studyTranslations: List<String>.from(
-      json['studyTranslations'] as List? ?? const [],
-    ),
+    studyTranslations: [
+      for (final option in json['studyTranslations'] as List? ?? const [])
+        StudyTranslationOption(
+          id: option['id'] as String,
+          label: option['label'] as String,
+        ),
+    ],
+    primaryStudyTranslationId: json['primaryStudyTranslationId'] as String?,
+    studyProjectionKey: json['studyProjectionKey'] as String?,
     contentFingerprint: json['contentFingerprint'] as String? ?? '',
     rightToLeft: json['rightToLeft'] as bool? ?? false,
     title: json['title'] as String,
@@ -207,8 +235,28 @@ class ParsedEpubCacheService {
                 id: block['id'] as String?,
                 resourcePath: block['resourcePath'] as String?,
                 alternateText: block['alternateText'] as String?,
+                fontSizeMultiplier: (block['fontSizeMultiplier'] as num?)
+                    ?.toDouble(),
+                lineHeight: (block['lineHeight'] as num?)?.toDouble(),
+                spacingAfterEm: (block['spacingAfterEm'] as num?)?.toDouble(),
+                textIndentEm: (block['textIndentEm'] as num?)?.toDouble(),
+                forceBold: block['forceBold'] as bool? ?? false,
+                trailingDirection: BlockTextDirection.values.byName(
+                  block['trailingDirection'] as String? ?? 'rtl',
+                ),
                 runs: [
                   for (final run in block['runs'] as List)
+                    InlineRun(
+                      text: run['text'] as String,
+                      bold: run['bold'] as bool,
+                      italic: run['italic'] as bool,
+                      code: run['code'] as bool,
+                      href: run['href'] as String?,
+                      language: run['language'] as String?,
+                    ),
+                ],
+                trailingRuns: [
+                  for (final run in block['trailingRuns'] as List? ?? const [])
                     InlineRun(
                       text: run['text'] as String,
                       bold: run['bold'] as bool,

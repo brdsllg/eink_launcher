@@ -5,6 +5,7 @@ import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:eink_launcher/reader/services/epub_paginator_service.dart';
 import 'package:eink_launcher/reader/screens/reader_settings_screen.dart';
 import 'package:eink_launcher/reader/models/doc_ref.dart';
+import 'package:eink_launcher/reader/models/parsed_book.dart';
 
 void main() {
   test(
@@ -98,7 +99,11 @@ void main() {
             initialSettings: ReaderSettings(),
             format: DocFormat.epub,
             studySources: ['Rashi on Genesis', 'Other'],
-            studyTranslations: ['Default', 'Alternate'],
+            studyTranslations: const [
+              StudyTranslationOption(id: 'default-ed', label: 'Metsudah'),
+              StudyTranslationOption(id: 'alternate-ed', label: 'Koren'),
+            ],
+            primaryStudyTranslationId: 'default-ed',
           ),
         ),
       );

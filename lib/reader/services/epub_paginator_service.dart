@@ -207,6 +207,28 @@ class TextLineLayout {
   });
 }
 
+class SplitTextPainters {
+  final TextPainter leading;
+  final TextPainter trailing;
+
+  const SplitTextPainters({required this.leading, required this.trailing});
+
+  double get _leadingBaseline =>
+      leading.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+  double get _trailingBaseline =>
+      trailing.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+  double get _baseline => math.max(_leadingBaseline, _trailingBaseline);
+  double get leadingTop => _baseline - _leadingBaseline;
+  double get trailingTop => _baseline - _trailingBaseline;
+  double get height =>
+      math.max(leadingTop + leading.height, trailingTop + trailing.height);
+
+  void dispose() {
+    leading.dispose();
+    trailing.dispose();
+  }
+}
+
 /// A measured block. The renderer calls the same helpers, ensuring its text
 /// geometry stays byte-for-byte aligned with the paginator.
 class TextBlockLayout {
@@ -266,6 +288,25 @@ class TextBlockLayout {
       );
     }
 
+    if (block.hasSplitLayout) {
+      final painters = createSplitPainters(block, settings, width);
+      final textHeight = painters.height;
+      painters.dispose();
+      return TextBlockLayout(
+        textHeight: textHeight,
+        spacingAfter: spacing,
+        height: textHeight + spacing,
+        lines: [
+          TextLineLayout(
+            top: 0,
+            bottom: textHeight,
+            startCharOffset: 0,
+            endCharOffset: block.characterCount,
+          ),
+        ],
+      );
+    }
+
     final prefix = prefixFor(block, settings);
     final painter = createPainter(block, settings, width);
     final lineMetrics = painter.computeLineMetrics();
@@ -310,11 +351,21 @@ class TextBlockLayout {
     ReaderSettings settings, {
     String? prefix,
   }) {
-    final base = baseStyleFor(block, settings);
+    return _buildRunsTextSpan(block, block.runs, settings, prefix: prefix);
+  }
+
+  static TextSpan _buildRunsTextSpan(
+    ContentBlock block,
+    List<InlineRun> runs,
+    ReaderSettings settings, {
+    String? prefix,
+    BlockTextDirection? direction,
+  }) {
+    final base = baseStyleFor(block, settings, direction: direction);
     final children = <InlineSpan>[];
     final actualPrefix = prefix ?? prefixFor(block, settings);
     if (actualPrefix.isNotEmpty) children.add(TextSpan(text: actualPrefix));
-    for (final run in block.runs) {
+    for (final run in runs) {
       final text = settings.hyphenate
           ? const HyphenationService().hyphenateLatinText(run.text)
           : run.text;
@@ -332,8 +383,12 @@ class TextBlockLayout {
     return TextSpan(style: base, children: children);
   }
 
-  static TextStyle baseStyleFor(ContentBlock block, ReaderSettings settings) {
-    final multiplier = switch (block.type) {
+  static TextStyle baseStyleFor(
+    ContentBlock block,
+    ReaderSettings settings, {
+    BlockTextDirection? direction,
+  }) {
+    final semanticMultiplier = switch (block.type) {
       BlockType.heading1 => 1.65,
       BlockType.heading2 => 1.45,
       BlockType.heading3 => 1.3,
@@ -343,7 +398,7 @@ class TextBlockLayout {
       BlockType.preformatted => 0.9,
       _ => 1.0,
     };
-    final bold = switch (block.type) {
+    final semanticWeight = switch (block.type) {
       BlockType.heading1 ||
       BlockType.heading2 ||
       BlockType.heading3 ||
@@ -352,19 +407,26 @@ class TextBlockLayout {
       BlockType.heading6 => FontWeight.bold,
       _ => FontWeight.normal,
     };
-    final primary = block.direction == BlockTextDirection.rtl
+    final effectiveDirection = direction ?? block.direction;
+    final primary = effectiveDirection == BlockTextDirection.rtl
         ? settings.hebrewFontFamily
         : settings.latinFontFamily;
-    final fallback = block.direction == BlockTextDirection.rtl
+    final fallback = effectiveDirection == BlockTextDirection.rtl
         ? <String>[settings.latinFontFamily]
         : <String>[settings.hebrewFontFamily];
     return TextStyle(
       color: Colors.black,
       fontFamily: primary,
       fontFamilyFallback: fallback,
-      fontSize: settings.fontSize * multiplier,
-      height: settings.lineHeight,
-      fontWeight: bold,
+      fontSize:
+          settings.fontSize *
+          (settings.honorPublisherCss
+              ? block.fontSizeMultiplier ?? semanticMultiplier
+              : semanticMultiplier),
+      height: settings.honorPublisherCss
+          ? block.lineHeight ?? settings.lineHeight
+          : settings.lineHeight,
+      fontWeight: block.forceBold ? FontWeight.bold : semanticWeight,
       decoration: TextDecoration.none,
     );
   }
@@ -374,9 +436,14 @@ class TextBlockLayout {
         ? '${'  ' * block.nestingLevel}${block.orderedList ? '1.' : '•'} '
         : '';
     final quotePrefix = block.type == BlockType.blockquote ? '│ ' : '';
-    final indent =
-        block.type == BlockType.paragraph &&
-            settings.paragraphMode == ParagraphMode.firstLineIndent
+    final publisherIndent = settings.honorPublisherCss
+        ? block.textIndentEm
+        : null;
+    final indent = block.type != BlockType.paragraph
+        ? ''
+        : publisherIndent != null
+        ? List.filled(publisherIndent.ceil().clamp(0, 8), '\u2003').join()
+        : settings.paragraphMode == ParagraphMode.firstLineIndent
         ? '\u2003\u2003'
         : '';
     return '$listPrefix$quotePrefix$indent';
@@ -399,6 +466,7 @@ class TextBlockLayout {
     double width,
     Offset offset,
   ) {
+    if (block.hasSplitLayout) return null;
     final painter = createPainter(block, settings, width);
     final displayOffset = painter.getPositionForOffset(offset).offset;
     final prefix = prefixFor(block, settings).length;
@@ -479,6 +547,39 @@ class TextBlockLayout {
     );
   }
 
+  static SplitTextPainters createSplitPainters(
+    ContentBlock block,
+    ReaderSettings settings,
+    double width,
+  ) {
+    final sideWidth = math.max(1.0, width * 0.48);
+    final leading = TextPainter(
+      text: _buildRunsTextSpan(
+        block,
+        block.runs,
+        settings,
+        prefix: '',
+        direction: block.direction,
+      ),
+      textDirection: directionForValue(block.direction),
+      maxLines: 1,
+      textScaler: TextScaler.noScaling,
+    )..layout(maxWidth: sideWidth);
+    final trailing = TextPainter(
+      text: _buildRunsTextSpan(
+        block,
+        block.trailingRuns,
+        settings,
+        prefix: '',
+        direction: block.trailingDirection,
+      ),
+      textDirection: directionForValue(block.trailingDirection),
+      maxLines: 1,
+      textScaler: TextScaler.noScaling,
+    )..layout(maxWidth: sideWidth);
+    return SplitTextPainters(leading: leading, trailing: trailing);
+  }
+
   static List<Offset> hyphenOffsets(
     TextPainter painter,
     ContentBlock block,
@@ -521,6 +622,9 @@ class TextBlockLayout {
 
   static double spacingFor(ContentBlock block, ReaderSettings settings) {
     final em = settings.fontSize;
+    if (settings.honorPublisherCss && block.spacingAfterEm != null) {
+      return em * block.spacingAfterEm!;
+    }
     return switch (block.type) {
       BlockType.heading1 || BlockType.heading2 => em * 0.8,
       BlockType.heading3 ||
@@ -536,18 +640,25 @@ class TextBlockLayout {
   }
 
   static TextDirection directionFor(ContentBlock block) =>
-      block.direction == BlockTextDirection.rtl
+      directionForValue(block.direction);
+
+  static TextDirection directionForValue(BlockTextDirection direction) =>
+      direction == BlockTextDirection.rtl
       ? TextDirection.rtl
       : TextDirection.ltr;
 
   static TextAlign alignmentFor(ContentBlock block, ReaderSettings settings) {
-    if (settings.justify && block.type == BlockType.paragraph) {
+    if (settings.justify &&
+        block.type == BlockType.paragraph &&
+        block.alignment == BlockAlignment.start) {
       return TextAlign.justify;
     }
     if (!settings.honorPublisherCss) return TextAlign.start;
     return switch (block.alignment) {
       BlockAlignment.center => TextAlign.center,
       BlockAlignment.end => TextAlign.end,
+      BlockAlignment.left => TextAlign.left,
+      BlockAlignment.right => TextAlign.right,
       BlockAlignment.justify => TextAlign.justify,
       BlockAlignment.start => TextAlign.start,
     };

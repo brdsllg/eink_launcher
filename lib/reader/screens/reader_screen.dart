@@ -336,6 +336,9 @@ class _ReaderScreenState extends State<ReaderScreen>
           studyTranslations: session is TextReaderSession
               ? session.book?.studyTranslations ?? const []
               : const [],
+          primaryStudyTranslationId: session is TextReaderSession
+              ? session.book?.primaryStudyTranslationId
+              : null,
         ),
       ),
     );

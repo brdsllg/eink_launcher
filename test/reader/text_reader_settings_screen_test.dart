@@ -1,4 +1,5 @@
 import 'package:eink_launcher/reader/models/doc_ref.dart';
+import 'package:eink_launcher/reader/models/parsed_book.dart';
 import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:eink_launcher/reader/screens/reader_settings_screen.dart';
 import 'package:flutter/material.dart';
@@ -62,12 +63,24 @@ void main() {
             initialSettings: ReaderSettings(),
             format: DocFormat.epub,
             studySources: ['Commentary A'],
-            studyTranslations: ['A very long translation title from this EPUB'],
+            studyTranslations: const [
+              StudyTranslationOption(
+                id: 'long-edition',
+                label: 'A very long translation title from this EPUB',
+              ),
+            ],
+            primaryStudyTranslationId: 'long-edition',
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
+
+    expect(find.text('Book default'), findsNothing);
+    expect(
+      find.text('A very long translation title from this EPUB'),
+      findsOneWidget,
+    );
 
     final save = tester.getRect(find.byKey(const Key('reader-settings-save')));
     final saveText = tester.getRect(find.text('Save'));
