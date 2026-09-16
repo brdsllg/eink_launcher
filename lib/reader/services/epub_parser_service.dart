@@ -501,8 +501,8 @@ String? _firstHeadingInSource(String source) {
     dotAll: true,
   ).firstMatch(source);
   if (match == null) return null;
-  final value = html_parser.parseFragment(match.group(0)!).text.trim();
-  return value.isEmpty ? null : value;
+  final value = html_parser.parseFragment(match.group(0)!).text?.trim();
+  return value == null || value.isEmpty ? null : value;
 }
 
 String? _firstHeading(List<ContentBlock> blocks) {
