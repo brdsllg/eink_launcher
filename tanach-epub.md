@@ -1,12 +1,14 @@
 # Tanach EPUB project — conversation handoff
 
-Last updated: 16 September 2026. This is a curated project brief and implementation handoff, not a verbatim transcript. Later decisions below supersede earlier experiments. Read this before changing the project; do not repeat settled preference questions.
+Last updated: 17 September 2026. This is a curated project brief and implementation handoff, not a verbatim transcript. Later decisions below supersede earlier experiments. Read this before changing the project; do not repeat settled preference questions.
 
 ## Goal and current status
 
 Create a personal-use Tanach EPUB collection from Sefaria, with Hebrew, Orthodox Jewish English translations, and a restricted whitelist of full direct commentaries. Keep the content pipeline independent of the reader application. The user has a functioning reader on a Bigme B751C and intends to adapt it to these EPUBs. The initial proposal described a Flutter reader, but its source code has not been supplied or inspected here.
 
-The full collection is NOT built. Nine representative chapter samples have been built and repeatedly refined. The current format is presentation revision 5, with commentary grouped by source and verse. All nine latest samples passed EPUBCheck and internal link/anchor validation. Browser checks passed verse → index → bilingual Rashi commentary → verse navigation. These checks do not establish compatibility with the user's custom reader.
+The full 39-book collection was built on 17 September 2026 under `build/tanach_full/outputs/`. The distributable is `tanach-39-epubs.zip`; individual books are in `books/`. It contains 23,206 verses and 203,039 unique selected commentary notes. All 39 EPUBs passed EPUBCheck 5.3.0, internal link/anchor validation, database invariants, heading checks, and grouped-note content-preservation checks. The current format remains presentation revision 5, with commentary grouped by source and verse. These checks do not establish on-device performance in every large book.
+
+Two source limitations were preserved rather than filled with invented text: Joshua 21:36–37 have no approved English translation and are Hebrew-only, and 1,645 Sefaria link-index records point to locations with no text in an approved selected export. The latter are retained in the full build report as unresolved pointers. Pending or unapproved editions remain excluded.
 
 ## Settled content requirements
 
@@ -138,12 +140,11 @@ Do not assume the pipeline ZIP alone reproduces the build offline: retain the ex
 
 1. Obtain the reader repository/location if the user wants its selector and rendering behavior fixed. Implement the narrow revision 5 integration changes and test on the actual reader.
 2. Let the user check the latest sample formatting before treating the presentation as final. Do not revert settled preferences during troubleshooting.
-3. Before generating the full 39-book collection, resolve or explicitly exclude pending edition choices; extend download scope; audit unresolved links and qere/ketiv cases; assess chapter sizes, load times and note navigation.
-4. Build and validate all books only when the content scope and format are ready. Do not claim the full collection already exists.
+3. Test the largest full books on the Bigme device, especially Genesis, Exodus, Leviticus, Deuteronomy, Numbers, and Psalms; assess import time, pagination, memory pressure, and note navigation.
+4. Review the explicitly reported source limitations only if broader edition approval or a different textual source is desired. Do not invent replacements for missing source text.
 
 Work autonomously on authorized changes, preserve full source text, and explain clearly which fixes belong in the EPUB versus the reader. Ask concise questions when a real content/provenance decision or missing reader location is needed; do not re-open obvious Orthodox-source approvals.
 
 ## Suggested opening instruction for a new project
 
 “Continue this Tanach EPUB project using PROJECT-CONTEXT.md and the supplied source-selection.json and reader-compatibility.md. Inspect the existing files first. Preserve the approved whitelist and revision 5 presentation. The latest samples are in tanach-grouped-commentary-samples.zip. The next unresolved integration work is the reader's named default translation selector, removal of reader-added attribution labels, and faithful rendering of the single-row bilingual heading and grouped commentary. Do not rebuild the full collection or repeat settled preference questions before understanding the current state.”
-

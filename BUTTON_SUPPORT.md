@@ -1,4 +1,4 @@
-# Physical page buttons — version 1.0.9
+# Physical page buttons — introduced in version 1.0.9
 
 Button support is enabled automatically in the document reader and paginated
 lists: files, Apps, bookmarks, Contents, and book-search results.
@@ -57,9 +57,13 @@ Host tests cover every mapping, press/repeat/release handling, synthesized-key
 suppression, text focus, dialogs, routes, lifecycle, disposal, list bounds, and
 actual reader navigation. Physical B751C verification remains pending.
 
-All 293 test cases passed across the regression run and focused rerun, including
-12 button-input tests, reader/list integration, and native PDFium stress. One
-external-PDF test is skipped. Static analysis is clean.
+The focused button-input run passes 12 tests, and static analysis is clean. The
+latest recorded full-suite run reached 292 passing tests, one skipped test, and
+one failure in `page_button_scope_test.dart`. The failure occurs in Flutter's
+test event simulator before the app assertion, when it tries to synthesize the
+unmapped Browser Back physical key; it is not a reported reader-navigation
+failure. Re-run the full suite against the current source before claiming a
+clean regression run. Physical B751C verification remains pending.
 
 Bigme identifies the original B751C's physical page buttons in its
 [official product page](https://store.bigme.vip/products/bigme-7-b751c-color-epaper-notepad-with-android-11-os-copy-1)

@@ -9,13 +9,18 @@ Bigme HiBreak running Android 14. The original target was the Bigme B751C.
 
 ## Current status
 
-**Current trial: version 1.0.9 (build 10)** adds physical page-button support for
-the Bigme B751C: Page Up/Down, Left/Right, and Volume Up/Down. The buttons turn
-reader pages and page through file, Apps, bookmark, Contents, and search-result
-lists. Holds do not repeat, text entry and dialogs are isolated, and loading or
-background readers do not turn. [Button behavior and supported assignments](BUTTON_SUPPORT.md).
-The APK is [eink-launcher-1.0.9-b751c-buttons-trial.apk](build/app/outputs/flutter-apk/eink-launcher-1.0.9-b751c-buttons-trial.apk).
-Physical B751C verification remains pending.
+**Current release: version 1.0.10 (build 11)** carries forward the physical
+page-button support introduced in 1.0.9 and adds bundled modern Hebrew and
+Rabbinic Hebrew/Aramaic dictionary data. Page Up/Down, Left/Right, and Volume
+Up/Down turn reader pages and page through file, Apps, bookmark, Contents, and
+search-result lists. Holds do not repeat, text entry and dialogs are isolated,
+and loading or background readers do not turn. [Button behavior and supported
+assignments](BUTTON_SUPPORT.md). Physical B751C verification remains pending.
+
+The current generated arm64 artifact is
+[app-release.apk](build/app/outputs/flutter-apk/app-release.apk). Its recorded
+SHA-256 is
+`01D04659FC1BEB73F5A7F8767A357ACAA1E7078E82CA8701E9C1A4C80958706E`.
 
 **Design trial: version 1.0.8 (build 9)** gives each screen a layout suited to
 its controls. Reader header icons use bounded widths, rotation has a wider
@@ -60,10 +65,8 @@ or physically tested on the device yet.
   stress check enabled. The older test that requires an external PDF is skipped.
   Static analysis is clean.
 
-The version 1.0.9 trial APK is an arm64 release build signed with the project's
-existing personal sideload key. Its Android v2 signature and package/version
-metadata were checked.
-SHA-256:
+The version 1.0.9 trial APK remains available as a historical comparison build.
+Its Android v2 signature and package/version metadata were checked. SHA-256:
 `BD8A8E7CF407886C800139463722004B509144F5DAE3E3C38AD2CB2A0015C32E`.
 
 ## What the app does
@@ -194,10 +197,12 @@ Run native Android policy tests on Windows with:
 android\gradlew.bat -p android :app:testDebugUnitTest
 ```
 
-Personal sideload builds use the existing local signing setup. Do not remove
-`open_filex` without first adding an app-owned `FileProvider`; the custom chooser
-currently uses its provider authority. A private release keystore is needed only
-before distribution or moving the signing identity to another machine.
+Personal sideload builds currently use the signing configuration in
+`android/app/build.gradle.kts` (debug signing for local use). Configure and
+protect a private release keystore before distribution or moving the signing
+identity to another machine. Do not remove `open_filex` without first adding an
+app-owned `FileProvider`; the custom chooser currently uses its provider
+authority.
 
 ## What still needs device testing
 
@@ -219,3 +224,6 @@ implemented PDF response work and short retest are in
   checks, and the implemented tab design.
 - [ANDROID_HARDENING_PLAN.md](ANDROID_HARDENING_PLAN.md) records completed Android
   hardening decisions and the remaining measurement-driven work.
+- [annotation_plan.md](annotation_plan.md) is the step-by-step plan for text
+  selection, copy, dictionary, notes, and underlines in the EPUB/TXT/Markdown
+  reader; implementation not yet started.

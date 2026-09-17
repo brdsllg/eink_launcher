@@ -22,7 +22,8 @@ The app has been manually exercised on a Bigme HiBreak running Android 14. See
 | Persistence | Store global defaults and per-document state in one atomic `library.json`. |
 | Entry point | Open readable files from the file browser. Keep **Open with** as an escape hatch. |
 | Search | EPUB, TXT, and Markdown only. PDF text search is out of scope. |
-| Not planned | Highlights, notes, dictionary, TTS, and DRM bypass. |
+| Dictionary | Implemented offline lookup for EPUB, TXT, Markdown, and text-layer PDFs, with English, modern Hebrew, and Rabbinic Hebrew/Aramaic data. |
+| Not planned | Highlights, notes, TTS, and DRM bypass. |
 
 ## Session and position model
 
@@ -278,6 +279,12 @@ synthesized downs do not navigate; focused editors, inactive routes, loading,
 and file-search overlays are excluded. Details and references are in
 [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md). Physical B751C verification is pending.
 
+Version 1.0.10 (build 11) adds modern Hebrew and Rabbinic Hebrew/Aramaic
+dictionary assets to the existing offline lookup feature. The reader supports
+English, modern Hebrew, and Jastrow dictionary sources without a network
+connection; see the dictionary section in [README.md](README.md) for source and
+license details.
+
 ### Opening and loading
 
 Opening a document — a fresh tap in the file browser, switching to a
@@ -339,5 +346,5 @@ landscape rendering with real fonts. Static analysis is clean.
 Version 1.0.6 passes 278 Flutter tests with native PDFium stress enabled (one
 external-PDF test skipped), clean static analysis, and four reader/browser visual
 checks in portrait and landscape. Coverage includes shared battery updates and
-subscription lifetime while the browser and reader coexist. Device trial remains
-pending.
+subscription lifetime while the browser and reader coexist. Physical B751C
+verification remains pending.
