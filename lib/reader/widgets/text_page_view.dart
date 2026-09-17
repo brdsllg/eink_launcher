@@ -3,6 +3,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../controllers/text_reader_session.dart';
+import '../models/annotation.dart';
+import '../models/book_state.dart';
+import '../services/book_store_service.dart';
+import 'annotation_dialog.dart';
 import 'block_slice_view.dart';
 import 'dictionary_dialog.dart';
 
@@ -19,6 +23,77 @@ class TextPageView extends StatefulWidget {
 class _TextPageViewState extends State<TextPageView> {
   Size? _reportedSize;
   bool _contentReported = false;
+
+  Future<void> _addAnnotation(
+    int spineIndex,
+    int blockIndex,
+    TextSelection range,
+    String text,
+    bool addNote,
+  ) async {
+    final docId = widget.session.doc.id;
+    final note = addNote ? await showAnnotationEditor(context) : null;
+    if (!mounted ||
+        widget.session.doc.id != docId ||
+        (addNote && note == null)) {
+      return;
+    }
+    final store = BookStoreService.instance;
+    // A freshly opened book has no saved state until its first page turn.
+    final session = widget.session;
+    final state =
+        store.getBookState(docId) ??
+        BookState(
+          docId: docId,
+          lastPath: session.doc.path,
+          format: session.doc.format,
+          lastRead: DateTime.now(),
+          position: session.position,
+          percent: session.percent,
+          bookmarks: session.bookmarks,
+        );
+    final annotation = Annotation(
+      id: Annotation.generateId(),
+      docId: docId,
+      createdAt: DateTime.now(),
+      spineIndex: spineIndex,
+      blockIndex: blockIndex,
+      startOffset: range.start,
+      endOffset: range.end,
+      text: text,
+      note: note,
+    );
+    store.saveBookState(
+      state.copyWith(annotations: [...state.annotations, annotation]),
+    );
+    setState(() {});
+  }
+
+  Future<void> _openAnnotation(Annotation annotation) async {
+    final action = await showAnnotationViewer(context, annotation);
+    if (!mounted || action == null) return;
+    String? note;
+    if (action == AnnotationAction.edit) {
+      note = await showAnnotationEditor(context, note: annotation.note);
+      if (!mounted || note == null) return;
+    }
+    if (widget.session.doc.id != annotation.docId) return;
+    final store = BookStoreService.instance;
+    final state = store.getBookState(annotation.docId);
+    if (state == null) return;
+    store.saveBookState(
+      state.copyWith(
+        annotations: [
+          for (final item in state.annotations)
+            if (item.id != annotation.id)
+              item
+            else if (action == AnnotationAction.edit)
+              item.withNote(note!),
+        ],
+      ),
+    );
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +132,11 @@ class _TextPageViewState extends State<TextPageView> {
             );
           }
           final margin = widget.session.settings.horizontalMargin;
+          final annotations =
+              BookStoreService.instance
+                  .getBookState(widget.session.doc.id)
+                  ?.annotations ??
+              const <Annotation>[];
           return Padding(
             padding: EdgeInsets.all(margin),
             child: Column(
@@ -64,6 +144,24 @@ class _TextPageViewState extends State<TextPageView> {
               children: [
                 for (final slice in page.slices)
                   BlockSliceView(
+                    key: ValueKey(
+                      '${widget.session.doc.id}:${page.start.spineIndex}:${slice.blockIndex}:${slice.startCharOffset}',
+                    ),
+                    annotations: annotations
+                        .where(
+                          (a) =>
+                              a.spineIndex == page.start.spineIndex &&
+                              a.blockIndex == slice.blockIndex,
+                        )
+                        .toList(),
+                    onOpenAnnotation: _openAnnotation,
+                    onAnnotate: (range, text, addNote) => _addAnnotation(
+                      page.start.spineIndex,
+                      slice.blockIndex,
+                      range,
+                      text,
+                      addNote,
+                    ),
                     onOpenLink: (href) {
                       final opened = widget.session.openLink(href);
                       if (!opened) {

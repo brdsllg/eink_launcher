@@ -664,6 +664,7 @@ class TextReaderSession extends ReaderSession {
         percent: percent,
         settingsOverride: settingsOverride ?? previous?.settingsOverride,
         bookmarks: _bookmarks,
+        annotations: previous?.annotations ?? const [],
       ),
     );
   }

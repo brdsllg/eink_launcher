@@ -1,12 +1,14 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../models/annotation.dart';
 import '../models/content_block.dart';
 import '../models/laid_out_page.dart';
 import '../models/reader_settings.dart';
 import '../services/epub_paginator_service.dart';
 import '../services/text_word_selection.dart';
+import '../services/annotation_text_mapping.dart';
+import 'selection_toolbar.dart';
 
 class BlockSliceView extends StatefulWidget {
   final ContentBlock block;
@@ -16,6 +18,10 @@ class BlockSliceView extends StatefulWidget {
   final Uint8List? imageBytes;
   final Future<void> Function(String word)? onDefineWord;
   final void Function(String href)? onOpenLink;
+  final List<Annotation> annotations;
+  final void Function(Annotation annotation)? onOpenAnnotation;
+  final Future<void> Function(TextSelection range, String text, bool addNote)?
+  onAnnotate;
 
   const BlockSliceView({
     super.key,
@@ -26,6 +32,9 @@ class BlockSliceView extends StatefulWidget {
     this.imageBytes,
     this.onDefineWord,
     this.onOpenLink,
+    this.annotations = const [],
+    this.onOpenAnnotation,
+    this.onAnnotate,
   });
 
   @override
@@ -34,6 +43,9 @@ class BlockSliceView extends StatefulWidget {
 
 class _BlockSliceViewState extends State<BlockSliceView> {
   TextSelection? _selection;
+  final _overlay = OverlayPortalController();
+  final _surfaceKey = GlobalKey();
+  Offset? _dragPosition;
   ContentBlock get block => widget.block;
   BlockSlice get slice => widget.slice;
   ReaderSettings get settings => widget.settings;
@@ -47,11 +59,17 @@ class _BlockSliceViewState extends State<BlockSliceView> {
         oldWidget.slice != slice ||
         oldWidget.settings != settings) {
       _selection = null;
+      // Updates arrive during layout; OverlayPortal cannot be hidden there.
+      // The null selection immediately removes its controls from this frame.
+      if (_overlay.isShowing) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _selection == null) _overlay.hide();
+        });
+      }
     }
   }
 
-  Future<void> _selectWord(Offset offset, double width) async {
-    if (_selection != null) return;
+  void _selectWord(Offset offset, double width) {
     final painter = TextBlockLayout.createPainter(block, settings, width);
     final selected = wordAtOffset(
       painter,
@@ -61,10 +79,159 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     painter.dispose();
     if (selected == null) return;
     setState(() => _selection = selected.selection);
+    _overlay.show();
+  }
+
+  void _clearSelection() {
+    _overlay.hide();
+    if (mounted) setState(() => _selection = null);
+  }
+
+  Future<void> _act(String action) async {
+    final selection = _selection;
+    if (selection == null) return;
+    final range = AnnotationTextMapping(block, settings).toSource(selection);
+    if (range.isCollapsed) return;
+    final text = block.plainText.substring(range.start, range.end);
+    _clearSelection();
+    switch (action) {
+      case 'copy':
+        await Clipboard.setData(ClipboardData(text: text));
+      case 'dictionary':
+        await widget.onDefineWord?.call(
+          text.replaceAll(RegExp('[\u200b\u00ad]'), ''),
+        );
+      default:
+        await widget.onAnnotate?.call(range, text, action == 'note');
+    }
+  }
+
+  void _dragHandle(bool start, Offset global, double width) {
+    final surface = _surfaceKey.currentContext!.findRenderObject() as RenderBox;
+    final painter = TextBlockLayout.createPainter(block, settings, width);
+    final local = surface.globalToLocal(global) + Offset(0, slice.sourceTop);
+    final offset = painter.getPositionForOffset(local).offset;
+    final min = TextBlockLayout.prefixFor(block, settings).length;
+    final max = painter.text!.toPlainText().length;
+    final selection = _selection!;
+    painter.dispose();
+    setState(
+      () => _selection = start
+          ? selection.copyWith(baseOffset: offset.clamp(min, selection.end - 1))
+          : selection.copyWith(
+              extentOffset: offset.clamp(selection.start + 1, max),
+            ),
+    );
+  }
+
+  Widget _selectionOverlay(BuildContext context, double width) {
+    if (_selection == null) return const SizedBox.shrink();
+    final painter = TextBlockLayout.createPainter(block, settings, width);
+    final boxes = painter.getBoxesForSelection(_selection!);
+    painter.dispose();
+    if (boxes.isEmpty) return const SizedBox.shrink();
+    final surface = _surfaceKey.currentContext!.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final origin = overlay.globalToLocal(surface.localToGlobal(Offset.zero));
+    Offset anchor(TextBox box, bool start) =>
+        origin +
+        Offset(
+          start ? box.start : box.end,
+          (box.bottom - slice.sourceTop).clamp(0.0, slice.height),
+        );
+    final first = anchor(boxes.first, true);
+    final last = anchor(boxes.last, false);
+    // Controls live outside the text clip: even a one-line page slice must
+    // have a reachable toolbar and handles. Placement first uses slice bounds.
+    final localTop = boxes.first.top - slice.sourceTop;
+    final desiredTop = localTop >= 56 || last.dy + 72 > overlay.size.height
+        ? origin.dy + localTop - 56
+        : last.dy + 24;
+    final toolbarWidth = width.clamp(0.0, overlay.size.width);
+    final top = desiredTop.clamp(
+      0.0,
+      (overlay.size.height - 48).clamp(0.0, double.infinity),
+    );
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            key: const Key('selection-dismiss'),
+            behavior: HitTestBehavior.opaque,
+            onTap: _clearSelection,
+          ),
+        ),
+        Positioned(
+          left: origin.dx.clamp(0.0, overlay.size.width - toolbarWidth),
+          top: top,
+          width: toolbarWidth,
+          child: SelectionToolbar(
+            onCopy: () => _act('copy'),
+            onDictionary: () => _act('dictionary'),
+            onAddNote: () => _act('note'),
+            onUnderline: () => _act('underline'),
+          ),
+        ),
+        for (final start in [true, false])
+          Positioned(
+            left: (start ? first.dx - 24 : last.dx).clamp(
+              0.0,
+              overlay.size.width - 24,
+            ),
+            top: (start ? first.dy : last.dy).clamp(
+              0.0,
+              overlay.size.height - 24,
+            ),
+            child: GestureDetector(
+              key: Key(
+                start ? 'selection-start-handle' : 'selection-end-handle',
+              ),
+              behavior: HitTestBehavior.opaque,
+              onPanStart: (_) {
+                final box = start ? boxes.first : boxes.last;
+                _dragPosition = surface.localToGlobal(
+                  Offset(
+                    start ? box.start : box.end,
+                    (box.top + box.bottom) / 2 - slice.sourceTop,
+                  ),
+                );
+              },
+              onPanUpdate: (details) {
+                _dragPosition = _dragPosition! + details.delta;
+                _dragHandle(start, _dragPosition!, width);
+              },
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: Align(
+                  alignment: start ? Alignment.topRight : Alignment.topLeft,
+                  child: Container(width: 8, height: 16, color: Colors.black),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  List<Widget> _annotationTargets(double width) {
+    final painter = TextBlockLayout.createPainter(block, settings, width);
+    final mapping = AnnotationTextMapping(block, settings);
     try {
-      await widget.onDefineWord!(selected.word);
+      return [
+        for (final annotation in widget.annotations)
+          if (mapping.toDisplay(annotation) case final range?)
+            for (final box in painter.getBoxesForSelection(range))
+              Positioned.fromRect(
+                rect: box.toRect(),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => widget.onOpenAnnotation?.call(annotation),
+                ),
+              ),
+      ];
     } finally {
-      if (mounted) setState(() => _selection = null);
+      painter.dispose();
     }
   }
 
@@ -80,17 +247,23 @@ class _BlockSliceViewState extends State<BlockSliceView> {
             pageHeight: pageHeight,
             settings: settings,
           );
-          return ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.topCenter,
-              minHeight: 0,
-              maxHeight: double.infinity,
-              child: Transform.translate(
-                offset: Offset(0, -slice.sourceTop),
-                child: SizedBox(
-                  width: constraints.maxWidth,
-                  height: layout.height,
-                  child: _buildBlock(layout, constraints.maxWidth),
+          return OverlayPortal(
+            controller: _overlay,
+            overlayChildBuilder: (context) =>
+                _selectionOverlay(context, constraints.maxWidth),
+            child: ClipRect(
+              key: _surfaceKey,
+              child: OverflowBox(
+                alignment: Alignment.topCenter,
+                minHeight: 0,
+                maxHeight: double.infinity,
+                child: Transform.translate(
+                  offset: Offset(0, -slice.sourceTop),
+                  child: SizedBox(
+                    width: constraints.maxWidth,
+                    height: layout.height,
+                    child: _buildBlock(layout, constraints.maxWidth),
+                  ),
                 ),
               ),
             ),
@@ -194,11 +367,25 @@ class _BlockSliceViewState extends State<BlockSliceView> {
                 if (href != null) widget.onOpenLink!(href);
               }
             : null,
-        onLongPressStart: widget.onDefineWord == null
+        onLongPressStart:
+            widget.onDefineWord == null && widget.onAnnotate == null
             ? null
             : (details) => _selectWord(details.localPosition, width),
-        child: CustomPaint(
-          painter: _TextBlockPainter(block, settings, _selection),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CustomPaint(
+              painter: _TextBlockPainter(
+                block,
+                settings,
+                _selection,
+                widget.annotations,
+              ),
+            ),
+            if (widget.onOpenAnnotation != null &&
+                widget.annotations.isNotEmpty)
+              ..._annotationTargets(width),
+          ],
         ),
       ),
     );
@@ -235,11 +422,34 @@ class _TextBlockPainter extends CustomPainter {
   final ContentBlock block;
   final ReaderSettings settings;
   final TextSelection? selection;
-  _TextBlockPainter(this.block, this.settings, this.selection);
+  final List<Annotation> annotations;
+  _TextBlockPainter(
+    this.block,
+    this.settings,
+    this.selection,
+    this.annotations,
+  );
 
   @override
   void paint(Canvas canvas, Size size) {
     final painter = TextBlockLayout.createPainter(block, settings, size.width);
+    final mapping = annotations.isEmpty
+        ? null
+        : AnnotationTextMapping(block, settings);
+    final underline = Paint()
+      ..color = Colors.black
+      ..strokeWidth = 1.5;
+    for (final annotation in annotations) {
+      final range = mapping!.toDisplay(annotation);
+      if (range == null) continue;
+      for (final box in painter.getBoxesForSelection(range)) {
+        canvas.drawLine(
+          Offset(box.left, box.bottom),
+          Offset(box.right, box.bottom),
+          underline,
+        );
+      }
+    }
     if (selection != null) {
       for (final box in painter.getBoxesForSelection(selection!)) {
         canvas.drawRect(box.toRect(), Paint()..color = const Color(0xFFD0D0D0));
@@ -272,5 +482,6 @@ class _TextBlockPainter extends CustomPainter {
   bool shouldRepaint(covariant _TextBlockPainter oldDelegate) =>
       oldDelegate.block != block ||
       oldDelegate.settings != settings ||
-      oldDelegate.selection != selection;
+      oldDelegate.selection != selection ||
+      oldDelegate.annotations != annotations;
 }

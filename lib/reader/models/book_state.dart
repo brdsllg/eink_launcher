@@ -1,4 +1,5 @@
 import 'bookmark.dart';
+import 'annotation.dart';
 import 'doc_ref.dart';
 import 'reader_settings.dart';
 import 'reading_position.dart';
@@ -12,6 +13,7 @@ class BookState {
   final double percent;
   final ReaderSettings? settingsOverride;
   final List<Bookmark> bookmarks;
+  final List<Annotation> annotations;
 
   /// pageIndex -> [left, top, right, bottom] normalized fractions.
   final Map<int, List<double>> cachedCropRects;
@@ -26,6 +28,7 @@ class BookState {
     this.percent = 0.0,
     this.settingsOverride,
     this.bookmarks = const [],
+    this.annotations = const [],
     this.cachedCropRects = const {},
     this.uniformPdfCrop,
   });
@@ -37,6 +40,7 @@ class BookState {
     double? percent,
     ReaderSettings? settingsOverride,
     List<Bookmark>? bookmarks,
+    List<Annotation>? annotations,
     Map<int, List<double>>? cachedCropRects,
     List<double>? uniformPdfCrop,
   }) {
@@ -49,6 +53,7 @@ class BookState {
       percent: percent ?? this.percent,
       settingsOverride: settingsOverride ?? this.settingsOverride,
       bookmarks: bookmarks ?? this.bookmarks,
+      annotations: annotations ?? this.annotations,
       cachedCropRects: cachedCropRects ?? this.cachedCropRects,
       uniformPdfCrop: uniformPdfCrop ?? this.uniformPdfCrop,
     );
@@ -65,6 +70,8 @@ class BookState {
       'settingsOverride': settingsOverride!.toJson(),
     if (bookmarks.isNotEmpty)
       'bookmarks': bookmarks.map((b) => b.toJson()).toList(),
+    if (annotations.isNotEmpty)
+      'annotations': annotations.map((a) => a.toJson()).toList(),
     if (cachedCropRects.isNotEmpty)
       'cachedCropRects': cachedCropRects.map(
         (k, v) => MapEntry(k.toString(), v),
@@ -89,6 +96,11 @@ class BookState {
     bookmarks:
         (json['bookmarks'] as List<dynamic>?)
             ?.map((b) => Bookmark.fromJson(b as Map<String, dynamic>))
+            .toList() ??
+        const [],
+    annotations:
+        (json['annotations'] as List<dynamic>?)
+            ?.map((a) => Annotation.fromJson(a as Map<String, dynamic>))
             .toList() ??
         const [],
     cachedCropRects:

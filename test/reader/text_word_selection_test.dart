@@ -85,6 +85,9 @@ void main() {
     );
     await tester.longPressAt(Offset(box.center.dx, box.height / 2));
     await tester.pump();
+    expect(selected, isNull);
+    await tester.tap(find.byKey(const Key('selection-dictionary')));
+    await tester.pump();
     expect(selected, 'second');
     expect(turns, 0);
     pending.complete();

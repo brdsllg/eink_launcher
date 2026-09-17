@@ -23,7 +23,8 @@ The app has been manually exercised on a Bigme HiBreak running Android 14. See
 | Entry point | Open readable files from the file browser. Keep **Open with** as an escape hatch. |
 | Search | EPUB, TXT, and Markdown only. PDF text search is out of scope. |
 | Dictionary | Implemented offline lookup for EPUB, TXT, Markdown, and text-layer PDFs, with English, modern Hebrew, and Rabbinic Hebrew/Aramaic data. |
-| Not planned | Highlights, notes, TTS, and DRM bypass. |
+| Annotations | Underline + optional note, EPUB/TXT/Markdown only — see [annotation_plan.md](annotation_plan.md). |
+| Not planned | Highlight colors, TTS, and DRM bypass. |
 
 ## Session and position model
 

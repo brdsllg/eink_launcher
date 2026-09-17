@@ -1,5 +1,27 @@
 # Annotation plan: selection, copy, dictionary, notes, and underlines
 
+## Implementation status (2026-09-18)
+
+Implemented hardest-first: selection geometry, draggable controls, stable text
+anchors and underline hit-testing; then persistence, toolbar actions, note
+dialogs, and documentation. `flutter analyze --no-pub` is clean, and
+`flutter test --no-pub` passes with 355 tests passed and 3 native PDF checks
+skipped. The Bigme device check in Step 7.3 remains pending and requires user
+confirmation.
+
+Implementation details discovered in this checkout:
+- The product-decision table is in `READER_PLAN.md`, not `READER_DESIGN.md`.
+- Saved offsets use the original block text. Painter offsets include generated
+  hyphenation and decorative prefixes, so saving those directly would move
+  underlines when typography settings change. `AnnotationTextMapping` converts
+  between the two using the paginator's existing offset mapping.
+- Selection controls use an overlay outside the clipped text slice so short
+  paragraphs and page-boundary selections still have reachable controls.
+- Page-turn saves preserve annotations, and annotations on a newly opened book
+  create its first saved state. `saveBookState` remains the persistence API.
+
+The original implementation checklist follows for reference.
+
 This replaces the current behavior where long-pressing a word immediately opens
 its dictionary definition. Instead, long-press starts a selection with
 draggable handles, and an action bar offers **Copy**, **Dictionary**, **Add

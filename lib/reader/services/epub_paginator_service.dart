@@ -311,7 +311,7 @@ class TextBlockLayout {
     final painter = createPainter(block, settings, width);
     final lineMetrics = painter.computeLineMetrics();
     final lines = <TextLineLayout>[];
-    final sourceOffsets = _sourceOffsetsForDisplay(block, settings);
+    final sourceOffsets = sourceOffsetsForDisplay(block, settings);
     for (final metric in lineMetrics) {
       final top = math.max(0.0, metric.baseline - metric.ascent);
       final bottom = math.max(top, metric.baseline + metric.descent);
@@ -470,7 +470,7 @@ class TextBlockLayout {
     final painter = createPainter(block, settings, width);
     final displayOffset = painter.getPositionForOffset(offset).offset;
     final prefix = prefixFor(block, settings).length;
-    final offsets = _sourceOffsetsForDisplay(block, settings);
+    final offsets = sourceOffsetsForDisplay(block, settings);
     final index = (displayOffset - prefix).clamp(0, offsets.length - 1);
     final sourceOffset = offsets[index];
     var start = 0;
@@ -495,7 +495,9 @@ class TextBlockLayout {
     return null;
   }
 
-  static List<int> _sourceOffsetsForDisplay(
+  /// Maps display boundaries (excluding the decorative prefix) to source text.
+  /// Repeated offsets represent inserted discretionary break characters.
+  static List<int> sourceOffsetsForDisplay(
     ContentBlock block,
     ReaderSettings settings,
   ) {

@@ -88,9 +88,15 @@ are bounded and are never uploaded.
 
 ### Built-in reader
 
-Long-press a word to select it and open its **offline dictionary definition**.
-Dictionary lookup works in EPUB, TXT, Markdown, and PDFs with a text layer,
-including cropped pages and Zoom / Scroll. Close the definition to keep reading.
+In EPUB, TXT, and Markdown, long-press a word, adjust the selection handles,
+then choose **Copy**, **Dictionary**, **Add Note**, or **Underline**. Selection
+stays inside one text block. Notes automatically underline their text; tap an
+underline to view, edit, or delete its note. Annotations persist with the book's
+reading state and remain anchored when font size or hyphenation changes.
+
+In PDFs with a text layer, long-press still opens the **offline dictionary
+definition**, including cropped pages and Zoom / Scroll. PDF annotations are
+not included. Close the definition to keep reading.
 Image-only PDFs do not support lookup; OCR is not included.
 
 The bundled WordNet 3.0 dictionary includes 86,538 single-word entries and
@@ -226,4 +232,5 @@ implemented PDF response work and short retest are in
   hardening decisions and the remaining measurement-driven work.
 - [annotation_plan.md](annotation_plan.md) is the step-by-step plan for text
   selection, copy, dictionary, notes, and underlines in the EPUB/TXT/Markdown
-  reader; implementation not yet started.
+  reader; implemented with automated coverage. Physical Bigme selection and
+  restart verification remains pending.
