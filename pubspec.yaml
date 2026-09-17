@@ -66,6 +66,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/dictionary/
+    - assets/dictionary/hebrew-modern/
+    - assets/dictionary/jastrow/
 
   fonts:
     - family: Literata

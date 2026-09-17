@@ -22,7 +22,7 @@ class DictionaryDialog extends StatefulWidget {
 }
 
 class _DictionaryDialogState extends State<DictionaryDialog> {
-  late Future<DictionaryEntry> _result;
+  late Future<List<DictionaryEntry>> _result;
 
   @override
   void initState() {
@@ -31,14 +31,17 @@ class _DictionaryDialogState extends State<DictionaryDialog> {
   }
 
   void _load() {
-    _result = (widget.lookup ?? DictionaryService.instance.lookup)(widget.word);
+    final customLookup = widget.lookup;
+    _result = customLookup == null
+        ? DictionaryService.instance.lookupAll(widget.word)
+        : customLookup(widget.word).then((entry) => [entry]);
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<DictionaryEntry>(
+  Widget build(BuildContext context) => FutureBuilder<List<DictionaryEntry>>(
     future: _result,
     builder: (context, snapshot) {
-      final entry = snapshot.data;
+      final entries = snapshot.data;
       return GridDialog(
         title: Text(widget.word),
         content: Column(
@@ -53,36 +56,55 @@ class _DictionaryDialogState extends State<DictionaryDialog> {
                     ? (snapshot.error! as DictionaryException).message
                     : 'Could not load the definition. Try again.',
               )
-            else if (entry != null) ...[
-              if (entry.word.toLowerCase() != widget.word.toLowerCase())
+            else if (entries != null)
+              for (var index = 0; index < entries.length; index++) ...[
+                if (index > 0) const Divider(height: 32),
                 Text(
-                  entry.word,
+                  entries[index].source,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-              for (final meaning in entry.meanings)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (meaning.partOfSpeech.isNotEmpty)
-                        Text(
-                          meaning.partOfSpeech,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      Text(meaning.definition),
-                      if (meaning.example?.isNotEmpty == true)
-                        Text(
-                          meaning.example!,
-                          style: const TextStyle(fontStyle: FontStyle.italic),
-                        ),
-                    ],
-                  ),
+                Text(
+                  entries[index].sourceDetail,
+                  style: const TextStyle(fontSize: 12),
                 ),
-            ],
+                if (entries[index].word.toLowerCase() !=
+                    widget.word.toLowerCase())
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      entries[index].word,
+                      textDirection:
+                          RegExp(r'[\u05d0-\u05ea]')
+                              .hasMatch(entries[index].word)
+                          ? TextDirection.rtl
+                          : null,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                for (final meaning in entries[index].meanings)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (meaning.partOfSpeech.isNotEmpty)
+                          Text(
+                            meaning.partOfSpeech,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        Text(meaning.definition),
+                        if (meaning.example?.isNotEmpty == true)
+                          Text(
+                            meaning.example!,
+                            style: const TextStyle(fontStyle: FontStyle.italic),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
             const SizedBox(height: 16),
             const Text(
-              'English • WordNet 3.0 • Offline',
+              'English, modern Hebrew, rabbinic Hebrew & Aramaic • Offline',
               style: TextStyle(fontSize: 12),
             ),
             TextButton(
@@ -90,11 +112,14 @@ class _DictionaryDialogState extends State<DictionaryDialog> {
                 context: context,
                 animationStyle: AnimationStyle.noAnimation,
                 builder: (context) => GridDialog(
-                  title: const Text('Dictionary license'),
+                  title: const Text('Dictionary sources & licenses'),
                   content: FutureBuilder<String>(
-                    future: rootBundle.loadString(
-                      'assets/dictionary/LICENSE.txt',
-                    ),
+                    future: Future.wait([
+                      rootBundle.loadString(
+                        'assets/dictionary/SOURCES_AND_LICENSES.txt',
+                      ),
+                      rootBundle.loadString('assets/dictionary/LICENSE.txt'),
+                    ]).then((parts) => '${parts[0]}\n\n${parts[1]}'),
                     builder: (_, snapshot) => Text(
                       snapshot.data ??
                           (snapshot.hasError
@@ -110,7 +135,7 @@ class _DictionaryDialogState extends State<DictionaryDialog> {
                   ],
                 ),
               ),
-              child: const Text('Dictionary license'),
+              child: const Text('Dictionary sources & licenses'),
             ),
           ],
         ),

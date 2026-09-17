@@ -14,7 +14,15 @@ class DictionaryMeaning {
 class DictionaryEntry {
   final String word;
   final List<DictionaryMeaning> meanings;
-  const DictionaryEntry(this.word, this.meanings);
+  final String source;
+  final String sourceDetail;
+
+  const DictionaryEntry(
+    this.word,
+    this.meanings, {
+    this.source = 'WordNet 3.0',
+    this.sourceDetail = 'English • Offline',
+  });
 }
 
 class DictionaryException implements Exception {
@@ -35,8 +43,9 @@ DictionaryShard decodeDictionaryShard(Uint8List bytes) {
   );
 }
 
-/// Bundled WordNet data; no network access or first-run download. Only the
-/// requested two-letter shards are decoded, off the UI isolate.
+/// Bundled WordNet, Hebrew Wiktionary and Jastrow data. No network access or
+/// first-run download is needed. Only the requested shard is decoded, off the
+/// UI isolate.
 class DictionaryService {
   static final instance = DictionaryService();
   final Future<Uint8List> Function(String path) _loadAsset;
@@ -50,18 +59,30 @@ class DictionaryService {
     return bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes);
   }
 
-  Future<DictionaryShard> _shard(String word) async {
+  Future<DictionaryShard> _englishShard(String word) {
     final second = word.length > 1 && RegExp('[a-z]').hasMatch(word[1])
         ? word[1]
         : '_';
     final key = '${word[0]}$second';
+    return _shard('english:$key', 'assets/dictionary/$key.json.gz');
+  }
+
+  Future<DictionaryShard> _hebrewShard(String collection, String word) {
+    final key = word.runes.first.toRadixString(16).padLeft(4, '0');
+    return _shard(
+      '$collection:$key',
+      'assets/dictionary/$collection/$key.json.gz',
+    );
+  }
+
+  Future<DictionaryShard> _shard(String key, String path) async {
     final cached = _shards.remove(key);
     if (cached != null) {
       _shards[key] = cached;
       return cached;
     }
     if (_shards.length >= 4) _shards.remove(_shards.keys.first);
-    final pending = _loadAsset('assets/dictionary/$key.json.gz')
+    final pending = _loadAsset(path)
         .then((bytes) => compute(decodeDictionaryShard, bytes));
     _shards[key] = pending;
     try {
@@ -72,20 +93,65 @@ class DictionaryService {
     }
   }
 
-  Future<DictionaryEntry> lookup(String selection) async {
-    final word = selection
+  Future<DictionaryEntry> lookup(String selection) async =>
+      (await lookupAll(selection)).first;
+
+  Future<List<DictionaryEntry>> lookupAll(String selection) async {
+    final cleaned = selection
         .trim()
         .replaceAll(RegExp('[\u00ad\u200b]'), '')
-        .replaceAll('’', "'")
-        .toLowerCase();
-    if (word.isEmpty ||
-        word.length > 100 ||
-        !RegExp(r"^[a-z]+(?:['-][a-z]+)*$").hasMatch(word)) {
-      throw const DictionaryException('Select a single English word.');
+        .replaceAll('’', "'");
+    if (cleaned.isEmpty || cleaned.length > 100) {
+      throw const DictionaryException(
+        'Select a single English, Hebrew, or Aramaic word.',
+      );
     }
+
+    final english = cleaned.toLowerCase();
+    if (RegExp(r"^[a-z]+(?:['-][a-z]+)*$").hasMatch(english)) {
+      return [await _lookupEnglish(english)];
+    }
+
+    final hebrew = _normalizeHebrew(cleaned);
+    if (hebrew.isEmpty ||
+        RegExp(r'\s').hasMatch(cleaned) ||
+        RegExp(r'[a-zA-Z0-9]').hasMatch(cleaned)) {
+      throw const DictionaryException(
+        'Select a single English, Hebrew, or Aramaic word.',
+      );
+    }
+
+    try {
+      final results = <DictionaryEntry>[];
+      final modern = await _lookupHebrewCollection(
+        hebrew,
+        collection: 'hebrew-modern',
+        source: 'Hebrew Wiktionary',
+        sourceDetail: 'Modern Hebrew • Kaikki • Offline',
+      );
+      if (modern != null) results.add(modern);
+      final jastrow = await _lookupHebrewCollection(
+        hebrew,
+        collection: 'jastrow',
+        source: 'Jastrow Dictionary',
+        sourceDetail: 'Rabbinic Hebrew & Aramaic • 1903 • Offline',
+      );
+      if (jastrow != null) results.add(jastrow);
+      if (results.isNotEmpty) return List.unmodifiable(results);
+    } catch (_) {
+      throw const DictionaryException(
+        'Could not load the offline Hebrew dictionaries. Try again.',
+      );
+    }
+    throw DictionaryException(
+      'No Hebrew or Aramaic definition found for “$hebrew” in the offline dictionaries.',
+    );
+  }
+
+  Future<DictionaryEntry> _lookupEnglish(String word) async {
     try {
       for (final candidate in _baseForms(word)) {
-        final senses = (await _shard(candidate))[candidate];
+        final senses = (await _englishShard(candidate))[candidate];
         if (senses == null || senses.isEmpty) continue;
         return DictionaryEntry(
           candidate,
@@ -111,6 +177,37 @@ class DictionaryService {
       'No English definition found for “$word” in the offline dictionary.',
     );
   }
+
+  Future<DictionaryEntry?> _lookupHebrewCollection(
+    String word, {
+    required String collection,
+    required String source,
+    required String sourceDetail,
+  }) async {
+    final senses = (await _hebrewShard(collection, word))[word];
+    if (senses == null || senses.isEmpty) return null;
+    final displayWord = senses.first.length > 3 && senses.first[3].isNotEmpty
+        ? senses.first[3]
+        : word;
+    return DictionaryEntry(
+      displayWord,
+      List.unmodifiable(
+        senses.map(
+          (sense) => DictionaryMeaning(
+            sense[0],
+            sense[1],
+            sense.length > 2 && sense[2].isNotEmpty ? sense[2] : null,
+          ),
+        ),
+      ),
+      source: source,
+      sourceDetail: sourceDetail,
+    );
+  }
+
+  String _normalizeHebrew(String value) => value
+      .replaceAll(RegExp(r'[\u0591-\u05c7]'), '')
+      .replaceAll(RegExp(r'[^\u05d0-\u05ea]'), '');
 
   Iterable<String> _baseForms(String word) sync* {
     yield word;

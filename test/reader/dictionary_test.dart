@@ -35,12 +35,33 @@ void main() {
         service.lookup('zzzzqwerty'),
         throwsA(isA<DictionaryException>()),
       );
-      for (final word in ['', 'two words', 'שלום', 'word/other']) {
+      for (final word in ['', 'two words', 'שלום עולם', 'word/other']) {
         await expectLater(
           service.lookup(word),
           throwsA(isA<DictionaryException>()),
         );
       }
+    },
+  );
+
+  test(
+    'bundled Hebrew dictionaries work offline with niqqud and forms',
+    () async {
+      final service = DictionaryService();
+
+      final modern = await service.lookupAll('כְּלָבִים');
+      expect(
+        modern.where((entry) => entry.source == 'Hebrew Wiktionary'),
+        isNotEmpty,
+      );
+      expect(modern.first.meanings, isNotEmpty);
+
+      final rabbinic = await service.lookupAll('תנא');
+      expect(
+        rabbinic.where((entry) => entry.source == 'Jastrow Dictionary'),
+        isNotEmpty,
+      );
+      expect(rabbinic.expand((entry) => entry.meanings), isNotEmpty);
     },
   );
 

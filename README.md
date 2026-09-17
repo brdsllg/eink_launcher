@@ -85,7 +85,7 @@ are bounded and are never uploaded.
 
 ### Built-in reader
 
-Long-press a word to select it and open its **offline English definition**.
+Long-press a word to select it and open its **offline dictionary definition**.
 Dictionary lookup works in EPUB, TXT, Markdown, and PDFs with a text layer,
 including cropped pages and Zoom / Scroll. Close the definition to keep reading.
 Image-only PDFs do not support lookup; OCR is not included.
@@ -93,11 +93,14 @@ Image-only PDFs do not support lookup; OCR is not included.
 The bundled WordNet 3.0 dictionary includes 86,538 single-word entries and
 irregular forms (about 4.7 MB compressed). Regular plurals and verb inflections
 also fall back to their base word. No connection or first-run download is needed.
+Modern Hebrew definitions and inflected forms come from the Kaikki.org extract
+of English Wiktionary. Rabbinic Hebrew and Aramaic use the complete public-domain
+Jastrow dictionary digitized by Sefaria and distributed as structured data by
+jastrow.app. These add about 6.9 MB compressed and work fully offline.
 Only four small dictionary sections are retained in memory. Missing words show
-a clear message; WordNet does not cover every English word or other languages.
-The definition dialog includes the dictionary license. Data provenance and
-rebuild details are in `assets/dictionary/SOURCE.txt` and
-`tool/build_dictionary.dart`.
+a clear message. The definition dialog includes source and license details.
+Rebuild tooling is in `tool/build_dictionary.dart` and
+`tool/build_hebrew_dictionaries.dart`.
 
 The reader opens PDF, EPUB, TXT, and Markdown files directly from the browser.
 It provides equal-thirds tap zones, swipes where appropriate, manual rotation,
