@@ -3,10 +3,40 @@ import 'dart:ui';
 class PdfWordSelection {
   final String word;
   final List<Rect> boxes;
-  const PdfWordSelection(this.word, this.boxes);
+  final int? pageIndex;
+  final int? startOffset;
+  final int? endOffset;
 
-  PdfWordSelection transform(Rect Function(Rect) map) =>
-      PdfWordSelection(word, boxes.map(map).toList(growable: false));
+  /// Boxes in normalized, rotated PDF page coordinates. Unlike [boxes], these
+  /// remain unchanged as a selection is transformed into viewport coordinates.
+  final List<Rect> sourceBoxes;
+
+  const PdfWordSelection(
+    this.word,
+    this.boxes, {
+    this.pageIndex,
+    this.startOffset,
+    this.endOffset,
+    this.sourceBoxes = const [],
+  });
+
+  PdfWordSelection transform(Rect Function(Rect) map) => PdfWordSelection(
+    word,
+    boxes.map(map).toList(growable: false),
+    pageIndex: pageIndex,
+    startOffset: startOffset,
+    endOffset: endOffset,
+    sourceBoxes: sourceBoxes,
+  );
+
+  PdfWordSelection onPage(int page) => PdfWordSelection(
+    word,
+    boxes,
+    pageIndex: page,
+    startOffset: startOffset,
+    endOffset: endOffset,
+    sourceBoxes: sourceBoxes,
+  );
 }
 
 /// Text and boxes have matching UTF-16 indices. Coordinates can be page,
@@ -27,6 +57,12 @@ PdfWordSelection? selectPdfWord(String text, List<Rect> boxes, Offset point) {
           .sublist(match.start, match.end)
           .where((box) => !box.isEmpty)
           .toList(),
+      startOffset: match.start,
+      endOffset: match.end,
+      sourceBoxes: boxes
+          .sublist(match.start, match.end)
+          .where((box) => !box.isEmpty)
+          .toList(growable: false),
     );
   }
   return null;

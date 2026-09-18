@@ -94,9 +94,10 @@ stays inside one text block. Notes automatically underline their text; tap an
 underline to view, edit, or delete its note. Annotations persist with the book's
 reading state and remain anchored when font size or hyphenation changes.
 
-In PDFs with a text layer, long-press still opens the **offline dictionary
-definition**, including cropped pages and Zoom / Scroll. PDF annotations are
-not included. Close the definition to keep reading.
+In PDFs with a text layer, long-press a word to use the same **Copy**,
+**Dictionary**, **Add Note**, and **Underline** actions, including on cropped
+pages and in Zoom / Scroll. PDF word annotations remain anchored to the text
+layer as the view changes; tap an underline to view, edit, or delete its note.
 Image-only PDFs do not support lookup; OCR is not included.
 
 The bundled WordNet 3.0 dictionary includes 86,538 single-word entries and

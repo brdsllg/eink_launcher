@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:eink_launcher/reader/controllers/pdf_reader_session.dart';
+import 'package:eink_launcher/reader/models/annotation.dart';
+import 'package:eink_launcher/reader/models/book_state.dart';
 import 'package:eink_launcher/reader/models/doc_ref.dart';
 import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:eink_launcher/reader/models/reading_position.dart';
@@ -622,6 +624,151 @@ void main() {
       final saved = BookStoreService.instance.getBookState('doc-1');
       expect(saved, isNotNull);
       expect((saved!.position as PdfReadingPosition).pageIndex, 0);
+    },
+  );
+
+  test('position saves preserve PDF annotations', () async {
+    final annotation = Annotation(
+      id: 'pdf-annotation',
+      docId: doc.id,
+      createdAt: DateTime.utc(2026),
+      spineIndex: 0,
+      blockIndex: -1,
+      startOffset: 0,
+      endOffset: 5,
+      text: 'hello',
+      pdfPageIndex: 0,
+      pdfRects: const [ui.Rect.fromLTRB(.1, .2, .3, .25)],
+    );
+    BookStoreService.instance.saveBookState(
+      BookState(
+        docId: doc.id,
+        lastPath: doc.path,
+        format: doc.format,
+        lastRead: DateTime.utc(2026),
+        position: const PdfReadingPosition(pageIndex: 0),
+        annotations: [annotation],
+      ),
+    );
+    final session = makeSession(
+      fakeDoc: _FakePdfDocument(pageCount: 2, pageWidth: 200, pageHeight: 300),
+    );
+
+    await session.open();
+    await session.goToPage(1);
+
+    expect(
+      BookStoreService.instance.getBookState(doc.id)?.annotations.single.id,
+      annotation.id,
+    );
+  });
+
+  testWidgets('fit view paints and opens a persisted PDF annotation', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final annotation = Annotation(
+      id: 'visible-pdf-annotation',
+      docId: doc.id,
+      createdAt: DateTime.utc(2026),
+      spineIndex: 0,
+      blockIndex: -1,
+      startOffset: 0,
+      endOffset: 5,
+      text: 'hello',
+      note: 'PDF note',
+      pdfPageIndex: 0,
+      pdfRects: const [ui.Rect.fromLTRB(.1, .2, .3, .25)],
+    );
+    BookStoreService.instance.saveBookState(
+      BookState(
+        docId: doc.id,
+        lastPath: doc.path,
+        format: doc.format,
+        lastRead: DateTime.utc(2026),
+        position: const PdfReadingPosition(pageIndex: 0),
+        annotations: [annotation],
+      ),
+    );
+    final session = makeSession(
+      fakeDoc: _FakePdfDocument(pageCount: 1, pageWidth: 200, pageHeight: 300),
+    );
+    addTearDown(session.dispose);
+    await tester.runAsync(() async {
+      await session.open();
+      await session.applySettings(session.settings.copyWith(autoCrop: false));
+      (await session.renderCurrentView(const Size(200, 300))).dispose();
+    });
+    expect(
+      BookStoreService.instance.getBookState(doc.id)?.annotations,
+      hasLength(1),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 200,
+            height: 300,
+            child: reader.PdfPageView(session: session),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final target = find.byKey(
+      const ValueKey('pdf-annotation-visible-pdf-annotation-0'),
+    );
+    expect(target, findsOneWidget);
+    await tester.tap(target);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Annotation'), findsOneWidget);
+    expect(find.text('PDF note'), findsOneWidget);
+  });
+
+  test(
+    'Zoom / Scroll maps PDF annotations into the continuous canvas',
+    () async {
+      final session = makeSession(
+        fakeDoc: _FakePdfDocument(
+          pageCount: 2,
+          pageWidth: 200,
+          pageHeight: 300,
+        ),
+      );
+      await session.open();
+      await session.applySettings(
+        session.settings.copyWith(fitMode: PdfFitMode.zoom),
+      );
+      final layout = await session.continuousLayoutForViewport(
+        const Size(200, 300),
+      );
+      final annotation = Annotation(
+        id: 'continuous-annotation',
+        docId: doc.id,
+        createdAt: DateTime.utc(2026),
+        spineIndex: 1,
+        blockIndex: -1,
+        startOffset: 0,
+        endOffset: 5,
+        text: 'hello',
+        pdfPageIndex: 1,
+        pdfRects: const [ui.Rect.fromLTRB(.1, .2, .3, .25)],
+      );
+
+      final regions = await session.annotationRegionsAtContinuous([
+        annotation,
+      ], layout);
+
+      expect(regions.single.annotation, same(annotation));
+      expect(regions.single.boxes.single.left, closeTo(20, .001));
+      expect(
+        regions.single.boxes.single.top,
+        closeTo(layout.pageTop(1) + 60, .001),
+      );
+      session.dispose();
     },
   );
 

@@ -221,7 +221,11 @@ class PdfDocumentService {
           rect.bottom / page.height,
         );
       }).toList();
-      return selectPdfWord(text.fullText, boxes, normalizedPoint);
+      return selectPdfWord(
+        text.fullText,
+        boxes,
+        normalizedPoint,
+      )?.onPage(pageIndex);
     });
   }
 

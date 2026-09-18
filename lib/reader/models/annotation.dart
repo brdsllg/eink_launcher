@@ -1,6 +1,9 @@
-/// Anchors use page.start.spineIndex and slice.blockIndex in TextPageView.
+import 'dart:ui';
+
+/// Text anchors use page.start.spineIndex and slice.blockIndex in TextPageView.
 /// Offsets are ordered boundaries in the block's original plain text, excluding
 /// decorative indentation/list prefixes and generated hyphenation characters.
+/// PDF anchors additionally store a page index and normalized text-layer boxes.
 class Annotation {
   final String id;
   final String docId;
@@ -11,6 +14,8 @@ class Annotation {
   final int endOffset;
   final String text;
   final String? note;
+  final int? pdfPageIndex;
+  final List<Rect> pdfRects;
 
   const Annotation({
     required this.id,
@@ -22,6 +27,8 @@ class Annotation {
     required this.endOffset,
     required this.text,
     this.note,
+    this.pdfPageIndex,
+    this.pdfRects = const [],
   });
 
   static String generateId() =>
@@ -37,6 +44,8 @@ class Annotation {
     endOffset: endOffset,
     text: text,
     note: note,
+    pdfPageIndex: pdfPageIndex,
+    pdfRects: pdfRects,
   );
 
   Map<String, dynamic> toJson() => {
@@ -49,6 +58,12 @@ class Annotation {
     'endOffset': endOffset,
     'text': text,
     if (note != null) 'note': note,
+    if (pdfPageIndex != null) 'pdfPageIndex': pdfPageIndex,
+    if (pdfRects.isNotEmpty)
+      'pdfRects': [
+        for (final rect in pdfRects)
+          [rect.left, rect.top, rect.right, rect.bottom],
+      ],
   };
 
   factory Annotation.fromJson(Map<String, dynamic> json) => Annotation(
@@ -61,5 +76,19 @@ class Annotation {
     endOffset: json['endOffset'] as int,
     text: json['text'] as String,
     note: json['note'] as String?,
+    pdfPageIndex: json['pdfPageIndex'] as int?,
+    pdfRects:
+        (json['pdfRects'] as List<dynamic>?)
+            ?.map((value) {
+              final coordinates = value as List<dynamic>;
+              return Rect.fromLTRB(
+                (coordinates[0] as num).toDouble(),
+                (coordinates[1] as num).toDouble(),
+                (coordinates[2] as num).toDouble(),
+                (coordinates[3] as num).toDouble(),
+              );
+            })
+            .toList(growable: false) ??
+        const [],
   );
 }

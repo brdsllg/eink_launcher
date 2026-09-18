@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:eink_launcher/reader/models/annotation.dart';
+import 'package:eink_launcher/reader/models/pdf_annotation_region.dart';
 import 'package:eink_launcher/reader/models/pdf_word_selection.dart';
 import 'package:eink_launcher/reader/services/pdf_document_service.dart';
 import 'package:eink_launcher/reader/services/pdf_render_scheduler.dart';
@@ -62,8 +64,73 @@ void main() {
       text.length,
       (i) => Rect.fromLTWH(i * 10, 0, 8, 10),
     );
-    expect(selectPdfWord(text, boxes, boxes[8].center)?.word, 'extraordinary');
+    final selection = selectPdfWord(text, boxes, boxes[8].center);
+    expect(selection?.word, 'extraordinary');
+    expect(selection?.startOffset, 0);
+    expect(selection?.endOffset, 15);
+    expect(selection?.sourceBoxes.length, 15);
     expect(selectPdfWord(text, boxes, boxes.last.center), isNull);
+  });
+
+  testWidgets('PDF text-layer words can be underlined and reopened', (
+    tester,
+  ) async {
+    PdfWordSelection? annotated;
+    var opened = false;
+    const selection = PdfWordSelection(
+      'hello',
+      [Rect.fromLTWH(90, 90, 40, 20)],
+      pageIndex: 2,
+      startOffset: 4,
+      endOffset: 9,
+      sourceBoxes: [Rect.fromLTRB(.1, .2, .3, .25)],
+    );
+    final annotation = Annotation(
+      id: 'pdf-note',
+      docId: 'pdf',
+      createdAt: DateTime(2026),
+      spineIndex: 2,
+      blockIndex: -1,
+      startOffset: 4,
+      endOffset: 9,
+      text: 'hello',
+      pdfPageIndex: 2,
+      pdfRects: [Rect.fromLTRB(.1, .2, .3, .25)],
+    );
+
+    Widget view({required int identity, bool showAnnotation = false}) =>
+        MaterialApp(
+          home: Scaffold(
+            body: PdfDictionaryRegion(
+              identity: identity,
+              selectWord: (_) async => selection,
+              onAnnotate: (value, _) async => annotated = value,
+              loadAnnotations: () async => showAnnotation
+                  ? [
+                      PdfAnnotationRegion(annotation, [
+                        const Rect.fromLTWH(90, 90, 40, 20),
+                      ]),
+                    ]
+                  : const [],
+              onOpenAnnotation: (_) async => opened = true,
+              child: const ColoredBox(color: Colors.white),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(view(identity: 1));
+    await tester.longPressAt(const Offset(100, 100));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('selection-underline')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('selection-underline')));
+    await tester.pumpAndSettle();
+    expect(annotated, same(selection));
+
+    await tester.pumpWidget(view(identity: 2, showAnnotation: true));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(100, 100));
+    await tester.pumpAndSettle();
+    expect(opened, isTrue);
   });
 
   testWidgets('PDF long press wins over tap and pan; stale lookup is ignored', (

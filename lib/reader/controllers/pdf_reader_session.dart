@@ -8,9 +8,11 @@ import 'dart:ui';
 // double results below; int results go through `.clamp(...).toInt()`.
 
 import '../../constants.dart';
+import '../models/annotation.dart';
 import '../models/book_state.dart';
 import '../models/bookmark.dart';
 import '../models/doc_ref.dart';
+import '../models/pdf_annotation_region.dart';
 import '../models/pdf_continuous_layout.dart';
 import '../models/pdf_word_selection.dart';
 import '../models/reader_settings.dart';
@@ -611,6 +613,60 @@ class PdfReaderSession extends ReaderSession {
     );
   }
 
+  /// Maps persisted normalized PDF annotation boxes into a fit-mode viewport.
+  Future<List<PdfAnnotationRegion>> annotationRegionsAtFit(
+    List<Annotation> annotations,
+    Size viewport,
+    Size imageSize,
+  ) async {
+    if (!_isReady || _isContinuous || imageSize.isEmpty) return const [];
+    final generation = _generation;
+    final epoch = navigationEpoch;
+    final pageIndex = _pageIndex;
+    final crop = await _withRequest(
+      null,
+      (request) => _resolveCropRect(pageIndex, request),
+    );
+    _checkGeneration(generation);
+    if (epoch != navigationEpoch) return const [];
+    final geometry = _geometryFor(
+      _documentService!.pageInfo(pageIndex),
+      crop,
+      viewport,
+      _withinPage,
+      1,
+    );
+    final scale = math.min(
+      viewport.width / imageSize.width,
+      viewport.height / imageSize.height,
+    );
+    final display = Rect.fromLTWH(
+      (viewport.width - imageSize.width * scale) / 2,
+      (viewport.height - imageSize.height * scale) / 2,
+      imageSize.width * scale,
+      imageSize.height * scale,
+    );
+    final target = geometry.crop;
+    return [
+      for (final annotation in annotations)
+        if (annotation.pdfPageIndex == pageIndex &&
+            annotation.pdfRects.isNotEmpty)
+          PdfAnnotationRegion(annotation, [
+            for (final box in annotation.pdfRects)
+              Rect.fromLTRB(
+                display.left +
+                    (box.left - target.left) / target.width * display.width,
+                display.top +
+                    (box.top - target.top) / target.height * display.height,
+                display.left +
+                    (box.right - target.left) / target.width * display.width,
+                display.top +
+                    (box.bottom - target.top) / target.height * display.height,
+              ),
+          ]),
+    ];
+  }
+
   Future<PdfWordSelection?> wordAtContinuousOffset(
     Offset offset,
     PdfContinuousLayout layout,
@@ -646,6 +702,42 @@ class PdfReaderSession extends ReaderSession {
         top + (box.bottom - crop.top) / crop.height * height,
       ),
     );
+  }
+
+  /// Maps persisted normalized PDF annotation boxes into the continuous
+  /// document canvas. The widget applies the live pan/zoom transform.
+  Future<List<PdfAnnotationRegion>> annotationRegionsAtContinuous(
+    List<Annotation> annotations,
+    PdfContinuousLayout layout,
+  ) async {
+    if (!_isReady || !_isContinuous) return const [];
+    final generation = _generation;
+    final epoch = navigationEpoch;
+    final crop = await _resolveUniformCropRect();
+    _checkGeneration(generation);
+    if (epoch != navigationEpoch) return const [];
+    return [
+      for (final annotation in annotations)
+        if (annotation.pdfPageIndex case final page?)
+          if (page >= 0 &&
+              page < layout.pageHeights.length &&
+              annotation.pdfRects.isNotEmpty)
+            PdfAnnotationRegion(annotation, [
+              for (final box in annotation.pdfRects)
+                Rect.fromLTRB(
+                  (box.left - crop.left) / crop.width * layout.viewportWidth,
+                  layout.pageTop(page) +
+                      (box.top - crop.top) /
+                          crop.height *
+                          layout.pageHeights[page],
+                  (box.right - crop.left) / crop.width * layout.viewportWidth,
+                  layout.pageTop(page) +
+                      (box.bottom - crop.top) /
+                          crop.height *
+                          layout.pageHeights[page],
+                ),
+            ]),
+    ];
   }
 
   Future<PdfContinuousLayout> continuousLayoutForViewport(Size viewport) async {
@@ -1669,6 +1761,7 @@ class PdfReaderSession extends ReaderSession {
         percent: percent,
         settingsOverride: settingsOverride ?? existing?.settingsOverride,
         bookmarks: _bookmarks,
+        annotations: existing?.annotations ?? const [],
         cachedCropRects: {
           for (final entry in _cropRectCache.entries)
             entry.key: entry.value.toList(),

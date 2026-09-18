@@ -7,10 +7,15 @@ import 'package:flutter/scheduler.dart';
 
 import '../../constants.dart';
 import '../controllers/pdf_reader_session.dart';
+import '../models/annotation.dart';
+import '../models/book_state.dart';
 import '../models/pdf_continuous_layout.dart';
+import '../models/pdf_word_selection.dart';
 import '../models/reader_settings.dart';
+import '../services/book_store_service.dart';
 import '../services/pdf_render_scheduler.dart';
 import '../services/reader_error_service.dart';
+import 'annotation_dialog.dart';
 import 'reader_error_view.dart';
 import 'reading_continuation_guide.dart';
 import 'pdf_dictionary_region.dart';
@@ -42,6 +47,95 @@ class _PdfPageViewState extends State<PdfPageView> {
   PdfRenderRequest? _fitRequest;
   Timer? _fitRetryTimer;
   bool _contentReported = false;
+
+  List<Annotation> get _annotations =>
+      BookStoreService.instance
+          .getBookState(widget.session.doc.id)
+          ?.annotations ??
+      const [];
+
+  int get _annotationRevision => Object.hashAll(
+    _annotations.map(
+      (annotation) => Object.hash(annotation.id, annotation.note),
+    ),
+  );
+
+  Future<void> _addAnnotation(PdfWordSelection selection, bool addNote) async {
+    final pageIndex = selection.pageIndex;
+    final startOffset = selection.startOffset;
+    final endOffset = selection.endOffset;
+    if (pageIndex == null ||
+        startOffset == null ||
+        endOffset == null ||
+        selection.sourceBoxes.isEmpty) {
+      return;
+    }
+    final docId = widget.session.doc.id;
+    final note = addNote ? await showAnnotationEditor(context) : null;
+    if (!mounted ||
+        widget.session.doc.id != docId ||
+        (addNote && note == null)) {
+      return;
+    }
+    final store = BookStoreService.instance;
+    final session = widget.session;
+    final state =
+        store.getBookState(docId) ??
+        BookState(
+          docId: docId,
+          lastPath: session.doc.path,
+          format: session.doc.format,
+          lastRead: DateTime.now(),
+          position: session.position,
+          percent: session.percent,
+          bookmarks: session.bookmarks,
+        );
+    final annotation = Annotation(
+      id: Annotation.generateId(),
+      docId: docId,
+      createdAt: DateTime.now(),
+      // Retain the ordinary anchor fields for schema compatibility. PDF
+      // rendering uses pdfPageIndex/pdfRects below.
+      spineIndex: pageIndex,
+      blockIndex: -1,
+      startOffset: startOffset,
+      endOffset: endOffset,
+      text: selection.word,
+      note: note,
+      pdfPageIndex: pageIndex,
+      pdfRects: selection.sourceBoxes,
+    );
+    store.saveBookState(
+      state.copyWith(annotations: [...state.annotations, annotation]),
+    );
+    setState(() {});
+  }
+
+  Future<void> _openAnnotation(Annotation annotation) async {
+    final action = await showAnnotationViewer(context, annotation);
+    if (!mounted || action == null) return;
+    String? note;
+    if (action == AnnotationAction.edit) {
+      note = await showAnnotationEditor(context, note: annotation.note);
+      if (!mounted || note == null) return;
+    }
+    if (widget.session.doc.id != annotation.docId) return;
+    final store = BookStoreService.instance;
+    final state = store.getBookState(annotation.docId);
+    if (state == null) return;
+    store.saveBookState(
+      state.copyWith(
+        annotations: [
+          for (final item in state.annotations)
+            if (item.id != annotation.id)
+              item
+            else if (action == AnnotationAction.edit)
+              item.withNote(note!),
+        ],
+      ),
+    );
+    setState(() {});
+  }
 
   void _reportContent() {
     if (_contentReported) return;
@@ -161,6 +255,10 @@ class _PdfPageViewState extends State<PdfPageView> {
               devicePixelRatio: devicePixelRatio,
               onRetry: widget.onRetry,
               onContentReady: _reportContent,
+              annotations: _annotations,
+              annotationRevision: _annotationRevision,
+              onAnnotate: _addAnnotation,
+              onOpenAnnotation: _openAnnotation,
             );
           }
 
@@ -196,7 +294,12 @@ class _PdfPageViewState extends State<PdfPageView> {
           if (_fitImage != null) _reportContent();
           // The reader shell retains its opening preview until this image arrives.
           return PdfDictionaryRegion(
-            identity: (widget.session, signature, _fitLoadedToken),
+            identity: (
+              widget.session,
+              signature,
+              _fitLoadedToken,
+              _annotationRevision,
+            ),
             selectWord: (point) async {
               final image = _fitImage;
               if (image == null || _fitLoadedToken != _fitRequestToken) {
@@ -208,6 +311,21 @@ class _PdfPageViewState extends State<PdfPageView> {
                 Size(image.width.toDouble(), image.height.toDouble()),
               );
             },
+            loadAnnotations: _annotations.isEmpty
+                ? null
+                : () {
+                    final image = _fitImage;
+                    if (image == null || _fitLoadedToken != _fitRequestToken) {
+                      return Future.value(const []);
+                    }
+                    return widget.session.annotationRegionsAtFit(
+                      _annotations,
+                      viewport,
+                      Size(image.width.toDouble(), image.height.toDouble()),
+                    );
+                  },
+            onAnnotate: _addAnnotation,
+            onOpenAnnotation: _openAnnotation,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -260,6 +378,11 @@ class _ContinuousPdfView extends StatefulWidget {
   final double devicePixelRatio;
   final VoidCallback? onRetry;
   final VoidCallback onContentReady;
+  final List<Annotation> annotations;
+  final int annotationRevision;
+  final Future<void> Function(PdfWordSelection selection, bool addNote)
+  onAnnotate;
+  final Future<void> Function(Annotation annotation) onOpenAnnotation;
 
   const _ContinuousPdfView({
     super.key,
@@ -268,6 +391,10 @@ class _ContinuousPdfView extends StatefulWidget {
     required this.devicePixelRatio,
     this.onRetry,
     required this.onContentReady,
+    required this.annotations,
+    required this.annotationRevision,
+    required this.onAnnotate,
+    required this.onOpenAnnotation,
   });
 
   @override
@@ -843,6 +970,7 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
             origin,
             scale,
             widget.viewport,
+            widget.annotationRevision,
           ),
           selectWord: (point) async {
             final selected = await widget.session.wordAtContinuousOffset(
@@ -863,6 +991,33 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
               ),
             );
           },
+          loadAnnotations: widget.annotations.isEmpty
+              ? null
+              : () async {
+                  final regions = await widget.session
+                      .annotationRegionsAtContinuous(
+                        widget.annotations,
+                        layout,
+                      );
+                  if (!mounted ||
+                      origin != Offset(_originX, _originY) ||
+                      scale != _scale) {
+                    return const [];
+                  }
+                  return [
+                    for (final region in regions)
+                      region.transform(
+                        (box) => Rect.fromLTRB(
+                          (box.left - origin.dx) * scale,
+                          (box.top - origin.dy) * scale,
+                          (box.right - origin.dx) * scale,
+                          (box.bottom - origin.dy) * scale,
+                        ),
+                      ),
+                  ];
+                },
+          onAnnotate: widget.onAnnotate,
+          onOpenAnnotation: widget.onOpenAnnotation,
           child: Listener(
             key: const Key('continuous-pdf-surface'),
             behavior: HitTestBehavior.opaque,
