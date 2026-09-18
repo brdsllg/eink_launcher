@@ -5,8 +5,8 @@
 Implemented hardest-first: selection geometry, draggable controls, stable text
 anchors and underline hit-testing; then persistence, toolbar actions, note
 dialogs, and documentation. `flutter analyze --no-pub` is clean, and
-`flutter test --no-pub` passes with 360 tests passed and 3 native PDF checks
-skipped. The Bigme device check in Step 7.3 remains pending and requires user
+`flutter test --no-pub` passes; the opt-in native PDF checks remain skipped.
+The Bigme device check in Step 7.3 remains pending and requires user
 confirmation.
 
 Implementation details discovered in this checkout:
@@ -19,7 +19,7 @@ Implementation details discovered in this checkout:
   paragraphs and page-boundary selections still have reachable controls.
 - Page-turn saves preserve annotations, and annotations on a newly opened book
   create its first saved state. `saveBookState` remains the persistence API.
-- A follow-on implementation supports word-level PDF annotations using
+- A follow-on implementation supports range-selectable PDF annotations using
   normalized PDF text-layer rectangles, including cropped pages and Zoom /
   Scroll. Image-only PDFs still require OCR and remain unsupported.
 

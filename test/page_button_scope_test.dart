@@ -196,6 +196,39 @@ void main() {
     expect(turns, 1);
   });
 
+  testWidgets('an opted-in surface pages while its field keeps the caret keys', (
+    tester,
+  ) async {
+    final turns = <String>[];
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PageButtonScope(
+            allowWhileEditingText: true,
+            onPrevious: () => turns.add('previous'),
+            onNext: () => turns.add('next'),
+            child: TextField(focusNode: focus),
+          ),
+        ),
+      ),
+    );
+    focus.requestFocus();
+    await tester.pump();
+
+    // The caret keys still belong to the field.
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    expect(turns, isEmpty);
+
+    // Page and volume keys type nothing, so they page the results behind it.
+    await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.audioVolumeDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.pageUp);
+    expect(turns, ['next', 'next', 'previous']);
+  });
+
   testWidgets('modified shortcuts and unrelated hardware keys are untouched', (
     tester,
   ) async {

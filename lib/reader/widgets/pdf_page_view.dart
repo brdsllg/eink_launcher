@@ -311,6 +311,19 @@ class _PdfPageViewState extends State<PdfPageView> {
                 Size(image.width.toDouble(), image.height.toDouble()),
               );
             },
+            adjustSelection: (selection, start, point) async {
+              final image = _fitImage;
+              if (image == null || _fitLoadedToken != _fitRequestToken) {
+                return null;
+              }
+              return widget.session.moveFitSelectionBoundary(
+                selection,
+                point,
+                viewport,
+                Size(image.width.toDouble(), image.height.toDouble()),
+                start: start,
+              );
+            },
             loadAnnotations: _annotations.isEmpty
                 ? null
                 : () {
@@ -983,6 +996,28 @@ class _ContinuousPdfViewState extends State<_ContinuousPdfView>
               return null;
             }
             return selected?.transform(
+              (box) => Rect.fromLTRB(
+                (box.left - origin.dx) * scale,
+                (box.top - origin.dy) * scale,
+                (box.right - origin.dx) * scale,
+                (box.bottom - origin.dy) * scale,
+              ),
+            );
+          },
+          adjustSelection: (selection, start, point) async {
+            final adjusted = await widget.session
+                .moveContinuousSelectionBoundary(
+                  selection,
+                  origin + point / scale,
+                  layout,
+                  start: start,
+                );
+            if (!mounted ||
+                origin != Offset(_originX, _originY) ||
+                scale != _scale) {
+              return null;
+            }
+            return adjusted?.transform(
               (box) => Rect.fromLTRB(
                 (box.left - origin.dx) * scale,
                 (box.top - origin.dy) * scale,

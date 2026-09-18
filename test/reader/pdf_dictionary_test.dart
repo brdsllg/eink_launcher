@@ -72,7 +72,26 @@ void main() {
     expect(selectPdfWord(text, boxes, boxes.last.center), isNull);
   });
 
-  testWidgets('PDF text-layer words can be underlined and reopened', (
+  test('PDF selection boundaries move to exact characters', () {
+    const text = 'alpha beta';
+    final boxes = List.generate(
+      text.length,
+      (index) => index == 5 ? Rect.zero : Rect.fromLTWH(index * 10, 0, 8, 10),
+    );
+    final word = selectPdfWord(text, boxes, boxes[1].center)!;
+
+    final extended = word.moveBoundary(boxes[8].center, start: false)!;
+    expect(extended.word, 'alpha bet');
+    expect(extended.startOffset, 0);
+    expect(extended.endOffset, 9);
+
+    final trimmed = extended.moveBoundary(boxes[2].center, start: true)!;
+    expect(trimmed.word, 'pha bet');
+    expect(trimmed.startOffset, 2);
+    expect(trimmed.endOffset, 9);
+  });
+
+  testWidgets('PDF text-layer ranges can be adjusted, underlined and reopened', (
     tester,
   ) async {
     PdfWordSelection? annotated;
@@ -84,6 +103,14 @@ void main() {
       startOffset: 4,
       endOffset: 9,
       sourceBoxes: [Rect.fromLTRB(.1, .2, .3, .25)],
+    );
+    const extendedSelection = PdfWordSelection(
+      'hello world',
+      [Rect.fromLTWH(90, 90, 90, 20)],
+      pageIndex: 2,
+      startOffset: 4,
+      endOffset: 15,
+      sourceBoxes: [Rect.fromLTRB(.1, .2, .5, .25)],
     );
     final annotation = Annotation(
       id: 'pdf-note',
@@ -104,6 +131,8 @@ void main() {
             body: PdfDictionaryRegion(
               identity: identity,
               selectWord: (_) async => selection,
+              adjustSelection: (_, start, _) async =>
+                  start ? selection : extendedSelection,
               onAnnotate: (value, _) async => annotated = value,
               loadAnnotations: () async => showAnnotation
                   ? [
@@ -122,9 +151,16 @@ void main() {
     await tester.longPressAt(const Offset(100, 100));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('selection-underline')), findsOneWidget);
+    expect(find.byKey(const Key('pdf-selection-start-handle')), findsOneWidget);
+    expect(find.byKey(const Key('pdf-selection-end-handle')), findsOneWidget);
+    await tester.drag(
+      find.byKey(const Key('pdf-selection-end-handle')),
+      const Offset(60, 0),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('selection-underline')));
     await tester.pumpAndSettle();
-    expect(annotated, same(selection));
+    expect(annotated, same(extendedSelection));
 
     await tester.pumpWidget(view(identity: 2, showAnnotation: true));
     await tester.pumpAndSettle();

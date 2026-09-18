@@ -613,6 +613,64 @@ class PdfReaderSession extends ReaderSession {
     );
   }
 
+  Future<PdfWordSelection?> moveFitSelectionBoundary(
+    PdfWordSelection selection,
+    Offset offset,
+    Size viewport,
+    Size imageSize, {
+    required bool start,
+  }) async {
+    if (!_isReady ||
+        _isContinuous ||
+        imageSize.isEmpty ||
+        selection.pageIndex != _pageIndex) {
+      return null;
+    }
+    final generation = _generation;
+    final epoch = navigationEpoch;
+    final pageIndex = _pageIndex;
+    final crop = await _withRequest(
+      null,
+      (request) => _resolveCropRect(pageIndex, request),
+    );
+    _checkGeneration(generation);
+    if (epoch != navigationEpoch) return null;
+    final geometry = _geometryFor(
+      _documentService!.pageInfo(pageIndex),
+      crop,
+      viewport,
+      _withinPage,
+      1,
+    );
+    final scale = math.min(
+      viewport.width / imageSize.width,
+      viewport.height / imageSize.height,
+    );
+    final display = Rect.fromLTWH(
+      (viewport.width - imageSize.width * scale) / 2,
+      (viewport.height - imageSize.height * scale) / 2,
+      imageSize.width * scale,
+      imageSize.height * scale,
+    );
+    final target = geometry.crop;
+    final adjusted = selection.moveBoundary(
+      Offset(
+        target.left + (offset.dx - display.left) / display.width * target.width,
+        target.top + (offset.dy - display.top) / display.height * target.height,
+      ),
+      start: start,
+    );
+    return adjusted?.transform(
+      (box) => Rect.fromLTRB(
+        display.left + (box.left - target.left) / target.width * display.width,
+        display.top + (box.top - target.top) / target.height * display.height,
+        display.left + (box.right - target.left) / target.width * display.width,
+        display.top +
+            (box.bottom - target.top) / target.height * display.height,
+      ),
+    );
+  }
+
   /// Maps persisted normalized PDF annotation boxes into a fit-mode viewport.
   Future<List<PdfAnnotationRegion>> annotationRegionsAtFit(
     List<Annotation> annotations,
@@ -695,6 +753,44 @@ class PdfReaderSession extends ReaderSession {
     _checkGeneration(generation);
     if (epoch != navigationEpoch) return null;
     return selected?.transform(
+      (box) => Rect.fromLTRB(
+        (box.left - crop.left) / crop.width * layout.viewportWidth,
+        top + (box.top - crop.top) / crop.height * height,
+        (box.right - crop.left) / crop.width * layout.viewportWidth,
+        top + (box.bottom - crop.top) / crop.height * height,
+      ),
+    );
+  }
+
+  Future<PdfWordSelection?> moveContinuousSelectionBoundary(
+    PdfWordSelection selection,
+    Offset offset,
+    PdfContinuousLayout layout, {
+    required bool start,
+  }) async {
+    final page = selection.pageIndex;
+    if (!_isReady ||
+        !_isContinuous ||
+        page == null ||
+        page < 0 ||
+        page >= layout.pageHeights.length) {
+      return null;
+    }
+    final generation = _generation;
+    final epoch = navigationEpoch;
+    final crop = await _resolveUniformCropRect();
+    _checkGeneration(generation);
+    if (epoch != navigationEpoch) return null;
+    final top = layout.pageTop(page);
+    final height = layout.pageHeights[page];
+    final adjusted = selection.moveBoundary(
+      Offset(
+        crop.left + offset.dx / layout.viewportWidth * crop.width,
+        crop.top + (offset.dy - top) / height * crop.height,
+      ),
+      start: start,
+    );
+    return adjusted?.transform(
       (box) => Rect.fromLTRB(
         (box.left - crop.left) / crop.width * layout.viewportWidth,
         top + (box.top - crop.top) / crop.height * height,

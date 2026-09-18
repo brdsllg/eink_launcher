@@ -16,6 +16,12 @@ class PdfDictionaryRegion extends StatefulWidget {
   final Future<void> Function(String)? defineWord;
   final Future<void> Function(PdfWordSelection selection, bool addNote)?
   onAnnotate;
+  final Future<PdfWordSelection?> Function(
+    PdfWordSelection selection,
+    bool start,
+    Offset point,
+  )?
+  adjustSelection;
   final Future<List<PdfAnnotationRegion>> Function()? loadAnnotations;
   final Future<void> Function(Annotation annotation)? onOpenAnnotation;
 
@@ -26,6 +32,7 @@ class PdfDictionaryRegion extends StatefulWidget {
     required this.child,
     this.defineWord,
     this.onAnnotate,
+    this.adjustSelection,
     this.loadAnnotations,
     this.onOpenAnnotation,
   });
@@ -41,6 +48,7 @@ class _PdfDictionaryRegionState extends State<PdfDictionaryRegion> {
   List<PdfAnnotationRegion> _annotations = const [];
   final _overlay = OverlayPortalController();
   final _surfaceKey = GlobalKey();
+  int _handleRequest = 0;
 
   @override
   void initState() {
@@ -53,6 +61,7 @@ class _PdfDictionaryRegionState extends State<PdfDictionaryRegion> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.identity != widget.identity) {
       _generation++;
+      _handleRequest++;
       _busy = false;
       _selection = null;
       _annotations = const [];
@@ -121,8 +130,37 @@ class _PdfDictionaryRegionState extends State<PdfDictionaryRegion> {
   }
 
   void _clearSelection() {
+    _handleRequest++;
     _overlay.hide();
     if (mounted) setState(() => _selection = null);
+  }
+
+  Future<void> _moveHandle(bool start, Offset globalPoint) async {
+    final selection = _selection;
+    final adjust = widget.adjustSelection;
+    final surface =
+        _surfaceKey.currentContext?.findRenderObject() as RenderBox?;
+    if (selection == null || adjust == null || surface == null) return;
+    final request = ++_handleRequest;
+    final generation = _generation;
+    try {
+      final adjusted = await adjust(
+        selection,
+        start,
+        surface.globalToLocal(globalPoint),
+      );
+      if (!mounted ||
+          request != _handleRequest ||
+          generation != _generation ||
+          adjusted == null) {
+        return;
+      }
+      setState(() => _selection = adjusted);
+    } on PdfRenderCancelledException {
+      // A navigation change superseded the drag.
+    } catch (_) {
+      // Keep the last valid selection if text geometry becomes unavailable.
+    }
   }
 
   Future<void> _act(String action) async {
@@ -153,6 +191,8 @@ class _PdfDictionaryRegionState extends State<PdfDictionaryRegion> {
     final first = selection.boxes.first;
     final last = selection.boxes.last;
     final anchorY = origin.dy + last.bottom;
+    final firstAnchor = origin + first.bottomLeft;
+    final lastAnchor = origin + last.bottomRight;
     final toolbarWidth = surface.size.width.clamp(0.0, overlay.size.width);
     final desiredTop = first.top >= 56 || anchorY + 72 > overlay.size.height
         ? origin.dy + first.top - 56
@@ -180,6 +220,36 @@ class _PdfDictionaryRegionState extends State<PdfDictionaryRegion> {
             onUnderline: () => _act('underline'),
           ),
         ),
+        if (widget.adjustSelection != null)
+          for (final start in [true, false])
+            Positioned(
+              left: (start ? firstAnchor.dx - 24 : lastAnchor.dx).clamp(
+                0.0,
+                (overlay.size.width - 24).clamp(0.0, double.infinity),
+              ),
+              top: (start ? firstAnchor.dy : lastAnchor.dy).clamp(
+                0.0,
+                (overlay.size.height - 24).clamp(0.0, double.infinity),
+              ),
+              child: GestureDetector(
+                key: Key(
+                  start
+                      ? 'pdf-selection-start-handle'
+                      : 'pdf-selection-end-handle',
+                ),
+                behavior: HitTestBehavior.opaque,
+                onPanUpdate: (details) =>
+                    _moveHandle(start, details.globalPosition),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Align(
+                    alignment: start ? Alignment.topRight : Alignment.topLeft,
+                    child: Container(width: 8, height: 16, color: Colors.black),
+                  ),
+                ),
+              ),
+            ),
       ],
     );
   }

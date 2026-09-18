@@ -13,9 +13,11 @@ Bigme HiBreak running Android 14. The original target was the Bigme B751C.
 page-button support introduced in 1.0.9 and adds bundled modern Hebrew and
 Rabbinic Hebrew/Aramaic dictionary data. Page Up/Down, Left/Right, and Volume
 Up/Down turn reader pages and page through file, Apps, bookmark, Contents, and
-search-result lists. Holds do not repeat, text entry and dialogs are isolated,
-and loading or background readers do not turn. [Button behavior and supported
-assignments](BUTTON_SUPPORT.md). Physical B751C verification remains pending.
+search-result lists. The file-search results panel and the reader settings list
+are continuous scroll views, so a press there moves one screenful. Holds do not
+repeat, text entry and dialogs are isolated, and loading or background readers
+do not turn. [Button behavior and supported assignments](BUTTON_SUPPORT.md).
+Physical B751C verification remains pending.
 
 The current generated arm64 artifact is
 [app-release.apk](build/app/outputs/flutter-apk/app-release.apk). Its recorded
@@ -94,10 +96,11 @@ stays inside one text block. Notes automatically underline their text; tap an
 underline to view, edit, or delete its note. Annotations persist with the book's
 reading state and remain anchored when font size or hyphenation changes.
 
-In PDFs with a text layer, long-press a word to use the same **Copy**,
-**Dictionary**, **Add Note**, and **Underline** actions, including on cropped
-pages and in Zoom / Scroll. PDF word annotations remain anchored to the text
-layer as the view changes; tap an underline to view, edit, or delete its note.
+In PDFs with a text layer, long-press a word, adjust the selection handles to
+the exact letters or words you want, then use the same **Copy**, **Dictionary**,
+**Add Note**, and **Underline** actions, including on cropped pages and in Zoom
+/ Scroll. PDF annotations remain anchored to the text layer as the view
+changes; tap an underline to view, edit, or delete its note.
 Image-only PDFs do not support lookup; OCR is not included.
 
 The bundled WordNet 3.0 dictionary includes 86,538 single-word entries and

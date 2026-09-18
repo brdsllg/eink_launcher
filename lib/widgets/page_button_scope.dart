@@ -13,12 +13,21 @@ class PageButtonScope extends StatefulWidget {
     this.onPrevious,
     this.onNext,
     this.enabled = true,
+    this.allowWhileEditingText = false,
   });
 
   final Widget child;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
   final bool enabled;
+
+  /// Whether a focused text field still lets the page and volume mappings page
+  /// this surface. Off by default, so typing is never disturbed.
+  ///
+  /// A field keeps the left/right mappings either way, since those are its
+  /// caret keys; page up/down and volume type nothing, so a surface that shows
+  /// results next to its own search field can opt in and stay pageable.
+  final bool allowWhileEditingText;
 
   @override
   State<PageButtonScope> createState() => _PageButtonScopeState();
@@ -75,7 +84,6 @@ class _PageButtonScopeState extends State<PageButtonScope>
     final keyboard = HardwareKeyboard.instance;
     if (!widget.enabled ||
         (_route != null && !_route!.isCurrent) ||
-        _editingText ||
         keyboard.isControlPressed ||
         keyboard.isAltPressed ||
         keyboard.isMetaPressed ||
@@ -94,6 +102,15 @@ class _PageButtonScopeState extends State<PageButtonScope>
       _ => null,
     };
     if (previous == null) return false;
+
+    // A focused editor always keeps the left/right caret keys, and keeps every
+    // mapping unless this surface opted into paging while editing.
+    if (_editingText &&
+        (!widget.allowWhileEditingText ||
+            event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+            event.logicalKey == LogicalKeyboardKey.arrowRight)) {
+      return false;
+    }
 
     _capturedKeys.add(event.physicalKey);
     (previous ? widget.onPrevious : widget.onNext)?.call();
