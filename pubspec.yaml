@@ -42,6 +42,7 @@ dependencies:
   hyphenatorx: ^1.0.0
   xml: ^6.5.0
   markdown: ^7.2.2
+  sqlite3: ^3.6.0
 
 dev_dependencies:
   flutter_test:

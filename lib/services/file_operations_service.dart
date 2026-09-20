@@ -13,6 +13,7 @@ import '../models/clipboard_state.dart';
 // thrown up into the UI.
 class FileOperationsService {
   ClipboardState? _clipboard;
+  Future<List<String>>? _activePaste;
 
   ClipboardState? get clipboard => _clipboard;
   bool get hasClipboard => _clipboard != null && _clipboard!.paths.isNotEmpty;
@@ -85,11 +86,18 @@ class FileOperationsService {
   /// cleared, so the same items can't be pasted again (regardless of copy or
   /// cut). If any item fails, the clipboard is kept so the user can retry the
   /// remaining items.
-  Future<List<String>> paste(String destinationDir) async {
+  Future<List<String>> paste(String destinationDir) {
+    return _activePaste ??= _paste(destinationDir).whenComplete(() {
+      _activePaste = null;
+    });
+  }
+
+  Future<List<String>> _paste(String destinationDir) async {
     final state = _clipboard;
     if (state == null || state.paths.isEmpty) return const [];
 
     final errors = <String>[];
+    final failed = <String>[];
     // The moving flag must be decided up front from the pre-clear snapshot;
     // for a cut-paste it's also why the clipboard is only cleared once ALL
     // items have moved successfully.
@@ -99,14 +107,17 @@ class FileOperationsService {
       try {
         await _pasteOne(src, destinationDir, moving);
       } catch (e) {
+        failed.add(src);
         errors.add('Could not paste ${_basename(src)}: $e');
       }
     }
 
     // Single-use clipboard: clear it once the paste fully succeeded, so you
     // can't keep re-pasting the same copied/cut item.
-    if (errors.isEmpty) {
-      _clipboard = null;
+    if (identical(_clipboard, state)) {
+      _clipboard = failed.isEmpty
+          ? null
+          : ClipboardState(paths: failed, mode: state.mode);
     }
 
     return errors;

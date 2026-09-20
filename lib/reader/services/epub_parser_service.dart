@@ -26,23 +26,34 @@ class EpubParserService {
   Future<ParsedBook> parseFile(
     String path, {
     bool honorPublisherCss = true,
+    bool projectStudy = true,
   }) async {
     final bytes = await File(path).readAsBytes();
-    return parseBytes(bytes, honorPublisherCss: honorPublisherCss);
+    return parseBytes(
+      bytes,
+      honorPublisherCss: honorPublisherCss,
+      projectStudy: projectStudy,
+    );
   }
 
   Future<ParsedBook> parseBytes(
     Uint8List bytes, {
     bool honorPublisherCss = true,
+    bool projectStudy = true,
   }) {
     return Isolate.run(
-      () => parseBytesSync(bytes, honorPublisherCss: honorPublisherCss),
+      () => parseBytesSync(
+        bytes,
+        honorPublisherCss: honorPublisherCss,
+        projectStudy: projectStudy,
+      ),
     );
   }
 
   static ParsedBook parseBytesSync(
     Uint8List bytes, {
     bool honorPublisherCss = true,
+    bool projectStudy = true,
   }) {
     final archive = _decodeArchive(bytes);
     final containerXml = _readText(
@@ -195,21 +206,24 @@ class EpubParserService {
     }
     if (toc.isEmpty) toc = _fallbackToc(spine);
 
-    return TanachLayoutService.layout(
-      ParsedBook(
-        studyDocuments: hasStudy ? xhtmlDocuments : const {},
-        contentFingerprint: sha256.convert(bytes).toString(),
-        rightToLeft:
-            _attribute(spineElement, 'page-progression-direction') == 'rtl',
-        title: _metadataText(package, 'title') ?? 'Untitled',
-        author: _metadataText(package, 'creator'),
-        language: _metadataText(package, 'language'),
-        spine: List<ParsedSpineItem>.unmodifiable(spine),
-        resources: Map<String, Uint8List>.unmodifiable(resources),
-        tableOfContents: List<TocEntry>.unmodifiable(toc),
-      ),
-      ReaderSettings(honorPublisherCss: honorPublisherCss),
+    final parsed = ParsedBook(
+      studyDocuments: hasStudy ? xhtmlDocuments : const {},
+      contentFingerprint: sha256.convert(bytes).toString(),
+      rightToLeft:
+          _attribute(spineElement, 'page-progression-direction') == 'rtl',
+      title: _metadataText(package, 'title') ?? 'Untitled',
+      author: _metadataText(package, 'creator'),
+      language: _metadataText(package, 'language'),
+      spine: List<ParsedSpineItem>.unmodifiable(spine),
+      resources: Map<String, Uint8List>.unmodifiable(resources),
+      tableOfContents: List<TocEntry>.unmodifiable(toc),
     );
+    return hasStudy && projectStudy
+        ? TanachLayoutService.layout(
+            parsed,
+            ReaderSettings(honorPublisherCss: honorPublisherCss),
+          )
+        : parsed;
   }
 }
 
@@ -483,6 +497,8 @@ TextReadingPosition? _positionFor(String target, List<ParsedSpineItem> spine) {
       ? 0
       : spine[spineIndex].anchors[fragment] ?? 0;
   return TextReadingPosition(
+    documentPath: path,
+    blockId: fragment,
     spineIndex: spineIndex,
     blockIndex: blockIndex,
     charOffset: 0,

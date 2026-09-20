@@ -459,7 +459,12 @@ class _ReaderScreenState extends State<ReaderScreen>
     final session = _session;
     if (session is! TextReaderSession || session.book == null) return;
     final match = await Navigator.of(context).push<TextSearchMatch>(
-      noTransitionRoute(ReaderSearchScreen(spine: session.book!.spine)),
+      noTransitionRoute(
+        ReaderSearchScreen(
+          spine: session.book!.spine,
+          searchService: session.searchService,
+        ),
+      ),
     );
     if (match == null || !mounted) return;
     await _navigate(

@@ -1520,7 +1520,9 @@ class PdfReaderSession extends ReaderSession {
         );
         return (
           pixelWidth: (viewport.width * devicePixelRatio).round(),
-          pixelHeight: (viewport.height * devicePixelRatio).round(),
+          pixelHeight: (info.height * subCrop.height * scale * devicePixelRatio)
+              .round()
+              .clamp(1, 2147483647),
           crop: subCrop,
         );
 

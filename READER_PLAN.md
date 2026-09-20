@@ -136,6 +136,22 @@ Parsing uses background isolates where practical. The UI isolate performs final
 font measurement because it owns Flutter text layout. Pagination caches are keyed
 by document identity, chapter, viewport, and typography.
 
+Recognized Tanach EPUBs take a bounded-memory variant of this path. First open
+creates a per-book SQLite cache containing gzip-compressed chapter XHTML, spine
+and navigation metadata, resources, stable verse targets, and a contentless FTS5
+index with separately stored display text. Later opens validate the EPUB SHA-256
+and cache schema before using it. Chapters are projected for the active translation
+and commentary settings on demand; background pagination may visit the remaining
+chapters sequentially, but only three projected chapters remain resident. FTS
+queries preserve Hebrew-mark normalization and honor commentary visibility,
+source/language filters, and translation selection. A bounded substring fallback
+preserves the former in-memory search semantics for infix queries.
+
+The Tanach database is disposable cache data and is never the owner of bookmarks,
+annotations, settings, or positions. Those remain in `library.json`; pagination
+geometry remains in the per-settings page cache. EPUB stays the canonical portable
+publication rather than embedding or replacing it with a private database format.
+
 The text reader supports:
 
 - EPUB 2 NCX and EPUB 3 navigation hierarchies;
@@ -278,7 +294,8 @@ turns, fit-width screenful steps, and viewport steps in Zoom / Scroll. A button
 press hides the reader menu. Paginated lists share the same handler. Repeats and
 synthesized downs do not navigate; focused editors, inactive routes, loading,
 and file-search overlays are excluded. Details and references are in
-[BUTTON_SUPPORT.md](BUTTON_SUPPORT.md). Physical B751C verification is pending.
+[BUTTON_SUPPORT.md](BUTTON_SUPPORT.md). Confirmed working on the Bigme
+test device with its side buttons assigned to D-pad Left/Right.
 
 Version 1.0.10 (build 11) adds modern Hebrew and Rabbinic Hebrew/Aramaic
 dictionary assets to the existing offline lookup feature. The reader supports

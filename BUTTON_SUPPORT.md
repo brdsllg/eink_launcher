@@ -1,9 +1,7 @@
 # Physical page buttons — introduced in version 1.0.9
 
-Button support is enabled automatically in the document reader, in the paginated
-lists (files, Apps, bookmarks, Contents, and book-search results), and on the
-scrolling screens (the file-search results panel and the reader settings list),
-where one press moves one screenful.
+Button support is enabled automatically in the document reader and paginated
+lists: files, Apps, bookmarks, Contents, and book-search results.
 
 ## Supported assignments
 
@@ -41,38 +39,34 @@ these are supported input mappings rather than an assumed firmware menu path.
   left/right page-turn tap zones. Both default to enabled. Disabling tap zones
   keeps center-tap menu access and swipe/pinch gestures available. Disabling
   physical buttons in the reader leaves their normal system handling available.
-- The file-search results panel and the reader settings list are continuous
-  scroll views, so a press moves them by one screenful instead of turning a
-  page. Both are bounded: a press that cannot move further is still consumed,
-  so a volume-mapped button never leaks into the system volume there.
 
 ## Input boundaries
 
 Only the current route handles page buttons. Opening a dialog, popup, settings
 screen, or another app does not turn a hidden reader or list. Paging is disabled
-while a reader loads and for the file list behind an open file-search overlay;
-the overlay's own results panel pages. Focused text fields retain their editing
-keys, and Ctrl, Alt, and Meta shortcuts are not treated as page turns. A surface
-whose own search field keeps focus while it lists results - the file-search
-results panel - opts into paging anyway, so page up/down and volume still move
-the results while left/right stay that field's caret keys. Back and Power are
-left to the existing system behavior. Volume mappings are consumed only by an
-eligible paging surface, including at its boundaries, preventing a page-button
-press from also changing volume there. Outside those surfaces, normal volume
-handling remains available.
+while a reader loads and while the file-search overlay covers the file list.
+Focused text fields retain their editing keys; Ctrl, Alt, and Meta shortcuts
+are not treated as page turns. Back and Power are left to the existing system
+behavior. Volume mappings are consumed only by an eligible paging surface,
+including at its boundaries, preventing a page-button press from also changing
+volume there. Outside those surfaces, normal volume handling remains available.
 
 ## Verification and references
 
 Host tests cover every mapping, press/repeat/release handling, synthesized-key
-suppression, text focus, dialogs, routes, lifecycle, disposal, list and scroll
-bounds, and the real screens: the file browser, the Apps drawer, Contents,
-reader search results, and the file-search results panel.
+suppression, text focus, dialogs, routes, lifecycle, disposal, list bounds, and
+actual reader navigation.
 
-The focused button-input run passes 23 tests, and static analysis is clean. The
-full suite run against this source passed 371 tests with three skipped native
-PDFium checks (they need `PDF_NATIVE_STRESS` or `PDFIUM_PATH`) and no failures;
-the earlier `page_button_scope_test.dart` failure no longer reproduces. Physical
-B751C verification remains pending.
+The focused button-input run passes 13 tests, and static analysis is clean. The
+latest full-suite run against this source passed 364 tests with three skipped
+native PDFium checks and no failures.
+
+The buttons are confirmed working on the Bigme test device. The app follows the
+key the firmware sends, and on the Bigme the side buttons can be assigned per
+app, so an assignment that sends none of the pairs above makes the buttons look
+dead inside this app while they still work elsewhere. Setting the side buttons
+to D-pad Left/Right fixed exactly that symptom on 2026-09-18; the device record
+is in [BIGME_TEST_LOG.md](BIGME_TEST_LOG.md).
 
 Bigme identifies the original B751C's physical page buttons in its
 [official product page](https://store.bigme.vip/products/bigme-7-b751c-color-epaper-notepad-with-android-11-os-copy-1)

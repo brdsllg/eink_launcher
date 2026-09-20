@@ -13,11 +13,10 @@ Bigme HiBreak running Android 14. The original target was the Bigme B751C.
 page-button support introduced in 1.0.9 and adds bundled modern Hebrew and
 Rabbinic Hebrew/Aramaic dictionary data. Page Up/Down, Left/Right, and Volume
 Up/Down turn reader pages and page through file, Apps, bookmark, Contents, and
-search-result lists. The file-search results panel and the reader settings list
-are continuous scroll views, so a press there moves one screenful. Holds do not
-repeat, text entry and dialogs are isolated, and loading or background readers
-do not turn. [Button behavior and supported assignments](BUTTON_SUPPORT.md).
-Physical B751C verification remains pending.
+search-result lists. Holds do not repeat, text entry and dialogs are isolated,
+and loading or background readers do not turn. [Button behavior and supported
+assignments](BUTTON_SUPPORT.md). Confirmed working on the Bigme
+test device once its side-button assignment sends one of those pairs.
 
 The current generated arm64 artifact is
 [app-release.apk](build/app/outputs/flutter-apk/app-release.apk). Its recorded
@@ -136,6 +135,15 @@ explicitly painted hyphens, including at page boundaries. Parsed EPUB chapters
 and images are cached on disk (64 MiB limit); source changes and publisher-style
 changes invalidate the cache. TXT detects likely hard-wrapped prose and paragraph
 indents while preserving deliberate line breaks in other text.
+
+Structured Tanach EPUBs use a separate disposable SQLite import cache. Raw XHTML
+is compressed per chapter, whole-book text is indexed with FTS5, and only a small
+working set of projected chapters stays in memory. The original EPUB remains the
+portable source of truth. Its fingerprint and the cache schema invalidate stale
+imports; reading positions, settings, bookmarks, and annotations remain in the
+independently backed-up `library.json`, while page geometry remains in the normal
+pagination cache. The importer/search/chapter-loader is integration-tested against
+all 39 generated full-book EPUBs, not only the nine presentation samples.
 
 Reader settings default to **Black and white**. Toggle **Page color** to show
 color PDF content and EPUB/Markdown images; the choice is saved per document.

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../widgets/adaptive_grid.dart';
 import '../../widgets/control_bar_row.dart';
-import '../../widgets/page_scroll_scope.dart';
 import '../models/doc_ref.dart';
 import '../models/parsed_book.dart';
 import '../models/reader_settings.dart';
@@ -33,15 +32,6 @@ class ReaderSettingsScreen extends StatefulWidget {
 
 class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
   late ReaderSettings _settings;
-  // Drives the settings groups so a physical page button moves one screenful,
-  // the same way it pages a list screen.
-  final ScrollController _scrollController = ScrollController();
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
 
   @override
   void initState() {
@@ -503,65 +493,62 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1040),
-            child: PageScrollScope(
-              controller: _scrollController,
-              child: ListView(
-                physics: const ClampingScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                children: [
+            child: ListView(
+              physics: const ClampingScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              children: [
+                _SettingsGroup(
+                  label: 'Page color',
+                  child: GridActions(
+                    children: [
+                      _ChoiceButton(
+                        key: const Key('reader-settings-color'),
+                        toggle: true,
+                        label: _settings.colorEnabled
+                            ? 'Color'
+                            : 'Black and white',
+                        selected: _settings.colorEnabled,
+                        onPressed: () => setState(
+                          () => _settings = _settings.copyWith(
+                            colorEnabled: !_settings.colorEnabled,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!textDocument) ...[
                   _SettingsGroup(
-                    label: 'Page color',
+                    label: 'Image dithering',
                     child: GridActions(
                       children: [
                         _ChoiceButton(
-                          key: const Key('reader-settings-color'),
+                          key: const Key('reader-settings-dithering'),
                           toggle: true,
-                          label: _settings.colorEnabled
-                              ? 'Color'
-                              : 'Black and white',
-                          selected: _settings.colorEnabled,
+                          label: _settings.pdfDithering
+                              ? 'Dithering on'
+                              : 'Dithering off',
+                          selected: _settings.pdfDithering,
                           onPressed: () => setState(
                             () => _settings = _settings.copyWith(
-                              colorEnabled: !_settings.colorEnabled,
+                              pdfDithering: !_settings.pdfDithering,
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  if (!textDocument) ...[
-                    _SettingsGroup(
-                      label: 'Image dithering',
-                      child: GridActions(
-                        children: [
-                          _ChoiceButton(
-                            key: const Key('reader-settings-dithering'),
-                            toggle: true,
-                            label: _settings.pdfDithering
-                                ? 'Dithering on'
-                                : 'Dithering off',
-                            selected: _settings.pdfDithering,
-                            onPressed: () => setState(
-                              () => _settings = _settings.copyWith(
-                                pdfDithering: !_settings.pdfDithering,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 20),
+                    child: Text(
+                      'Try dithering for scanned pages and photos with banded gradients. '
+                      'It also works in color; leave it off if your device already smooths images well.',
                     ),
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 20),
-                      child: Text(
-                        'Try dithering for scanned pages and photos with banded gradients. '
-                        'It also works in color; leave it off if your device already smooths images well.',
-                      ),
-                    ),
-                  ],
-                  ...textDocument ? _textControls() : _pdfControls(),
-                  ..._navigationControls(),
+                  ),
                 ],
-              ),
+                ...textDocument ? _textControls() : _pdfControls(),
+                ..._navigationControls(),
+              ],
             ),
           ),
         ),

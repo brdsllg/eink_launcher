@@ -1,0 +1,375 @@
+00:00 +0: loading c:/Users/levi/eink_launcher/test/app_drawer_screen_test.dart
+00:00 +0: c:/Users/levi/eink_launcher/test/app_drawer_screen_test.dart: app query failures can be refreshed and launch failures stay in the drawer
+00:00 +1: c:/Users/levi/eink_launcher/test/app_drawer_screen_test.dart: app query failures can be refreshed and launch failures stay in the drawer
+00:00 +2: c:/Users/levi/eink_launcher/test/app_drawer_screen_test.dart: app query failures can be refreshed and launch failures stay in the drawer
+00:00 +3: c:/Users/levi/eink_launcher/test/battery_status_test.dart: battery events update level and charging, ignore malformed data, and cancel
+00:00 +4: c:/Users/levi/eink_launcher/test/app_drawer_screen_test.dart: live search resets pagination and the app bands match both orientations
+00:00 +5: c:/Users/levi/eink_launcher/test/app_drawer_screen_test.dart: live search resets pagination and the app bands match both orientations
+00:00 +6: c:/Users/levi/eink_launcher/test/app_drawer_screen_test.dart: live search resets pagination and the app bands match both orientations
+00:01 +7: c:/Users/levi/eink_launcher/test/file_action_dialogs_test.dart: New Folder dialog opens, validates, and dismisses cleanly
+00:01 +8: c:/Users/levi/eink_launcher/test/file_action_dialogs_test.dart: Rename dialog pre-fills and pops with the trimmed name
+00:07 +9: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:07 +10: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:07 +11: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +12: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +13: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +14: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +15: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +16: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +17: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +18: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +19: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +20: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +21: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +22: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: selection actions match selection and chooser receives exact path and MIME
+00:08 +23: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: long-pressing disabled Paste opens the hidden app drawer
+00:08 +24: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +25: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +26: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +27: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +28: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +29: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +30: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +31: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +32: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +33: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +34: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +35: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +36: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:08 +37: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:09 +38: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:09 +39: c:/Users/levi/eink_launcher/test/launcher_recovery_screen_test.dart: Back cannot list folders while permission is pending or denied
+00:09 +40: c:/Users/levi/eink_launcher/test/file_browser_screen_test.dart: Tabs action restores most recently read tab in a zero-transition reader
+00:09 +41: c:/Users/levi/eink_launcher/test/page_button_navigation_test.dart: physical buttons page a real list and clamp at its bounds
+00:09 +42: c:/Users/levi/eink_launcher/test/page_button_navigation_test.dart: physical buttons page a real list and clamp at its bounds
+00:09 +43: c:/Users/levi/eink_launcher/test/page_button_navigation_test.dart: physical buttons page a real list and clamp at its bounds
+00:09 +44: c:/Users/levi/eink_launcher/test/page_button_navigation_test.dart: physical buttons page a real list and clamp at its bounds
+00:09 +45: c:/Users/levi/eink_launcher/test/page_button_navigation_test.dart: physical buttons page a real list and clamp at its bounds
+00:10 +46: c:/Users/levi/eink_launcher/test/page_nav_bar_test.dart: shows first, previous, next, and last page controls
+00:10 +47: c:/Users/levi/eink_launcher/test/page_nav_bar_test.dart: shows first, previous, next, and last page controls
+00:10 +48: c:/Users/levi/eink_launcher/test/page_nav_bar_test.dart: shows first, previous, next, and last page controls
+00:10 +49: c:/Users/levi/eink_launcher/test/page_nav_bar_test.dart: shows first, previous, next, and last page controls
+00:10 +50: c:/Users/levi/eink_launcher/test/page_nav_bar_test.dart: shows first, previous, next, and last page controls
+00:10 +51: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +52: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +53: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +54: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +55: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +56: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +57: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +58: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +59: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +60: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +61: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +62: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +63: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +64: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +65: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +66: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +67: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +68: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +69: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +70: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +71: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +72: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +73: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +74: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +75: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:10 +76: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +77: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +78: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +79: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +80: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +81: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +82: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +83: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +84: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +85: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +86: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +87: c:/Users/levi/eink_launcher/test/reader/annotation_flow_test.dart: underline and notes save, edit, survive navigation/reload and delete
+00:11 +88: c:/Users/levi/eink_launcher/test/reader/dictionary_test.dart: loading, failure, retry, definition and close
+00:11 +89: c:/Users/levi/eink_launcher/test/reader/epub_hyphen_rendering_test.dart: painted hyphens contain visible ink using the bundled reading font
+00:12 +90: c:/Users/levi/eink_launcher/test/reader/epub_hyphen_rendering_test.dart: painted hyphens contain visible ink using the bundled reading font
+00:12 +91: c:/Users/levi/eink_launcher/test/reader/epub_hyphen_rendering_test.dart: painted hyphens contain visible ink using the bundled reading font
+00:12 +92: c:/Users/levi/eink_launcher/test/reader/epub_hyphen_rendering_test.dart: painted hyphens contain visible ink using the bundled reading font
+00:12 +93: c:/Users/levi/eink_launcher/test/reader/epub_hyphen_rendering_test.dart: painted hyphens contain visible ink using the bundled reading font
+00:12 +94: c:/Users/levi/eink_launcher/test/reader/epub_hyphen_rendering_test.dart: painted hyphens contain visible ink using the bundled reading font
+00:12 +95: c:/Users/levi/eink_launcher/test/reader/epub_hyphen_rendering_test.dart: painted hyphens contain visible ink using the bundled reading font
+00:12 +96: c:/Users/levi/eink_launcher/test/reader/epub_hyphen_rendering_test.dart: painted hyphens contain visible ink using the bundled reading font
+00:12 +97: c:/Users/levi/eink_launcher/test/reader/epub_parser_service_test.dart: extracts EPUB 3 metadata, spine, resources, and nested nav TOC
+00:12 +98: c:/Users/levi/eink_launcher/test/reader/epub_parser_service_test.dart: extracts EPUB 3 metadata, spine, resources, and nested nav TOC
+00:12 +99: c:/Users/levi/eink_launcher/test/reader/epub_parser_service_test.dart: extracts EPUB 3 metadata, spine, resources, and nested nav TOC
+00:12 +100: c:/Users/levi/eink_launcher/test/reader/epub_parser_service_test.dart: extracts EPUB 3 metadata, spine, resources, and nested nav TOC
+00:12 +101: c:/Users/levi/eink_launcher/test/reader/epub_parser_service_test.dart: reports a malformed container as a format error
+00:12 +102: c:/Users/levi/eink_launcher/test/reader/epub_parser_service_test.dart: META-INF/encryption.xml recognizes Adobe font obfuscation and percent-encoded root paths
+00:12 +103: c:/Users/levi/eink_launcher/test/reader/epub_parser_service_test.dart: META-INF/encryption.xml never treats a spine item or an image as an obfuscated font
+00:12 +104: c:/Users/levi/eink_launcher/test/reader/epub_parser_service_test.dart: META-INF/encryption.xml rejects real encryption of fonts and malformed encryption metadata
+00:12 +105: c:/Users/levi/eink_launcher/test/reader/html_block_parser_test.dart: walks semantic blocks, inline styles, lists, and images
+00:12 +106: c:/Users/levi/eink_launcher/test/reader/html_block_parser_test.dart: walks semantic blocks, inline styles, lists, and images
+00:12 +107: c:/Users/levi/eink_launcher/test/reader/html_block_parser_test.dart: walks semantic blocks, inline styles, lists, and images
+00:12 +108: c:/Users/levi/eink_launcher/test/reader/html_block_parser_test.dart: walks semantic blocks, inline styles, lists, and images
+00:12 +109: c:/Users/levi/eink_launcher/test/reader/html_block_parser_test.dart: honors only supported publisher style semantics when enabled
+00:12 +110: c:/Users/levi/eink_launcher/test/reader/html_block_parser_test.dart: inherits an explicit direction from an ancestor
+00:12 +111: c:/Users/levi/eink_launcher/test/reader/html_block_parser_test.dart: preserves revision-5 Tanach layout semantics without a CSS engine
+00:12 +112: c:/Users/levi/eink_launcher/test/reader/html_block_parser_test.dart: parses a complete XHTML document on a background isolate
+00:12 +113: c:/Users/levi/eink_launcher/test/reader/hyphenation_service_test.dart: inserts discretionary hyphens into eligible Latin words
+00:12 +114: c:/Users/levi/eink_launcher/test/reader/hyphenation_service_test.dart: leaves Hebrew and run styling intact
+00:12 +115: c:/Users/levi/eink_launcher/test/reader/models/annotation_test.dart: annotation and book state round-trip note: null
+00:12 +116: c:/Users/levi/eink_launcher/test/reader/models/annotation_test.dart: annotation and book state round-trip note: 
+00:12 +117: c:/Users/levi/eink_launcher/test/reader/models/annotation_test.dart: annotation and book state round-trip note: A note
+שָׁלוֹם
+00:12 +118: c:/Users/levi/eink_launcher/test/reader/models/annotation_test.dart: PDF annotation geometry round-trips and survives note edits
+00:13 +119: c:/Users/levi/eink_launcher/test/reader/page_bitmap_cache_test.dart: runtime shrinking evicts in LRU order and growing retains images
+00:13 +120: c:/Users/levi/eink_launcher/test/reader/page_bitmap_cache_test.dart: evicts the least recently used bitmap to stay within budget
+00:13 +121: c:/Users/levi/eink_launcher/test/reader/page_bitmap_cache_test.dart: rejects a bitmap larger than the entire cache budget
+00:13 +122: c:/Users/levi/eink_launcher/test/reader/pagination_cache_service_test.dart: round-trips pages and varies keys with typography
+00:13 +123: c:/Users/levi/eink_launcher/test/reader/parsed_epub_cache_service_test.dart: reopen skips parser, preserves resources, and invalidates changed inputs
+00:13 +124: c:/Users/levi/eink_launcher/test/reader/pdf_continuous_layout_test.dart: calculates exact page heights and cumulative offsets
+00:13 +125: c:/Users/levi/eink_launcher/test/reader/pdf_continuous_layout_test.dart: maps offsets and logical positions in both directions
+00:13 +126: c:/Users/levi/eink_launcher/test/reader/pdf_continuous_layout_test.dart: selects the page occupying the most viewport area
+00:13 +127: c:/Users/levi/eink_launcher/test/reader/pdf_continuous_layout_test.dart: clamps restored positions to the reachable scroll extent
+00:14 +128: c:/Users/levi/eink_launcher/test/reader/pdf_crop_service_test.dart: caps crop samples before rendering extreme page geometry
+00:14 +129: c:/Users/levi/eink_launcher/test/reader/pdf_crop_service_test.dart: rejects invalid crop geometry before submitting a native render
+00:14 +130: c:/Users/levi/eink_launcher/test/reader/pdf_crop_service_test.dart: finds normalized ink bounds
+00:14 +131: c:/Users/levi/eink_launcher/test/reader/pdf_crop_service_test.dart: ignores isolated scanner specks
+00:14 +132: c:/Users/levi/eink_launcher/test/reader/pdf_crop_service_test.dart: returns the full page when no ink is found
+00:14 +133: c:/Users/levi/eink_launcher/test/reader/pdf_crop_service_test.dart: reports blank samples separately from full-page crop bounds
+00:14 +134: c:/Users/levi/eink_launcher/test/reader/pdf_crop_service_test.dart: composites transparent pixels over white
+00:14 +135: c:/Users/levi/eink_launcher/test/reader/pdf_crop_service_test.dart: spreads uniform-crop samples across the whole document
+00:14 +136: c:/Users/levi/eink_launcher/test/reader/pdf_crop_service_test.dart: unions sampled ink rectangles
+00:14 +137: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_native_test.dart: real PDF text selection in fit height, sliced width and cropped continuous layout
+  Skip: Set PDF_NATIVE_STRESS=1 to exercise PDFium.
+00:14 +137 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_test.dart: extracts and selects text at rotation PdfPageRotation.none
+00:14 +138 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_test.dart: extracts and selects text at rotation PdfPageRotation.clockwise90
+00:14 +139 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_test.dart: extracts and selects text at rotation PdfPageRotation.clockwise180
+00:14 +140 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_test.dart: extracts and selects text at rotation PdfPageRotation.clockwise270
+00:14 +141 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_test.dart: empty text layers return no word and stale extraction is cancelled
+00:14 +142 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_test.dart: joins line-end hyphenation and excludes punctuation
+00:14 +143 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_test.dart: PDF selection boundaries move to exact characters
+00:14 +144 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_test.dart: PDF text-layer ranges can be adjusted, underlined and reopened
+00:15 +145 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_test.dart: PDF text-layer ranges can be adjusted, underlined and reopened
+00:15 +146 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_test.dart: PDF text-layer ranges can be adjusted, underlined and reopened
+00:15 +147 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_dictionary_test.dart: PDF long press wins over tap and pan; stale lookup is ignored
+00:15 +148 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_document_service_test.dart: opens, renders, loads outline, and closes through the document API
+00:15 +149 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_document_service_test.dart: caps render dimensions while preserving aspect ratio
+00:15 +150 ~1: c:/Users/levi/eink_launcher/test/reader/pdf_document_service_test.dart: native PDFium smoke: opens a real file and renders page zero
+  Skip: Set PDFIUM_PATH and PDF_SMOKE_FILE to run the native smoke test.
+00:15 +150 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: quarter-heap budgets are bounded, including extreme reports
+00:15 +151 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: invalid report null uses the fixed fallback
+00:15 +152 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: invalid report 0 uses the fixed fallback
+00:15 +153 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: invalid report -1 uses the fixed fallback
+00:15 +154 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: invalid report 256.0 uses the fixed fallback
+00:15 +155 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: invalid report 256 uses the fixed fallback
+00:15 +156 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: invalid report true uses the fixed fallback
+00:15 +157 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: invalid report {} uses the fixed fallback
+00:15 +158 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: lookup is lazy, memoized, and shared by concurrent callers
+00:15 +159 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: non-Android never invokes the channel
+00:15 +160 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: missing native handler does not prevent PDF opening
+00:15 +161 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: platform failure is cached, without repeatedly querying Android
+00:15 +162 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_memory_service_test.dart: timeout falls back and ignores a late native response
+00:16 +163 ~2: c:/Users/levi/eink_launcher/test/reader/pdf_native_render_stress_test.dart: native PDFium renders current demand after obsolete queued work is cancelled
+  Skip: Set PDF_NATIVE_STRESS=1 to exercise the native PDFium asset.
+00:16 +163 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: ordered fit-width navigation rapid turns preserve every tap while the first crop is pending
+00:16 +164 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: ordered fit-width navigation reversals at the first page are not incorrectly netted together
+00:16 +165 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: ordered fit-width navigation forward taps at the last sub-screen do not consume a later reversal
+00:16 +166 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: ordered fit-width navigation jump prevents an old crop from applying queued turns
+00:16 +167 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: ordered fit-width navigation settings prevents an old crop from applying queued turns
+00:16 +168 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: ordered fit-width navigation suspend prevents an old crop from applying queued turns
+00:16 +169 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: ordered fit-width navigation dispose prevents an old crop from applying queued turns
+00:16 +170 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: ordered fit-width navigation exit prevents an old crop from applying queued turns
+00:16 +171 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: foreground callers share crop and bitmap work and own independent handles
+00:16 +172 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: cancelling one bitmap consumer preserves another consumer of the same job
+00:16 +173 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: rapid fit-height turns discard intermediate renders before native admission
+00:16 +174 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: settings changes reject late images and render the new geometry
+00:16 +175 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: no-op settings preserve an in-flight fit image with unchanged geometry
+00:16 +176 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: orientation settings preserve an in-flight fit image with unchanged geometry
+00:16 +177 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: zoom floor settings preserve pending uniform layout and tile work
+00:16 +178 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: suspension prevents queued native work and late cache insertion
+00:16 +179 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_navigation_concurrency_test.dart: a prefetched page is reused when it becomes the foreground target
+00:16 +180 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_page_view_rendering_test.dart: fit navigation keeps coverage and lays preview and detail out identically
+00:16 +181 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_page_view_rendering_test.dart: fit navigation keeps coverage and lays preview and detail out identically
+00:16 +182 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_page_view_rendering_test.dart: zoom keeps visible pixels beyond 500ms and commits a ready batch
+00:17 +183 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +184 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +185 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +186 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +187 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +188 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +189 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +190 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +191 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +192 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +193 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +194 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +195 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: rapid turns prefetch two pages, reversal resets direction and depth
+00:17 +196 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:17 +197 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:17 +198 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:17 +199 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:17 +200 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:17 +201 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:17 +202 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +203 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +204 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +205 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +206 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +207 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +208 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +209 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +210 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +211 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +212 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +213 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +214 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +215 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +216 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +217 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +218 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+00:18 +219 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+Setting PdfrxEntryFunctions instance: Instance of '_DelayedPdfBackend'
+00:18 +220 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_runtime_service_test.dart: startup stays lazy; concurrent default opens and reopens initialize once
+Setting PdfrxEntryFunctions instance: Instance of 'PdfrxEntryFunctionsImpl'
+00:18 +221 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: fit view releases oversized images completed after unmount
+00:18 +222 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: fit view releases oversized images completed after unmount
+00:18 +223 ~3: c:/Users/levi/eink_launcher/test/reader/pdf_reader_session_test.dart: fit view releases oversized images completed after unmount
+00:18 +224 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +225 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +226 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +227 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +228 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +229 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +230 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +231 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +232 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +233 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +234 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +235 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +236 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +237 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +238 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +239 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +240 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +241 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +242 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +243 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +244 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +245 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +246 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +247 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:18 +248 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:19 +249 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:19 +250 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:19 +251 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:19 +252 ~3: c:/Users/levi/eink_launcher/test/reader/reader_bookmarks_screen_test.dart: adds, lists, navigates to, and deletes bookmarks
+00:19 +253 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +254 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +255 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +256 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +257 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +258 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +259 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +260 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +261 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +262 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +263 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +264 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +265 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +266 ~3: c:/Users/levi/eink_launcher/test/reader/reader_error_screen_test.dart: a failed open offers Retry and clears the old error after recovery
+00:19 +267 ~3: c:/Users/levi/eink_launcher/test/reader/reader_menu_overlay_test.dart: reader menu exposes direct modes without navigation or crop
+00:19 +268 ~3: c:/Users/levi/eink_launcher/test/reader/reader_menu_overlay_test.dart: reader menu exposes direct modes without navigation or crop
+00:19 +269 ~3: c:/Users/levi/eink_launcher/test/reader/reader_menu_overlay_test.dart: reader menu exposes direct modes without navigation or crop
+00:19 +270 ~3: c:/Users/levi/eink_launcher/test/reader/reader_menu_overlay_test.dart: reader menu exposes direct modes without navigation or crop
+00:20 +271 ~3: c:/Users/levi/eink_launcher/test/reader/reader_menu_overlay_test.dart: reader menu exposes direct modes without navigation or crop
+00:20 +272 ~3: c:/Users/levi/eink_launcher/test/reader/reader_search_screen_test.dart: searches on submission, paginates, and returns a logical match
+00:20 +273 ~3: c:/Users/levi/eink_launcher/test/reader/reader_search_screen_test.dart: searches on submission, paginates, and returns a logical match
+00:20 +274 ~3: c:/Users/levi/eink_launcher/test/reader/reader_search_screen_test.dart: searches on submission, paginates, and returns a logical match
+00:20 +275 ~3: c:/Users/levi/eink_launcher/test/reader/reader_search_screen_test.dart: searches on submission, paginates, and returns a logical match
+00:20 +276 ~3: c:/Users/levi/eink_launcher/test/reader/reader_search_screen_test.dart: searches on submission, paginates, and returns a logical match
+00:20 +277 ~3: c:/Users/levi/eink_launcher/test/reader/reader_search_screen_test.dart: searches on submission, paginates, and returns a logical match
+00:20 +278 ~3: c:/Users/levi/eink_launcher/test/reader/reader_search_screen_test.dart: searches on submission, paginates, and returns a logical match
+00:20 +279 ~3: c:/Users/levi/eink_launcher/test/reader/reader_search_screen_test.dart: searches on submission, paginates, and returns a logical match
+00:20 +280 ~3: c:/Users/levi/eink_launcher/test/reader/reader_search_screen_test.dart: searches on submission, paginates, and returns a logical match
+00:20 +281 ~3: c:/Users/levi/eink_launcher/test/reader/reader_search_screen_test.dart: searches on submission, paginates, and returns a logical match
+00:20 +282 ~3: c:/Users/levi/eink_launcher/test/reader/reader_search_screen_test.dart: searches on submission, paginates, and returns a logical match
+00:20 +283 ~3: c:/Users/levi/eink_launcher/test/reader/reader_settings_screen_test.dart: fit height shows only the crop control
+00:20 +284 ~3: c:/Users/levi/eink_launcher/test/reader/reader_settings_screen_test.dart: fit height shows only the crop control
+00:21 +285 ~3: c:/Users/levi/eink_launcher/test/reader/reader_settings_screen_test.dart: fit height shows only the crop control
+00:21 +286 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:21 +287 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:21 +288 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:21 +289 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:21 +290 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:21 +291 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:21 +292 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:21 +293 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:21 +294 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:22 +295 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:22 +296 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:22 +297 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:22 +298 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:22 +299 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:22 +300 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: physical page buttons navigate the reader and dismiss its menu
+00:22 +301 ~3: c:/Users/levi/eink_launcher/test/reader/reading_continuation_guide_test.dart: arrows mark both screen edges without blocking touch or covering the center
+00:22 +302 ~3: c:/Users/levi/eink_launcher/test/reader/reading_continuation_guide_test.dart: arrows mark both screen edges without blocking touch or covering the center
+00:22 +303 ~3: c:/Users/levi/eink_launcher/test/reader/reading_continuation_guide_test.dart: arrows mark both screen edges without blocking touch or covering the center
+00:22 +304 ~3: c:/Users/levi/eink_launcher/test/reader/reading_continuation_guide_test.dart: arrows mark both screen edges without blocking touch or covering the center
+00:22 +305 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: switch and close use one route, preserve positions and choose MRU
+00:23 +306 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: switch and close use one route, preserve positions and choose MRU
+00:23 +307 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: switch and close use one route, preserve positions and choose MRU
+00:23 +308 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: switch and close use one route, preserve positions and choose MRU
+00:23 +309 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: switch and close use one route, preserve positions and choose MRU
+00:23 +310 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: switch and close use one route, preserve positions and choose MRU
+00:23 +311 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: switch and close use one route, preserve positions and choose MRU
+00:24 +312 ~3: c:/Users/levi/eink_launcher/test/reader/tanach_pagination_test.dart: study controls fit a narrow reader and persist selected settings
+00:24 +313 ~3: c:/Users/levi/eink_launcher/test/reader/tanach_pagination_test.dart: study controls fit a narrow reader and persist selected settings
+00:24 +314 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back retains the tab and reopening an active session skips loading
+00:24 +315 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back retains the tab and reopening an active session skips loading
+00:24 +316 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back retains the tab and reopening an active session skips loading
+00:24 +317 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back retains the tab and reopening an active session skips loading
+00:24 +318 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back retains the tab and reopening an active session skips loading
+00:24 +319 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back retains the tab and reopening an active session skips loading
+00:24 +320 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back retains the tab and reopening an active session skips loading
+00:24 +321 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back retains the tab and reopening an active session skips loading
+00:24 +322 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back retains the tab and reopening an active session skips loading
+00:24 +323 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back retains the tab and reopening an active session skips loading
+00:24 +324 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back retains the tab and reopening an active session skips loading
+00:24 +325 ~3: c:/Users/levi/eink_launcher/test/reader/text_page_view_test.dart: renders the supplied clip-and-offset page slices
+00:25 +326 ~3: c:/Users/levi/eink_launcher/test/reader/text_reader_session_test.dart: opens, paginates, navigates, and persists logical positions
+00:25 +327 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +328 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +329 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +330 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +331 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +332 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +333 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +334 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +335 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +336 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +337 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +338 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +339 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +340 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +341 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +342 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +343 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +344 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +345 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +346 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: closing a loading tab ignores its late completion
+00:25 +347 ~3: c:/Users/levi/eink_launcher/test/reader/text_reader_settings_screen_test.dart: text settings expose discrete typography controls
+00:25 +348 ~3: c:/Users/levi/eink_launcher/test/reader/text_reader_settings_screen_test.dart: text settings expose discrete typography controls
+00:26 +349 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: rapid switches during an open recover the final selected tab
+00:26 +350 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: rapid switches during an open recover the final selected tab
+00:26 +351 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: rapid switches during an open recover the final selected tab
+00:26 +352 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: rapid switches during an open recover the final selected tab
+00:26 +353 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: rapid switches during an open recover the final selected tab
+00:26 +354 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: rapid switches during an open recover the final selected tab
+00:26 +355 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: rapid switches during an open recover the final selected tab
+00:26 +356 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: rapid switches during an open recover the final selected tab
+00:26 +357 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: rapid switches during an open recover the final selected tab
+00:27 +358 ~3: c:/Users/levi/eink_launcher/test/search_overlay_test.dart: search scopes remain explicit and reachable above a keyboard
+00:27 +359 ~3: c:/Users/levi/eink_launcher/test/widget_test.dart: File browser renders its app bar
+00:27 +360 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: cached resume clears loading even without an intervening paused frame
+00:28 +361 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: Back while restoring metadata retains the opening tab without opening a session
+00:28 +362 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: PDF preview remains until first rendered content and releases its image
+00:29 +363 ~3: c:/Users/levi/eink_launcher/test/reader/reader_tabs_screen_test.dart: late PDF preview is disposed after Back without reopening reader
+00:29 +364 ~3: All tests passed!

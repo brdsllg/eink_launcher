@@ -8,13 +8,16 @@ import 'package:path_provider/path_provider.dart';
 import '../models/content_block.dart';
 import '../models/doc_ref.dart';
 import '../models/parsed_book.dart';
+import '../models/reader_settings.dart';
 import '../models/toc_entry.dart';
 import 'epub_parser_service.dart';
+import 'tanach_layout_service.dart';
+import 'tanach_sqlite_cache_service.dart';
 
 /// Disposable, versioned parse cache. Images are included so a hit never needs
 /// to reopen the ZIP. Source metadata and CSS mode invalidate stale blocks.
 class ParsedEpubCacheService {
-  static const version = 3;
+  static const version = 4;
   static const maxBytes = 64 * 1024 * 1024;
   final Directory? cacheDirectory;
   const ParsedEpubCacheService({this.cacheDirectory});
@@ -26,6 +29,7 @@ class ParsedEpubCacheService {
   }) async {
     String? cachePath;
     String? fingerprint;
+    TanachSqliteCacheService? tanachCache;
     try {
       final stat = await File(doc.path).stat();
       if (stat.type != FileSystemEntityType.file) {
@@ -42,10 +46,21 @@ class ParsedEpubCacheService {
           Directory(
             '${(await getApplicationCacheDirectory()).path}/parsed_epubs',
           );
+      tanachCache = TanachSqliteCacheService(
+        cacheDirectory: Directory('${directory.path}/tanach_sqlite'),
+      );
+      final indexed = await tanachCache.loadIfCurrent(
+        doc,
+        fingerprint: fingerprint,
+      );
+      if (indexed != null) return indexed;
       cachePath = '${directory.path}/$key.json';
       final path = cachePath;
       final cached = await Isolate.run(() => _read(path));
-      if (cached != null) return cached;
+      if (cached != null) {
+        if (cached.studyDocuments.isEmpty) return cached;
+        return await tanachCache.import(doc, cached, fingerprint: fingerprint);
+      }
     } catch (_) {
       // Cache availability never determines whether the original can open.
     }
@@ -54,7 +69,22 @@ class ParsedEpubCacheService {
             const EpubParserService().parseFile(
               doc.path,
               honorPublisherCss: honorPublisherCss,
+              projectStudy: false,
             ));
+    if (book.studyDocuments.isNotEmpty &&
+        tanachCache != null &&
+        fingerprint != null) {
+      try {
+        return await tanachCache.import(doc, book, fingerprint: fingerprint);
+      } catch (_) {
+        // A database cache is an optimization. Preserve the old fully parsed
+        // path if storage is unavailable or SQLite cannot initialize.
+        return TanachLayoutService.layout(
+          book,
+          ReaderSettings(honorPublisherCss: honorPublisherCss),
+        );
+      }
+    }
     if (cachePath != null) {
       try {
         if (await _fingerprint(doc.path) == fingerprint) {

@@ -40,11 +40,11 @@ class TextSearchService {
     int maxResults = 1000,
   }) {
     if (maxResults < 1) throw ArgumentError.value(maxResults, 'maxResults');
-    return Isolate.run(() => _search(spine, query, maxResults));
+    return Isolate.run(() => searchTextSpine(spine, query, maxResults));
   }
 }
 
-TextSearchResults _search(
+TextSearchResults searchTextSpine(
   List<ParsedSpineItem> spine,
   String query,
   int maxResults,
@@ -72,6 +72,8 @@ TextSearchResults _search(
         matches.add(
           TextSearchMatch(
             position: TextReadingPosition(
+              documentPath: chapter.href,
+              blockId: block.id,
               spineIndex: spineIndex,
               blockIndex: blockIndex,
               charOffset: start,

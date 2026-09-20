@@ -62,3 +62,19 @@ refresh mode:
 4. Record time to first useful preview separately from time to sharp text.
 5. If white persists, an external-camera video plus app timing/memory data can
    distinguish missing app pixels from panel refresh behavior.
+
+## 2026-09-18 physical page buttons resolved
+
+The buttons stopped responding inside the launcher while continuing to work in
+other apps, and Force stop, a device reboot, and installing a rebuilt APK all
+failed to restore them. Reader settings still showed physical page buttons
+enabled, so the app was not refusing the presses: the device was not delivering
+any supported keycode to this app's window. Assigning the Bigme's side buttons to
+D-pad Left/Right in the firmware fixed it immediately.
+
+The cause sits outside the app in the firmware's per-app button assignment. A
+mapping that emits none of Android's 21/22, 24/25, or 92/93 keycodes makes the
+buttons look dead here while other apps keep working, and no rebuild of the app
+can change that. Record the device's button assignment when reporting a button
+problem; [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md) lists the accepted pairs.
+

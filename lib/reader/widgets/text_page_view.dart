@@ -32,6 +32,8 @@ class _TextPageViewState extends State<TextPageView> {
     bool addNote,
   ) async {
     final docId = widget.session.doc.id;
+    final chapter = widget.session.book!.spine[spineIndex];
+    final blockId = chapter.blocks[blockIndex].id;
     final note = addNote ? await showAnnotationEditor(context) : null;
     if (!mounted ||
         widget.session.doc.id != docId ||
@@ -58,6 +60,8 @@ class _TextPageViewState extends State<TextPageView> {
       createdAt: DateTime.now(),
       spineIndex: spineIndex,
       blockIndex: blockIndex,
+      documentPath: chapter.href,
+      blockId: blockId,
       startOffset: range.start,
       endOffset: range.end,
       text: text,
@@ -149,9 +153,11 @@ class _TextPageViewState extends State<TextPageView> {
                     ),
                     annotations: annotations
                         .where(
-                          (a) =>
-                              a.spineIndex == page.start.spineIndex &&
-                              a.blockIndex == slice.blockIndex,
+                          (a) => a.matchesBlock(
+                            widget.session.book!.spine[page.start.spineIndex],
+                            page.start.spineIndex,
+                            slice.blockIndex,
+                          ),
                         )
                         .toList(),
                     onOpenAnnotation: _openAnnotation,

@@ -17,6 +17,8 @@ class ParsedSpineItem {
   final List<ContentBlock> blocks;
   final Map<String, int> anchors;
   final int characterCount;
+  final bool isLoaded;
+  final bool isLazy;
 
   ParsedSpineItem({
     required this.id,
@@ -24,10 +26,12 @@ class ParsedSpineItem {
     this.title,
     required this.blocks,
     this.anchors = const {},
-  }) : characterCount = blocks.fold(
-         0,
-         (total, block) => total + block.characterCount,
-       );
+    int? characterCount,
+    this.isLoaded = true,
+    this.isLazy = false,
+  }) : characterCount =
+           characterCount ??
+           blocks.fold(0, (total, block) => total + block.characterCount);
 }
 
 class ParsedBook {
@@ -46,6 +50,11 @@ class ParsedBook {
   final List<TocEntry> tableOfContents;
   final List<int> cumulativeCharacterCounts;
 
+  /// Path to a disposable, fingerprinted Tanach content cache. When present,
+  /// [spine] may contain unloaded chapter placeholders; the reader fetches
+  /// their blocks on demand instead of retaining the complete EPUB DOM.
+  final String? tanachDatabasePath;
+
   ParsedBook({
     this.studyDocuments = const {},
     this.studySources = const [],
@@ -60,7 +69,10 @@ class ParsedBook {
     required this.spine,
     this.resources = const {},
     this.tableOfContents = const [],
+    this.tanachDatabasePath,
   }) : cumulativeCharacterCounts = _buildCumulativeCounts(spine);
+
+  bool get hasLazyTanachContent => tanachDatabasePath != null;
 
   int get characterCount =>
       cumulativeCharacterCounts.isEmpty ? 0 : cumulativeCharacterCounts.last;

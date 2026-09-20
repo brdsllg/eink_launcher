@@ -40,9 +40,7 @@ class TanachLayoutService {
     if (book.studyProjectionKey == projectionKey) return book;
     final documents = {
       for (final entry in book.studyDocuments.entries)
-        if (entry.value.contains('data-ref') ||
-            entry.value.contains('data-category'))
-          entry.key: html.parse(entry.value),
+        entry.key: html.parse(entry.value),
     };
     final targets = <String, Element>{};
     final sources = <String>{};
@@ -230,7 +228,11 @@ class TanachLayoutService {
       }
     }
     final spine = book.spine.map((item) {
-      if (!changedPaths.contains(item.href)) return item;
+      if (item.isLoaded &&
+          !changedPaths.contains(item.href) &&
+          !recognizes(book.studyDocuments[item.href] ?? '')) {
+        return item;
+      }
       final document = documents[item.href];
       if (document == null) return item;
       final anchors = <String, int>{};
@@ -265,8 +267,12 @@ class TanachLayoutService {
         position: si < 0
             ? entry.position
             : TextReadingPosition(
+                documentPath: path,
+                blockId: target!.contains('#')
+                    ? Uri.decodeComponent(target.split('#').last)
+                    : null,
                 spineIndex: si,
-                blockIndex: target!.contains('#')
+                blockIndex: target.contains('#')
                     ? spine[si].anchors[Uri.decodeComponent(
                             target.split('#').last,
                           )] ??
@@ -294,6 +300,7 @@ class TanachLayoutService {
       studyProjectionKey: projectionKey,
       contentFingerprint: book.contentFingerprint,
       rightToLeft: book.rightToLeft,
+      tanachDatabasePath: book.tanachDatabasePath,
     );
   }
 

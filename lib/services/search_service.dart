@@ -18,6 +18,9 @@ class SearchParams {
 /// cancelled mid-flight via [cancel].
 class StreamingSearchService {
   Isolate? _isolate;
+  Future<void>? _initializing;
+  int _generation = 0;
+  bool _disposed = false;
   SendPort? _commandPort;
   StreamSubscription? _resultSubscription;
   ReceivePort? _resultPort;
@@ -31,11 +34,15 @@ class StreamingSearchService {
     required void Function(FileEntry entry) onResult,
     required void Function() onDone,
   }) async {
+    final generation = ++_generation;
     await _cancelCurrentSearch();
-    await _ensureIsolate();
+    if (_disposed || generation != _generation) return;
+    await (_initializing ??= _ensureIsolate());
+    if (_disposed || generation != _generation) return;
 
     _resultPort = ReceivePort();
     _resultSubscription = _resultPort!.listen((message) {
+      if (_disposed || generation != _generation) return;
       if (message == null) {
         onDone();
       } else if (message is FileEntry) {
@@ -53,6 +60,7 @@ class StreamingSearchService {
 
   /// Cancels the in-flight search. Safe to call even if nothing is running.
   Future<void> cancel() async {
+    _generation++;
     await _cancelCurrentSearch();
   }
 
@@ -72,17 +80,22 @@ class StreamingSearchService {
 
     _commandPort = await initPort.first as SendPort;
     initPort.close();
+    if (_disposed) {
+      _isolate?.kill(priority: Isolate.immediate);
+      _isolate = null;
+      _commandPort = null;
+    }
   }
 
   static void _isolateMain(SendPort initSendPort) {
     final commandPort = ReceivePort();
     initSendPort.send(commandPort.sendPort);
 
-    bool cancelled = false;
+    var generation = 0;
 
-    commandPort.listen((message) {
+    commandPort.listen((message) async {
       if (message == 'cancel') {
-        cancelled = true;
+        generation++;
         return;
       }
 
@@ -92,44 +105,41 @@ class StreamingSearchService {
       final maxResults = args[2] as int;
       final replyPort = args[3] as SendPort;
 
-      cancelled = false;
+      final current = ++generation;
       int found = 0;
       final queryLower = query.toLowerCase();
 
-      void walk(String dirPath) {
-        if (cancelled || found >= maxResults) return;
-
-        List<FileSystemEntity> children;
+      Future<void> walk(String dirPath) async {
+        if (current != generation || found >= maxResults) return;
         try {
-          children = Directory(dirPath).listSync(followLinks: false);
-        } catch (_) {
-          return;
-        }
-
-        for (final child in children) {
-          if (cancelled || found >= maxResults) return;
-
-          final name = child.path.split('/').last;
-          final isDir = child is Directory;
-
-          if (name.toLowerCase().contains(queryLower)) {
-            replyPort.send(
-              FileEntry(path: child.path, name: name, isDirectory: isDir),
-            );
-            found++;
+          await for (final child in Directory(
+            dirPath,
+          ).list(followLinks: false)) {
+            if (current != generation || found >= maxResults) return;
+            final name = child.path.replaceAll('\\', '/').split('/').last;
+            final isDir = child is Directory;
+            if (name.toLowerCase().contains(queryLower)) {
+              replyPort.send(
+                FileEntry(path: child.path, name: name, isDirectory: isDir),
+              );
+              found++;
+            }
+            if (isDir) await walk(child.path);
           }
-          if (isDir) {
-            walk(child.path);
-          }
+        } on FileSystemException {
+          // An unreadable folder does not abort the rest of the search.
         }
       }
 
-      walk(rootPath);
+      await walk(rootPath);
+      if (current != generation) return;
       replyPort.send(null);
     });
   }
 
   void dispose() {
+    _disposed = true;
+    _generation++;
     _resultSubscription?.cancel();
     _resultPort?.close();
     _isolate?.kill(priority: Isolate.immediate);

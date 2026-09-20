@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
+
 import 'package:markdown/markdown.dart' as markdown;
 
 import '../models/content_block.dart';
@@ -69,6 +71,7 @@ class TextBlockParser {
     );
     return ParsedBook(
       title: title,
+      contentFingerprint: sha256.convert(bytes).toString(),
       spine: [spine],
       tableOfContents: _headingToc(blocks),
     );

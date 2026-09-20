@@ -5,22 +5,17 @@ import '../models/file_entry.dart';
 import '../services/search_service.dart';
 import 'control_bar_row.dart';
 import 'inverting_ink_well.dart';
-import 'page_scroll_scope.dart';
 
 class SearchOverlay extends StatefulWidget {
   final String initialPath;
   final VoidCallback onClose;
   final ValueChanged<FileEntry> onEntrySelected;
 
-  /// Injectable for tests. The launcher uses the streaming isolate walk.
-  final StreamingSearchService? searchService;
-
   const SearchOverlay({
     super.key,
     required this.initialPath,
     required this.onClose,
     required this.onEntrySelected,
-    this.searchService,
   });
 
   @override
@@ -29,25 +24,15 @@ class SearchOverlay extends StatefulWidget {
 
 class _SearchOverlayState extends State<SearchOverlay> {
   final TextEditingController _controller = TextEditingController();
-  // Drives the results panel so a physical page button moves one screenful of
-  // matches, exactly like the paginated lists elsewhere in the app.
-  final ScrollController _scrollController = ScrollController();
-  late final StreamingSearchService _searchService;
+  final StreamingSearchService _searchService = StreamingSearchService();
   bool _wholeDevice = false;
   List<FileEntry> _results = [];
   String _status = '';
   int _searchToken = 0;
 
   @override
-  void initState() {
-    super.initState();
-    _searchService = widget.searchService ?? StreamingSearchService();
-  }
-
-  @override
   void dispose() {
     _controller.dispose();
-    _scrollController.dispose();
     _searchService.dispose();
     super.dispose();
   }
@@ -141,141 +126,120 @@ class _SearchOverlayState extends State<SearchOverlay> {
           child: DecoratedBox(
             position: DecorationPosition.foreground,
             decoration: BoxDecoration(border: Border.all(color: Colors.black)),
-            child: PageScrollScope(
-              controller: _scrollController,
-              // The search field keeps focus while results stream in, so opt
-              // into page and volume paging here; its caret keys stay its own.
-              allowWhileEditingText: true,
-              child: Material(
-                color: Colors.white,
-                // One bounded viewport lets the controls scroll into view even
-                // when a landscape keyboard leaves less than two rows of space.
-                child: CustomScrollView(
-                  key: const Key('file-search-panel'),
-                  controller: _scrollController,
-                  shrinkWrap: true,
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: ControlBarRow(
-                        children: [
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              child: Center(
-                                child: TextField(
-                                  controller: _controller,
-                                  autofocus: true,
-                                  textInputAction: TextInputAction.search,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Search filenames…',
-                                    border: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    contentPadding: EdgeInsets.zero,
-                                    isDense: true,
-                                  ),
-                                  onSubmitted: (_) => _runSearch(),
+            child: Material(
+              color: Colors.white,
+              // One bounded viewport lets the controls scroll into view even
+              // when a landscape keyboard leaves less than two rows of space.
+              child: CustomScrollView(
+                key: const Key('file-search-panel'),
+                shrinkWrap: true,
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: ControlBarRow(
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Center(
+                              child: TextField(
+                                controller: _controller,
+                                autofocus: true,
+                                textInputAction: TextInputAction.search,
+                                decoration: const InputDecoration(
+                                  hintText: 'Search filenames…',
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  contentPadding: EdgeInsets.zero,
+                                  isDense: true,
                                 ),
+                                onSubmitted: (_) => _runSearch(),
                               ),
                             ),
                           ),
-                          SizedBox(
-                            width: kReaderChromeRowHeight,
-                            child: IconButton(
-                              tooltip: 'Search',
-                              icon: const Icon(Icons.search),
-                              onPressed: _runSearch,
-                            ),
-                          ),
-                          SizedBox(
-                            width: kReaderChromeRowHeight,
-                            child: IconButton(
-                              tooltip: 'Close search',
-                              icon: const Icon(Icons.close),
-                              onPressed: widget.onClose,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SliverToBoxAdapter(
-                      child: Divider(
-                        height: 1,
-                        thickness: 1,
-                        color: Colors.black,
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: ControlBarRow(
-                        spans: const [1, 1],
-                        children: [
-                          _scopeButton(
-                            wholeDevice: false,
-                            label: 'This folder',
-                          ),
-                          _scopeButton(
-                            wholeDevice: true,
-                            label: 'Whole device',
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_status.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: const BoxDecoration(
-                            border: Border(
-                              top: BorderSide(color: Colors.black),
-                            ),
-                          ),
-                          child: Text(_status),
                         ),
-                      ),
-                    SliverList.builder(
-                      itemCount: _results.length,
-                      itemBuilder: (context, index) {
-                        final entry = _results[index];
-                        return DecoratedBox(
-                          position: DecorationPosition.foreground,
-                          decoration: const BoxDecoration(
-                            border: Border(
-                              top: BorderSide(color: Colors.black),
-                            ),
+                        SizedBox(
+                          width: kReaderChromeRowHeight,
+                          child: IconButton(
+                            tooltip: 'Search',
+                            icon: const Icon(Icons.search),
+                            onPressed: _runSearch,
                           ),
-                          child: InvertingInkWell(
-                            onTap: () => widget.onEntrySelected(entry),
-                            child: ListTile(
-                              minTileHeight: kReaderChromeRowHeight,
-                              leading: SizedBox(
-                                width: 24,
-                                child: Icon(
-                                  entry.isDirectory
-                                      ? Icons.folder_outlined
-                                      : Icons.insert_drive_file_outlined,
-                                ),
-                              ),
-                              title: Text(
-                                entry.isDirectory
-                                    ? '${entry.name}/'
-                                    : entry.name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: Text(
-                                entry.path,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+                        ),
+                        SizedBox(
+                          width: kReaderChromeRowHeight,
+                          child: IconButton(
+                            tooltip: 'Close search',
+                            icon: const Icon(Icons.close),
+                            onPressed: widget.onClose,
                           ),
-                        );
-                      },
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SliverToBoxAdapter(
+                    child: Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.black,
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: ControlBarRow(
+                      spans: const [1, 1],
+                      children: [
+                        _scopeButton(wholeDevice: false, label: 'This folder'),
+                        _scopeButton(wholeDevice: true, label: 'Whole device'),
+                      ],
+                    ),
+                  ),
+                  if (_status.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: const BoxDecoration(
+                          border: Border(top: BorderSide(color: Colors.black)),
+                        ),
+                        child: Text(_status),
+                      ),
+                    ),
+                  SliverList.builder(
+                    itemCount: _results.length,
+                    itemBuilder: (context, index) {
+                      final entry = _results[index];
+                      return DecoratedBox(
+                        position: DecorationPosition.foreground,
+                        decoration: const BoxDecoration(
+                          border: Border(top: BorderSide(color: Colors.black)),
+                        ),
+                        child: InvertingInkWell(
+                          onTap: () => widget.onEntrySelected(entry),
+                          child: ListTile(
+                            minTileHeight: kReaderChromeRowHeight,
+                            leading: SizedBox(
+                              width: 24,
+                              child: Icon(
+                                entry.isDirectory
+                                    ? Icons.folder_outlined
+                                    : Icons.insert_drive_file_outlined,
+                              ),
+                            ),
+                            title: Text(
+                              entry.isDirectory ? '${entry.name}/' : entry.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              entry.path,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ),

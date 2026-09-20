@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:io';
 
 import '../services/tanach_layout_service.dart';
+import '../services/tanach_sqlite_cache_service.dart';
+import '../services/tanach_sqlite_search_service.dart';
+import '../services/text_search_service.dart';
 
 import 'dart:ui';
 
@@ -35,8 +39,37 @@ class TextReaderSession extends ReaderSession {
   final EpubPaginatorService _paginator;
   final PaginationCacheService _paginationCache;
   final TextBookLoader _bookLoader;
+  final TanachSqliteCacheService _tanachCache;
 
   ParsedBook? _book;
+  String? _pinnedDatabase;
+  Future<void>? _recoveringDatabase;
+
+  void _pinDatabase(String? path) {
+    if (_pinnedDatabase == path) return;
+    if (_pinnedDatabase != null) {
+      TanachSqliteCacheService.release(_pinnedDatabase!);
+    }
+    _pinnedDatabase = path;
+    if (path != null) TanachSqliteCacheService.retain(path);
+  }
+
+  Future<void> _ensureDatabase() async {
+    final path = _book?.tanachDatabasePath;
+    if (path == null || await File(path).exists()) return;
+    await (_recoveringDatabase ??= _recoverDatabase());
+  }
+
+  Future<void> _recoverDatabase() async {
+    try {
+      // The cache is disposable; reconstruct it from the original EPUB if the
+      // operating system removed it while the reader was suspended.
+      await _bookLoader(doc, _settings.honorPublisherCss);
+    } finally {
+      _recoveringDatabase = null;
+    }
+  }
+
   int _settingsGeneration = 0;
   final List<TextReadingPosition> _linkHistory = [];
   bool get canGoBackFromLink => _linkHistory.isNotEmpty;
@@ -63,6 +96,8 @@ class TextReaderSession extends ReaderSession {
   bool _isSuspended = false;
   bool _isPaginating = false;
   String? _error;
+  final List<int> _chapterUseOrder = [];
+  static const int _maxResidentTanachChapters = 3;
 
   TextReaderSession({
     required this.doc,
@@ -70,9 +105,11 @@ class TextReaderSession extends ReaderSession {
     EpubPaginatorService? paginator,
     PaginationCacheService? paginationCache,
     TextBookLoader? bookLoader,
+    TanachSqliteCacheService? tanachCache,
   }) : _bookStore = bookStore ?? BookStoreService.instance,
        _paginator = paginator ?? const EpubPaginatorService(),
        _paginationCache = paginationCache ?? const PaginationCacheService(),
+       _tanachCache = tanachCache ?? const TanachSqliteCacheService(),
        _bookLoader = bookLoader ?? _loadBook;
 
   static Future<ParsedBook> _loadBook(DocRef doc, bool honorPublisherCss) {
@@ -125,10 +162,18 @@ class TextReaderSession extends ReaderSession {
       read = book.cumulativeCharacterCounts[_position.spineIndex - 1];
     }
     final spine = book.spine[_position.spineIndex];
+    var within = 0;
     for (var i = 0; i < _position.blockIndex && i < spine.blocks.length; i++) {
-      read += spine.blocks[i].characterCount;
+      within += spine.blocks[i].characterCount;
     }
-    read += _position.charOffset;
+    within += _position.charOffset;
+    final displayed = spine.blocks.fold<int>(
+      0,
+      (sum, block) => sum + block.characterCount,
+    );
+    read += spine.isLazy && displayed > 0
+        ? (within * spine.characterCount / displayed).round()
+        : within;
     return (read / book.characterCount).clamp(0.0, 1.0);
   }
 
@@ -145,6 +190,18 @@ class TextReaderSession extends ReaderSession {
   List<Bookmark> get bookmarks => _bookmarks;
 
   ParsedBook? get book => _book;
+
+  TextSearchService get searchService {
+    final book = _book;
+    final path = book?.tanachDatabasePath;
+    return path == null
+        ? const TextSearchService()
+        : TanachSqliteSearchService(
+            databasePath: path,
+            settings: _settings,
+            ensureDatabase: _ensureDatabase,
+          );
+  }
 
   LaidOutPage? get currentLaidOutPage =>
       _pages.isEmpty ? null : _pages[_currentPage];
@@ -166,7 +223,15 @@ class TextReaderSession extends ReaderSession {
         throw const FormatException('The document contains no reading spine.');
       }
       final settings = _settings;
-      final projected = book.studyDocuments.isEmpty
+      _book = book;
+      _pinDatabase(book.tanachDatabasePath);
+      if (book.hasLazyTanachContent) {
+        final target = _spineIndexForPosition(_position, book);
+        await _ensureChapterLoaded(target, settings: settings);
+      }
+      final projected = book.hasLazyTanachContent
+          ? _book!
+          : book.studyDocuments.isEmpty
           ? book
           : await _project(book, settings);
       if (_disposed || generation != _lifecycleGeneration) return;
@@ -208,8 +273,10 @@ class TextReaderSession extends ReaderSession {
     _savedPercent = percent;
     _retainedPageCount = pageCount;
     _book = null;
+    _pinDatabase(null);
     _pages = const [];
     _chapterPages.clear();
+    _chapterUseOrder.clear();
     notifyListeners();
   }
 
@@ -219,8 +286,10 @@ class TextReaderSession extends ReaderSession {
     _lifecycleGeneration++;
     _paginationGeneration++;
     _book = null;
+    _pinDatabase(null);
     _pages = const [];
     _chapterPages.clear();
+    _chapterUseOrder.clear();
     super.dispose();
   }
 
@@ -267,27 +336,55 @@ class TextReaderSession extends ReaderSession {
 
   @override
   Future<void> nextPage() async {
-    if (!_isReady || _currentPage >= _pages.length - 1) return;
-    _setCurrentPage(_currentPage + 1);
+    if (!_isReady) return;
+    if (_currentPage >= _pages.length - 1) {
+      final nextSpine = _position.spineIndex + 1;
+      if (_book == null || nextSpine >= _book!.spine.length) return;
+      await _ensureChapterPages(nextSpine);
+    }
+    if (_currentPage >= _pages.length - 1) return;
+    final targetPage = _currentPage + 1;
+    await _ensureChapterLoaded(_pages[targetPage].start.spineIndex);
+    _setCurrentPage(targetPage);
+    _trimResidentChapters();
   }
 
   @override
   Future<void> prevPage() async {
-    if (!_isReady || _currentPage <= 0) return;
-    _setCurrentPage(_currentPage - 1);
+    if (!_isReady) return;
+    if (_currentPage <= 0) {
+      final previousSpine = _position.spineIndex - 1;
+      if (previousSpine < 0) return;
+      await _ensureChapterPages(previousSpine);
+      _currentPage = _pageIndexForPosition(_position);
+    }
+    if (_currentPage <= 0) return;
+    final targetPage = _currentPage - 1;
+    await _ensureChapterLoaded(_pages[targetPage].start.spineIndex);
+    _setCurrentPage(targetPage);
+    _trimResidentChapters();
   }
 
   @override
   Future<void> goToPage(int pageIndex) async {
     if (!_isReady || _pages.isEmpty) return;
-    _setCurrentPage(pageIndex.clamp(0, _pages.length - 1));
+    final target = pageIndex.clamp(0, _pages.length - 1);
+    await _ensureChapterLoaded(_pages[target].start.spineIndex);
+    _setCurrentPage(target);
+    _trimResidentChapters();
   }
 
   @override
   Future<void> goToToc(TocEntry entry) async {
     final target = entry.position;
     if (!_isReady || target is! TextReadingPosition) return;
+    final book = _book;
+    if (book != null && book.hasLazyTanachContent) {
+      final spineIndex = _spineIndexForPosition(target, book);
+      await _ensureChapterPages(spineIndex);
+    }
     _goToPosition(target);
+    _trimResidentChapters();
   }
 
   bool openLink(String href) {
@@ -328,12 +425,24 @@ class TextReaderSession extends ReaderSession {
       (count) => count > targetCharacter,
     );
     if (spineIndex < 0) spineIndex = book.spine.length - 1;
+    if (book.hasLazyTanachContent) {
+      await _ensureChapterPages(spineIndex);
+    }
+    final currentBook = _book!;
     final beforeSpine = spineIndex == 0
         ? 0
-        : book.cumulativeCharacterCounts[spineIndex - 1];
+        : currentBook.cumulativeCharacterCounts[spineIndex - 1];
     var remaining = targetCharacter - beforeSpine;
-    final blocks = book.spine[spineIndex].blocks;
+    final blocks = currentBook.spine[spineIndex].blocks;
     if (blocks.isEmpty) return;
+    final chapter = currentBook.spine[spineIndex];
+    if (chapter.isLazy && chapter.characterCount > 0) {
+      final displayed = blocks.fold<int>(
+        0,
+        (sum, block) => sum + block.characterCount,
+      );
+      remaining = (remaining * displayed / chapter.characterCount).round();
+    }
     var blockIndex = 0;
     while (blockIndex < blocks.length - 1 &&
         remaining >= blocks[blockIndex].characterCount) {
@@ -347,6 +456,7 @@ class TextReaderSession extends ReaderSession {
         charOffset: remaining.clamp(0, blocks[blockIndex].characterCount),
       ),
     );
+    _trimResidentChapters();
   }
 
   @override
@@ -390,7 +500,8 @@ class TextReaderSession extends ReaderSession {
           throw const FormatException('Empty reading spine.');
         }
         _book = book;
-        _clampPositionToBook();
+        _pinDatabase(book.tanachDatabasePath);
+        if (!book.hasLazyTanachContent) _clampPositionToBook();
         _retainedToc = book.tableOfContents;
       } catch (error) {
         if (_disposed || generation != _lifecycleGeneration) return;
@@ -401,7 +512,21 @@ class TextReaderSession extends ReaderSession {
       }
     }
     final source = _book;
-    if (source != null && source.studyDocuments.isNotEmpty) {
+    if (source != null && source.hasLazyTanachContent) {
+      _book = _unloadLazyChapters(source);
+      _chapterUseOrder.clear();
+      await _ensureChapterLoaded(
+        _spineIndexForPosition(_position, _book!),
+        settings: settings,
+      );
+      if (_disposed ||
+          generation != _lifecycleGeneration ||
+          settingsGeneration != _settingsGeneration) {
+        return;
+      }
+      _clampPositionToBook();
+      _retainedToc = _book!.tableOfContents;
+    } else if (source != null && source.studyDocuments.isNotEmpty) {
       final projected = await _project(source, settings);
       if (_disposed ||
           generation != _lifecycleGeneration ||
@@ -455,7 +580,13 @@ class TextReaderSession extends ReaderSession {
           return;
         }
         if (pages == null) {
-          final blocks = book.spine[spineIndex].blocks;
+          await _ensureChapterLoaded(spineIndex);
+          if (generation != _paginationGeneration ||
+              _isSuspended ||
+              _disposed) {
+            return;
+          }
+          final blocks = _book!.spine[spineIndex].blocks;
           if (blocks.length > 256) {
             pages = await _paginator.paginateSpineResponsive(
               spineIndex: spineIndex,
@@ -486,7 +617,9 @@ class TextReaderSession extends ReaderSession {
               settings: _settings,
             );
           }
-          if (_disposed || _isSuspended || generation != _paginationGeneration) {
+          if (_disposed ||
+              _isSuspended ||
+              generation != _paginationGeneration) {
             return;
           }
           unawaited(_savePages(cacheKey, pages));
@@ -494,6 +627,9 @@ class TextReaderSession extends ReaderSession {
         if (generation != _paginationGeneration || _isSuspended) return;
         _chapterPages[spineIndex] = pages;
         _rebuildPages();
+        if (book.hasLazyTanachContent && spineIndex != priority) {
+          _trimResidentChapters();
+        }
         notifyListeners();
         await Future<void>.delayed(Duration.zero);
       }
@@ -520,6 +656,162 @@ class TextReaderSession extends ReaderSession {
     } catch (_) {
       // A cache write is optional; a full disk must not interrupt reading.
     }
+  }
+
+  Future<void> _ensureChapterPages(int spineIndex) async {
+    final book = _book;
+    if (book == null || spineIndex < 0 || spineIndex >= book.spine.length) {
+      return;
+    }
+    await _ensureChapterLoaded(spineIndex);
+    if (_chapterPages.containsKey(spineIndex)) return;
+    final contentSize = _contentSize;
+    if (contentSize == null) return;
+    final liveBook = _book!;
+    final cacheKey = _paginationCache.keyFor(
+      docId: '${doc.id}:${liveBook.contentFingerprint}',
+      spineIndex: spineIndex,
+      width: contentSize.width,
+      height: contentSize.height,
+      settings: _settings,
+    );
+    var pages = await _paginationCache.load(cacheKey);
+    if (pages == null) {
+      final blocks = liveBook.spine[spineIndex].blocks;
+      pages = blocks.length > 256
+          ? await _paginator.paginateSpineResponsive(
+              spineIndex: spineIndex,
+              blocks: blocks,
+              contentSize: contentSize,
+              settings: _settings,
+              isCancelled: () => _disposed || _isSuspended,
+              onProgress: (_) {},
+            )
+          : _paginator.paginateSpine(
+              spineIndex: spineIndex,
+              blocks: blocks,
+              contentSize: contentSize,
+              settings: _settings,
+            );
+      unawaited(_savePages(cacheKey, pages));
+    }
+    if (_disposed || _isSuspended) return;
+    _chapterPages[spineIndex] = pages;
+    _rebuildPages();
+    notifyListeners();
+  }
+
+  Future<void> _ensureChapterLoaded(
+    int spineIndex, {
+    ReaderSettings? settings,
+  }) async {
+    final book = _book;
+    if (book == null ||
+        !book.hasLazyTanachContent ||
+        spineIndex < 0 ||
+        spineIndex >= book.spine.length) {
+      return;
+    }
+    if (book.spine[spineIndex].isLoaded) {
+      _touchChapter(spineIndex);
+      return;
+    }
+    final databasePath = book.tanachDatabasePath;
+    final settingsGeneration = _settingsGeneration;
+    await _ensureDatabase();
+    final loaded = await _tanachCache.loadChapter(
+      book,
+      spineIndex,
+      settings ?? _settings,
+    );
+    final current = _book;
+    if (_disposed ||
+        current == null ||
+        settingsGeneration != _settingsGeneration ||
+        current.tanachDatabasePath != databasePath ||
+        !current.spine[spineIndex].isLazy) {
+      return;
+    }
+    final spine = [...current.spine];
+    spine[spineIndex] = loaded;
+    _book = _copyBook(current, spine);
+    _touchChapter(spineIndex);
+  }
+
+  void _touchChapter(int spineIndex) {
+    _chapterUseOrder.remove(spineIndex);
+    _chapterUseOrder.add(spineIndex);
+  }
+
+  void _trimResidentChapters() {
+    final book = _book;
+    if (book == null || !book.hasLazyTanachContent) return;
+    final protected = _position.spineIndex;
+    while (_chapterUseOrder.length > _maxResidentTanachChapters) {
+      final candidate = _chapterUseOrder.firstWhere(
+        (index) => index != protected,
+        orElse: () => -1,
+      );
+      if (candidate < 0) return;
+      _chapterUseOrder.remove(candidate);
+      final current = _book!;
+      final item = current.spine[candidate];
+      if (!item.isLazy || !item.isLoaded) continue;
+      final spine = [...current.spine];
+      spine[candidate] = ParsedSpineItem(
+        id: item.id,
+        href: item.href,
+        title: item.title,
+        blocks: const [],
+        characterCount: item.characterCount,
+        isLoaded: false,
+        isLazy: true,
+      );
+      _book = _copyBook(current, spine);
+    }
+  }
+
+  ParsedBook _unloadLazyChapters(ParsedBook book) => _copyBook(book, [
+    for (final item in book.spine)
+      if (item.isLazy)
+        ParsedSpineItem(
+          id: item.id,
+          href: item.href,
+          title: item.title,
+          blocks: const [],
+          characterCount: item.characterCount,
+          isLoaded: false,
+          isLazy: true,
+        )
+      else
+        item,
+  ]);
+
+  ParsedBook _copyBook(ParsedBook book, List<ParsedSpineItem> spine) =>
+      ParsedBook(
+        title: book.title,
+        author: book.author,
+        language: book.language,
+        rightToLeft: book.rightToLeft,
+        contentFingerprint: book.contentFingerprint,
+        studyDocuments: book.studyDocuments,
+        studySources: book.studySources,
+        studyTranslations: book.studyTranslations,
+        primaryStudyTranslationId: book.primaryStudyTranslationId,
+        studyProjectionKey: book.studyProjectionKey,
+        spine: List.unmodifiable(spine),
+        resources: book.resources,
+        tableOfContents: book.tableOfContents,
+        tanachDatabasePath: book.tanachDatabasePath,
+      );
+
+  int _spineIndexForPosition(TextReadingPosition position, ParsedBook book) {
+    final byPath = book.spine.indexWhere(
+      (item) => item.href == position.documentPath,
+    );
+    return byPath >= 0
+        ? byPath
+        : position.spineIndex.clamp(0, book.spine.length - 1);
   }
 
   void _rebuildPages() {
@@ -634,7 +926,10 @@ class TextReaderSession extends ReaderSession {
 
   TextReadingPosition _anchoredPosition(TextReadingPosition position) {
     final book = _book;
-    if (book == null || book.studyDocuments.isEmpty) return position;
+    if (book == null ||
+        (book.studyDocuments.isEmpty && !book.hasLazyTanachContent)) {
+      return position;
+    }
     final item =
         book.spine[position.spineIndex.clamp(0, book.spine.length - 1)];
     if (item.blocks.isEmpty) return position;
