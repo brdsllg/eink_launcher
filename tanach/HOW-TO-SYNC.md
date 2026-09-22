@@ -1,3 +1,13 @@
+cd C:\Users\levi\eink_launcher\tanach
+python -X utf8 work/regenerate.py
+python -X utf8 work/validate.py
+python -X utf8 work/test_pipeline.py
+python -X utf8 work/check_heading_presentation.py
+python -X utf8 work/check_grouped_notes.py
+python -X utf8 work/package_full.py
+python -X utf8 work/package_samples.py
+
+
 # How to keep the Tanach files safe and move them between computers
 
 A plain-English guide. You do not need to know how to program to do any of this.
