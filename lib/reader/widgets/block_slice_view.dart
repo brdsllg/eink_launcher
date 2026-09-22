@@ -9,6 +9,7 @@ import '../services/epub_paginator_service.dart';
 import '../services/text_word_selection.dart';
 import '../services/annotation_text_mapping.dart';
 import 'selection_toolbar.dart';
+import 'tap_zone_layer.dart';
 
 class BlockSliceView extends StatefulWidget {
   final ContentBlock block;
@@ -16,6 +17,7 @@ class BlockSliceView extends StatefulWidget {
   final ReaderSettings settings;
   final double pageHeight;
   final Uint8List? imageBytes;
+  final Size? imageSize;
   final Future<void> Function(String word)? onDefineWord;
   final void Function(String href)? onOpenLink;
   final List<Annotation> annotations;
@@ -30,6 +32,7 @@ class BlockSliceView extends StatefulWidget {
     required this.settings,
     required this.pageHeight,
     this.imageBytes,
+    this.imageSize,
     this.onDefineWord,
     this.onOpenLink,
     this.annotations = const [],
@@ -246,6 +249,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
             width: constraints.maxWidth,
             pageHeight: pageHeight,
             settings: settings,
+            imageSize: widget.imageSize,
           );
           return OverlayPortal(
             controller: _overlay,
@@ -281,67 +285,70 @@ class _BlockSliceViewState extends State<BlockSliceView> {
       );
     }
     if (block.type == BlockType.image) {
-      return SizedBox(
-        height: layout.textHeight,
-        child: imageBytes == null
-            ? Center(child: Text(block.alternateText ?? 'Image'))
-            : ColorFiltered(
-                colorFilter: ColorFilter.matrix(
-                  settings.colorEnabled
-                      ? const [
-                          1,
-                          0,
-                          0,
-                          0,
-                          0,
-                          0,
-                          1,
-                          0,
-                          0,
-                          0,
-                          0,
-                          0,
-                          1,
-                          0,
-                          0,
-                          0,
-                          0,
-                          0,
-                          1,
-                          0,
-                        ]
-                      : const [
-                          .299,
-                          .587,
-                          .114,
-                          0,
-                          0,
-                          .299,
-                          .587,
-                          .114,
-                          0,
-                          0,
-                          .299,
-                          .587,
-                          .114,
-                          0,
-                          0,
-                          0,
-                          0,
-                          0,
-                          1,
-                          0,
-                        ],
+      return Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          height: layout.textHeight,
+          child: imageBytes == null
+              ? Center(child: Text(block.alternateText ?? 'Image'))
+              : ColorFiltered(
+                  colorFilter: ColorFilter.matrix(
+                    settings.colorEnabled
+                        ? const [
+                            1,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            1,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            1,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            1,
+                            0,
+                          ]
+                        : const [
+                            .299,
+                            .587,
+                            .114,
+                            0,
+                            0,
+                            .299,
+                            .587,
+                            .114,
+                            0,
+                            0,
+                            .299,
+                            .587,
+                            .114,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            1,
+                            0,
+                          ],
+                  ),
+                  child: Image.memory(
+                    imageBytes!,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.none,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) =>
+                        Center(child: Text(block.alternateText ?? 'Image')),
+                  ),
                 ),
-                child: Image.memory(
-                  imageBytes!,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.none,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, _, _) =>
-                      Center(child: Text(block.alternateText ?? 'Image')),
-                ),
-              ),
+        ),
       );
     }
     if (block.hasSplitLayout) {
@@ -364,7 +371,11 @@ class _BlockSliceViewState extends State<BlockSliceView> {
                   width,
                   details.localPosition,
                 );
-                if (href != null) widget.onOpenLink!(href);
+                if (href != null) {
+                  widget.onOpenLink!(href);
+                } else {
+                  TapZoneLayer.dispatchMiss(context, details.globalPosition);
+                }
               }
             : null,
         onLongPressStart:

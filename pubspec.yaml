@@ -37,6 +37,7 @@ dependencies:
   pdfrx: ^2.4.7
   path_provider: ^2.1.4
   crypto: ^3.0.5
+  ffi: ^2.2.0
   archive: ^4.2.0
   html: ^0.15.4
   hyphenatorx: ^1.0.0

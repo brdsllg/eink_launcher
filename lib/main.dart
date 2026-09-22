@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'reader/controllers/reader_session_registry.dart';
 import 'reader/services/book_store_service.dart';
+import 'reader/widgets/reading_state_warning.dart';
 import 'screens/file_browser_screen.dart';
 import 'services/launcher_error_service.dart';
 
@@ -79,6 +80,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'E-Ink Launcher',
+      builder: (context, child) => ReadingStateWarning(
+        store: BookStoreService.instance,
+        child: child ?? const SizedBox.shrink(),
+      ),
       // No "DEBUG" banner in the corner when running debug builds.
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

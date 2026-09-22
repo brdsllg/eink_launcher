@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../models/clipboard_state.dart';
+import 'no_replace_rename.dart';
 
 // All filesystem mutation for the file browser lives here so the screen stays
 // about layout/interaction. Uses only dart:io — no new packages.
@@ -46,13 +47,21 @@ class FileOperationsService {
   /// Renames the entry at [path] in place to [newName] (same parent).
   /// Throws on failure.
   Future<void> renameEntry(String path, String newName) async {
+    if (newName.isEmpty ||
+        newName == '.' ||
+        newName == '..' ||
+        newName.contains('/') ||
+        newName.contains('\\') ||
+        newName.contains('\u0000')) {
+      throw ArgumentError.value(
+        newName,
+        'newName',
+        'Expected a single file name',
+      );
+    }
     final parent = _parentOf(path);
     final newPath = '$parent/$newName';
-    if (Directory(path).existsSync()) {
-      await Directory(path).rename(newPath);
-    } else {
-      await File(path).rename(newPath);
-    }
+    renameWithoutReplacing(path, newPath);
   }
 
   /// Deletes each of [paths]. Folders are removed recursively.

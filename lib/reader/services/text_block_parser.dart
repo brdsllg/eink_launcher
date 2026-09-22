@@ -25,11 +25,39 @@ class TextBlockParser {
     bool honorPublisherCss = true,
   }) async {
     final bytes = await File(path).readAsBytes();
-    return parseBytes(
+    final parsed = await parseBytes(
       bytes,
       format: format,
       title: title,
       honorPublisherCss: honorPublisherCss,
+    );
+    if (format != DocFormat.markdown) return parsed;
+    final resources = <String, Uint8List>{};
+    for (final block in parsed.spine.expand((item) => item.blocks)) {
+      final reference = block.resourcePath;
+      if (reference == null || resources.containsKey(reference)) continue;
+      try {
+        final uri = File(path).absolute.uri.resolve(reference);
+        if (uri.scheme != 'file') continue;
+        resources[reference] = await File.fromUri(uri).readAsBytes();
+      } on FileSystemException {
+        // Missing images retain their alternate text.
+      } on FormatException {
+        // Unsupported/invalid references retain their alternate text.
+      }
+    }
+    return ParsedBook(
+      title: parsed.title,
+      spine: parsed.spine,
+      tableOfContents: parsed.tableOfContents,
+      resources: resources,
+      contentFingerprint: sha256
+          .convert(
+            utf8.encode(
+              '${parsed.contentFingerprint}:${resources.entries.map((e) => '${e.key}:${sha256.convert(e.value)}').join(':')}',
+            ),
+          )
+          .toString(),
     );
   }
 
@@ -138,6 +166,47 @@ class TextBlockParser {
       bytes.map((byte) {
         if (byte < 0x80) return byte;
         if (byte >= 0xe0 && byte <= 0xfa) return 0x05d0 + byte - 0xe0;
+        if (byte >= 0xc0 && byte <= 0xc9) return 0x05b0 + byte - 0xc0;
+        if (byte >= 0xcb && byte <= 0xcf) return 0x05bb + byte - 0xcb;
+        if (byte >= 0xd0 && byte <= 0xd3) return 0x05f0 + byte - 0xd0;
+        if (byte == 0xd4) return 0x05f4;
+        if (byte == 0xa4) return 0x20aa;
+        if (byte == 0xaa) return 0x00d7;
+        if (byte == 0xba) return 0x00f7;
+        if (byte == 0xfd) return 0x200e;
+        if (byte == 0xfe) return 0x200f;
+        if (const {
+          0x81,
+          0x8a,
+          0x8c,
+          0x8d,
+          0x8e,
+          0x8f,
+          0x90,
+          0x98,
+          0x9a,
+          0x9c,
+          0x9d,
+          0x9e,
+          0x9f,
+          0xca,
+          0xd5,
+          0xd6,
+          0xd7,
+          0xd8,
+          0xd9,
+          0xda,
+          0xdb,
+          0xdc,
+          0xdd,
+          0xde,
+          0xdf,
+          0xfb,
+          0xfc,
+          0xff,
+        }.contains(byte)) {
+          return 0xfffd;
+        }
         return punctuation[byte] ?? byte;
       }),
     );

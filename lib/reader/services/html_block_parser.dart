@@ -191,10 +191,16 @@ class _HtmlWalker {
   }
 
   void _parseList(Element list, {required int depth, required bool ordered}) {
+    final reversed = list.attributes.containsKey('reversed');
+    var ordinal =
+        int.tryParse(list.attributes['start'] ?? '') ??
+        (reversed ? list.children.where((e) => e.localName == 'li').length : 1);
     for (final item in list.children.where(
       (child) => child.localName == 'li',
     )) {
-      _addListItem(item, depth: depth, ordered: ordered);
+      ordinal = int.tryParse(item.attributes['value'] ?? '') ?? ordinal;
+      _addListItem(item, depth: depth, ordered: ordered, ordinal: ordinal);
+      ordinal += reversed ? -1 : 1;
       for (final nested in item.children.where(
         (child) => child.localName == 'ul' || child.localName == 'ol',
       )) {
@@ -203,7 +209,12 @@ class _HtmlWalker {
     }
   }
 
-  void _addListItem(Element item, {required int depth, required bool ordered}) {
+  void _addListItem(
+    Element item, {
+    required int depth,
+    required bool ordered,
+    int ordinal = 1,
+  }) {
     final contentNodes = item.nodes.where((node) {
       return node is! Element ||
           (node.localName != 'ul' && node.localName != 'ol');
@@ -214,6 +225,7 @@ class _HtmlWalker {
       runs: _inlineRuns(contentNodes, _styleFor(item, const _RunStyle())),
       nestingLevel: depth,
       orderedList: ordered,
+      listOrdinal: ordinal,
     );
   }
 
@@ -262,6 +274,7 @@ class _HtmlWalker {
     BlockTextDirection trailingDirection = BlockTextDirection.rtl,
     int nestingLevel = 0,
     bool orderedList = false,
+    int listOrdinal = 1,
   }) {
     final text = [
       ...runs.map((run) => run.text),
@@ -279,6 +292,7 @@ class _HtmlWalker {
         alignment: _alignmentFor(element),
         nestingLevel: nestingLevel,
         orderedList: orderedList,
+        listOrdinal: listOrdinal,
         id: element == null ? null : _elementId(element),
         fontSizeMultiplier: presentation.fontSizeMultiplier,
         lineHeight: presentation.lineHeight,

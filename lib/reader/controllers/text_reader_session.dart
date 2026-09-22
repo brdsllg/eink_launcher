@@ -81,6 +81,49 @@ class TextReaderSession extends ReaderSession {
   );
   List<LaidOutPage> _pages = const [];
   final Map<int, List<LaidOutPage>> _chapterPages = {};
+  final Set<int> _completedChapters = {};
+  final Map<String, Size> _imageSizes = {};
+  Size? imageSizeFor(String? path) => _imageSizes[path];
+
+  Future<void> _prepareImages(ParsedBook book, int lifecycle) async {
+    final settingsGeneration = _settingsGeneration;
+    final sizes = <String, Size>{};
+    final paths = book.spine
+        .expand((s) => s.blocks)
+        .where((b) => b.type == BlockType.image)
+        .map((b) => b.resourcePath)
+        .whereType<String>()
+        .toSet();
+    for (final path in paths) {
+      final bytes = book.resources[path];
+      if (bytes == null) continue;
+      ImmutableBuffer? buffer;
+      ImageDescriptor? descriptor;
+      try {
+        buffer = await ImmutableBuffer.fromUint8List(bytes);
+        descriptor = await ImageDescriptor.encoded(buffer);
+        sizes[path] = Size(
+          descriptor.width.toDouble(),
+          descriptor.height.toDouble(),
+        );
+      } catch (_) {
+        // Unsupported images use the alternate-text layout.
+      } finally {
+        descriptor?.dispose();
+        buffer?.dispose();
+      }
+      if (_disposed || lifecycle != _lifecycleGeneration) return;
+    }
+    if (_disposed ||
+        lifecycle != _lifecycleGeneration ||
+        settingsGeneration != _settingsGeneration) {
+      return;
+    }
+    _imageSizes
+      ..clear()
+      ..addAll(sizes);
+  }
+
   Size? _viewport;
   Size? _contentSize;
   int _currentPage = 0;
@@ -236,6 +279,8 @@ class TextReaderSession extends ReaderSession {
           : await _project(book, settings);
       if (_disposed || generation != _lifecycleGeneration) return;
       _book = projected;
+      await _prepareImages(projected, generation);
+      if (_disposed || generation != _lifecycleGeneration) return;
       _clampPositionToBook();
       _hasLoadedBook = true;
       _retainedToc = projected.tableOfContents;
@@ -276,6 +321,8 @@ class TextReaderSession extends ReaderSession {
     _pinDatabase(null);
     _pages = const [];
     _chapterPages.clear();
+    _completedChapters.clear();
+    _imageSizes.clear();
     _chapterUseOrder.clear();
     notifyListeners();
   }
@@ -289,6 +336,8 @@ class TextReaderSession extends ReaderSession {
     _pinDatabase(null);
     _pages = const [];
     _chapterPages.clear();
+    _completedChapters.clear();
+    _imageSizes.clear();
     _chapterUseOrder.clear();
     super.dispose();
   }
@@ -336,41 +385,61 @@ class TextReaderSession extends ReaderSession {
 
   @override
   Future<void> nextPage() async {
-    if (!_isReady) return;
-    if (_currentPage >= _pages.length - 1) {
-      final nextSpine = _position.spineIndex + 1;
-      if (_book == null || nextSpine >= _book!.spine.length) return;
-      await _ensureChapterPages(nextSpine);
-    }
-    if (_currentPage >= _pages.length - 1) return;
-    final targetPage = _currentPage + 1;
-    await _ensureChapterLoaded(_pages[targetPage].start.spineIndex);
-    _setCurrentPage(targetPage);
-    _trimResidentChapters();
+    await _turnPage(1);
   }
 
   @override
   Future<void> prevPage() async {
-    if (!_isReady) return;
-    if (_currentPage <= 0) {
-      final previousSpine = _position.spineIndex - 1;
-      if (previousSpine < 0) return;
-      await _ensureChapterPages(previousSpine);
-      _currentPage = _pageIndexForPosition(_position);
+    await _turnPage(-1);
+  }
+
+  bool _navigationCurrent(int lifecycle, int layout) =>
+      !_disposed &&
+      _isReady &&
+      !_isSuspended &&
+      _book != null &&
+      lifecycle == _lifecycleGeneration &&
+      layout == _paginationGeneration;
+
+  Future<void> _turnPage(int direction) async {
+    if (!_isReady || _book == null) return;
+    final lifecycle = _lifecycleGeneration;
+    final layout = _paginationGeneration;
+    final chapter = _position.spineIndex;
+    await _ensureChapterPages(chapter);
+    if (!_navigationCurrent(lifecycle, layout)) return;
+    final index = _pageIndexForPosition(_position);
+    final adjacent = index + direction;
+    if (adjacent >= 0 &&
+        adjacent < _pages.length &&
+        _pages[adjacent].start.spineIndex == chapter) {
+      _setCurrentPage(adjacent);
+      return;
     }
-    if (_currentPage <= 0) return;
-    final targetPage = _currentPage - 1;
-    await _ensureChapterLoaded(_pages[targetPage].start.spineIndex);
-    _setCurrentPage(targetPage);
-    _trimResidentChapters();
+    for (
+      var next = chapter + direction;
+      next >= 0 && next < _book!.spine.length;
+      next += direction
+    ) {
+      await _ensureChapterPages(next);
+      if (!_navigationCurrent(lifecycle, layout)) return;
+      final pages = _chapterPages[next];
+      if (pages == null || pages.isEmpty) continue;
+      _goToPosition(direction > 0 ? pages.first.start : pages.last.start);
+      _trimResidentChapters();
+      return;
+    }
   }
 
   @override
   Future<void> goToPage(int pageIndex) async {
     if (!_isReady || _pages.isEmpty) return;
-    final target = pageIndex.clamp(0, _pages.length - 1);
-    await _ensureChapterLoaded(_pages[target].start.spineIndex);
-    _setCurrentPage(target);
+    final lifecycle = _lifecycleGeneration;
+    final layout = _paginationGeneration;
+    final target = _pages[pageIndex.clamp(0, _pages.length - 1)].start;
+    await _ensureChapterLoaded(target.spineIndex);
+    if (!_navigationCurrent(lifecycle, layout)) return;
+    _goToPosition(target);
     _trimResidentChapters();
   }
 
@@ -379,10 +448,13 @@ class TextReaderSession extends ReaderSession {
     final target = entry.position;
     if (!_isReady || target is! TextReadingPosition) return;
     final book = _book;
+    final lifecycle = _lifecycleGeneration;
+    final layout = _paginationGeneration;
     if (book != null && book.hasLazyTanachContent) {
       final spineIndex = _spineIndexForPosition(target, book);
       await _ensureChapterPages(spineIndex);
     }
+    if (!_navigationCurrent(lifecycle, layout)) return;
     _goToPosition(target);
     _trimResidentChapters();
   }
@@ -420,14 +492,15 @@ class TextReaderSession extends ReaderSession {
   Future<void> goToPercent(double pct) async {
     final book = _book;
     if (!_isReady || book == null || book.characterCount == 0) return;
+    final lifecycle = _lifecycleGeneration;
+    final layout = _paginationGeneration;
     final targetCharacter = (pct.clamp(0.0, 1.0) * book.characterCount).floor();
     var spineIndex = book.cumulativeCharacterCounts.indexWhere(
       (count) => count > targetCharacter,
     );
     if (spineIndex < 0) spineIndex = book.spine.length - 1;
-    if (book.hasLazyTanachContent) {
-      await _ensureChapterPages(spineIndex);
-    }
+    if (book.hasLazyTanachContent) await _ensureChapterPages(spineIndex);
+    if (!_navigationCurrent(lifecycle, layout)) return;
     final currentBook = _book!;
     final beforeSpine = spineIndex == 0
         ? 0
@@ -500,6 +573,12 @@ class TextReaderSession extends ReaderSession {
           throw const FormatException('Empty reading spine.');
         }
         _book = book;
+        await _prepareImages(book, generation);
+        if (_disposed ||
+            generation != _lifecycleGeneration ||
+            settingsGeneration != _settingsGeneration) {
+          return;
+        }
         _pinDatabase(book.tanachDatabasePath);
         if (!book.hasLazyTanachContent) _clampPositionToBook();
         _retainedToc = book.tableOfContents;
@@ -555,6 +634,7 @@ class TextReaderSession extends ReaderSession {
     final generation = ++_paginationGeneration;
     _isPaginating = true;
     _chapterPages.clear();
+    _completedChapters.clear();
     _pages = const [];
     _currentPage = 0;
     notifyListeners();
@@ -568,6 +648,7 @@ class TextReaderSession extends ReaderSession {
       ];
       for (final spineIndex in order) {
         if (generation != _paginationGeneration || _isSuspended) return;
+        if (_completedChapters.contains(spineIndex)) continue;
         final cacheKey = _paginationCache.keyFor(
           docId: '${doc.id}:${book.contentFingerprint}',
           spineIndex: spineIndex,
@@ -592,6 +673,7 @@ class TextReaderSession extends ReaderSession {
               spineIndex: spineIndex,
               blocks: blocks,
               contentSize: contentSize,
+              imageSizes: _imageSizes,
               settings: _settings,
               isCancelled: () =>
                   _disposed ||
@@ -601,6 +683,7 @@ class TextReaderSession extends ReaderSession {
                 if (_disposed ||
                     _isSuspended ||
                     generation != _paginationGeneration ||
+                    _completedChapters.contains(spineIndex) ||
                     partial.isEmpty) {
                   return;
                 }
@@ -614,6 +697,7 @@ class TextReaderSession extends ReaderSession {
               spineIndex: spineIndex,
               blocks: blocks,
               contentSize: contentSize,
+              imageSizes: _imageSizes,
               settings: _settings,
             );
           }
@@ -626,6 +710,7 @@ class TextReaderSession extends ReaderSession {
         }
         if (generation != _paginationGeneration || _isSuspended) return;
         _chapterPages[spineIndex] = pages;
+        _completedChapters.add(spineIndex);
         _rebuildPages();
         if (book.hasLazyTanachContent && spineIndex != priority) {
           _trimResidentChapters();
@@ -659,12 +744,15 @@ class TextReaderSession extends ReaderSession {
   }
 
   Future<void> _ensureChapterPages(int spineIndex) async {
+    final lifecycle = _lifecycleGeneration;
+    final generation = _paginationGeneration;
     final book = _book;
     if (book == null || spineIndex < 0 || spineIndex >= book.spine.length) {
       return;
     }
     await _ensureChapterLoaded(spineIndex);
-    if (_chapterPages.containsKey(spineIndex)) return;
+    if (!_navigationCurrent(lifecycle, generation)) return;
+    if (_completedChapters.contains(spineIndex)) return;
     final contentSize = _contentSize;
     if (contentSize == null) return;
     final liveBook = _book!;
@@ -676,6 +764,7 @@ class TextReaderSession extends ReaderSession {
       settings: _settings,
     );
     var pages = await _paginationCache.load(cacheKey);
+    if (!_navigationCurrent(lifecycle, generation)) return;
     if (pages == null) {
       final blocks = liveBook.spine[spineIndex].blocks;
       pages = blocks.length > 256
@@ -683,20 +772,23 @@ class TextReaderSession extends ReaderSession {
               spineIndex: spineIndex,
               blocks: blocks,
               contentSize: contentSize,
+              imageSizes: _imageSizes,
               settings: _settings,
-              isCancelled: () => _disposed || _isSuspended,
+              isCancelled: () => !_navigationCurrent(lifecycle, generation),
               onProgress: (_) {},
             )
           : _paginator.paginateSpine(
               spineIndex: spineIndex,
               blocks: blocks,
               contentSize: contentSize,
+              imageSizes: _imageSizes,
               settings: _settings,
             );
       unawaited(_savePages(cacheKey, pages));
     }
-    if (_disposed || _isSuspended) return;
+    if (!_navigationCurrent(lifecycle, generation)) return;
     _chapterPages[spineIndex] = pages;
+    _completedChapters.add(spineIndex);
     _rebuildPages();
     notifyListeners();
   }
@@ -718,7 +810,13 @@ class TextReaderSession extends ReaderSession {
     }
     final databasePath = book.tanachDatabasePath;
     final settingsGeneration = _settingsGeneration;
+    final lifecycle = _lifecycleGeneration;
     await _ensureDatabase();
+    if (_disposed ||
+        lifecycle != _lifecycleGeneration ||
+        settingsGeneration != _settingsGeneration) {
+      return;
+    }
     final loaded = await _tanachCache.loadChapter(
       book,
       spineIndex,
@@ -726,6 +824,7 @@ class TextReaderSession extends ReaderSession {
     );
     final current = _book;
     if (_disposed ||
+        lifecycle != _lifecycleGeneration ||
         current == null ||
         settingsGeneration != _settingsGeneration ||
         current.tanachDatabasePath != databasePath ||
@@ -735,6 +834,15 @@ class TextReaderSession extends ReaderSession {
     final spine = [...current.spine];
     spine[spineIndex] = loaded;
     _book = _copyBook(current, spine);
+    // Lazy chapters can introduce figures absent from the initial skeleton.
+    if (loaded.blocks.any((block) => block.type == BlockType.image)) {
+      await _prepareImages(_book!, lifecycle);
+      if (_disposed ||
+          lifecycle != _lifecycleGeneration ||
+          settingsGeneration != _settingsGeneration) {
+        return;
+      }
+    }
     _touchChapter(spineIndex);
   }
 

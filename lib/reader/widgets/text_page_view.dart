@@ -199,6 +199,12 @@ class _TextPageViewState extends State<TextPageView> {
                     slice: slice,
                     settings: widget.session.settings,
                     pageHeight: viewport.height - margin * 2,
+                    imageSize: widget.session.imageSizeFor(
+                      book
+                          .spine[page.start.spineIndex]
+                          .blocks[slice.blockIndex]
+                          .resourcePath,
+                    ),
                     imageBytes: _resourceFor(
                       book.resources,
                       book

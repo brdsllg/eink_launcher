@@ -113,6 +113,10 @@ class EpubParserService {
     for (final item in manifest.values.where(
       (item) => item.mediaType == 'application/xhtml+xml',
     )) {
+      if (!spineRefs.contains(item.id) &&
+          archive.findFile(item.resolvedPath) == null) {
+        continue;
+      }
       xhtmlDocuments[item.resolvedPath] = _readText(
         archive,
         item.resolvedPath,
@@ -193,7 +197,11 @@ class EpubParserService {
         .firstOrNull;
     List<TocEntry> toc = const [];
     if (navItem != null) {
-      toc = _parseNavigationDocument(archive, navItem, spine);
+      try {
+        toc = _parseNavigationDocument(archive, navItem, spine);
+      } on FormatException {
+        // Navigation is optional; intact reading content remains usable.
+      }
     }
     if (toc.isEmpty) {
       final ncxId = _attribute(spineElement, 'toc')?.trim();
@@ -202,7 +210,13 @@ class EpubParserService {
                 .where((item) => item.mediaType == 'application/x-dtbncx+xml')
                 .firstOrNull
           : manifest[ncxId];
-      if (ncxItem != null) toc = _parseNcx(archive, ncxItem, spine);
+      if (ncxItem != null) {
+        try {
+          toc = _parseNcx(archive, ncxItem, spine);
+        } on FormatException {
+          // Fall back to headings when publisher navigation is damaged.
+        }
+      }
     }
     if (toc.isEmpty) toc = _fallbackToc(spine);
 

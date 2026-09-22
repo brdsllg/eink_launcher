@@ -51,6 +51,7 @@ void main() {
                   alignment: BlockAlignment.center,
                   nestingLevel: 2,
                   orderedList: true,
+                  listOrdinal: 7,
                   trailingDirection: BlockTextDirection.ltr,
                   fontSizeMultiplier: 1.15,
                   lineHeight: 1.8,
@@ -67,9 +68,7 @@ void main() {
                       language: 'he',
                     ),
                   ],
-                  trailingRuns: [
-                    InlineRun(text: 'Trailing', language: 'en'),
-                  ],
+                  trailingRuns: [InlineRun(text: 'Trailing', language: 'en')],
                 ),
                 ContentBlock(
                   type: BlockType.image,
@@ -102,6 +101,7 @@ void main() {
       expect(book.resources['pic.png'], [1, 2, 3]);
       expect(book.spine.single.anchors, {'anchor': 0});
       final block = book.spine.single.blocks.first;
+      expect(block.listOrdinal, 7);
       expect(block.direction, BlockTextDirection.rtl);
       expect(block.runs.single.bold, isTrue);
       expect(block.runs.single.language, 'he');

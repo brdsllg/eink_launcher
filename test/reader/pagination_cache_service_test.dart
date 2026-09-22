@@ -8,6 +8,44 @@ import 'package:eink_launcher/reader/services/pagination_cache_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'evicts least recently read entries and removes abandoned temp files',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('bounded-pages-');
+      addTearDown(() => directory.delete(recursive: true));
+      final initial = PaginationCacheService(cacheDirectory: directory);
+      await initial.save('a', []);
+      final length = await File('${directory.path}/a.json').length();
+      final cache = PaginationCacheService(
+        cacheDirectory: directory,
+        maxBytes: length * 2,
+      );
+      await cache.save('b', []);
+      await File('${directory.path}/a.json').setLastModified(DateTime(2000));
+      await File('${directory.path}/b.json').setLastModified(DateTime(2001));
+      await cache.load('a');
+      final orphan = File('${directory.path}/abandoned.tmp');
+      await orphan.writeAsString('partial');
+      await orphan.setLastModified(DateTime(2000));
+      await cache.save('c', []);
+      expect(await cache.load('a'), isNotNull);
+      expect(await cache.load('b'), isNull);
+      expect(await cache.load('c'), isNotNull);
+      expect(await orphan.exists(), isFalse);
+      await Future.wait([for (var i = 0; i < 10; i++) cache.save('key$i', [])]);
+      final bytes = directory.listSync().whereType<File>().fold<int>(
+        0,
+        (n, f) => n + f.lengthSync(),
+      );
+      expect(bytes, lessThanOrEqualTo(length * 2));
+      final tiny = PaginationCacheService(
+        cacheDirectory: directory,
+        maxBytes: 1,
+      );
+      await tiny.save('oversized', []);
+      expect(await File('${directory.path}/oversized.json').exists(), isFalse);
+    },
+  );
   test('round-trips pages and varies keys with typography', () async {
     final directory = await Directory.systemTemp.createTemp('page-cache-');
     addTearDown(() => directory.delete(recursive: true));

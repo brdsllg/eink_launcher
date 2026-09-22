@@ -9,11 +9,18 @@ import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
 
 class PaginationCacheService {
-  static const int _cacheVersion = 6;
+  static const int _cacheVersion = 7;
+  static const int defaultMaxBytes = 64 * 1024 * 1024;
+  static Future<void> _writes = Future.value();
+  static Future<void>? _legacyCleanup;
 
   final Directory? cacheDirectory;
+  final int maxBytes;
 
-  const PaginationCacheService({this.cacheDirectory});
+  const PaginationCacheService({
+    this.cacheDirectory,
+    this.maxBytes = defaultMaxBytes,
+  });
 
   String keyFor({
     required String docId,
@@ -53,9 +60,14 @@ class PaginationCacheService {
     try {
       final file = await _fileFor(key);
       if (!await file.exists()) return null;
+      if (await file.length() > maxBytes) {
+        await file.delete();
+        return null;
+      }
       final data =
           jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       if (data['version'] != _cacheVersion) return null;
+      await file.setLastModified(DateTime.now());
       final pages = data['pages'] as List<dynamic>;
       return List<LaidOutPage>.unmodifiable(
         pages.map((value) => _pageFromJson(value as Map<String, dynamic>)),
@@ -65,37 +77,93 @@ class PaginationCacheService {
     }
   }
 
-  Future<void> save(String key, List<LaidOutPage> pages) async {
+  Future<void> save(String key, List<LaidOutPage> pages) {
+    // Serialize publication and eviction across sessions sharing this cache.
+    final operation = _writes.then((_) => _save(key, pages));
+    _writes = operation.catchError((Object _) {});
+    return operation;
+  }
+
+  Future<void> _save(String key, List<LaidOutPage> pages) async {
     File? temporary;
     try {
       final file = await _fileFor(key);
       await file.parent.create(recursive: true);
+      final encoded = utf8.encode(
+        jsonEncode({
+          'version': _cacheVersion,
+          'pages': pages.map(_pageToJson).toList(),
+        }),
+      );
+      if (encoded.length > maxBytes) return;
       // Separate temporary files prevent two superseded pagination runs from
       // writing through the same handle. Rename is atomic on the Android/Linux
       // target and replaces any older cache entry in one filesystem operation.
       temporary = File(
         '${file.path}.${DateTime.now().microsecondsSinceEpoch}.$pid.tmp',
       );
-      await temporary.writeAsString(
-        jsonEncode({
-          'version': _cacheVersion,
-          'pages': pages.map(_pageToJson).toList(),
-        }),
-        flush: true,
-      );
+      await temporary.writeAsBytes(encoded, flush: true);
       await temporary.rename(file.path);
+      await _trim(file.parent);
     } catch (_) {
-      if (temporary != null && await temporary.exists()) {
-        await temporary.delete();
-      }
+      try {
+        if (temporary != null && await temporary.exists()) {
+          await temporary.delete();
+        }
+      } catch (_) {}
     }
   }
 
   Future<File> _fileFor(String key) async {
+    if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(key)) {
+      throw ArgumentError('Invalid cache key');
+    }
+    if (cacheDirectory == null) await (_legacyCleanup ??= _removeLegacyCache());
     final directory =
         cacheDirectory ??
-        Directory('${(await getApplicationDocumentsDirectory()).path}/pages');
+        Directory('${(await getApplicationCacheDirectory()).path}/pages');
     return File('${directory.path}/$key.json');
+  }
+
+  static Future<void> _removeLegacyCache() async {
+    try {
+      final directory = Directory(
+        '${(await getApplicationDocumentsDirectory()).path}/pages',
+      );
+      if (!await directory.exists()) return;
+      await for (final entity in directory.list(followLinks: false)) {
+        final name = entity.uri.pathSegments.last;
+        if (entity is File &&
+            RegExp(r'^[a-f0-9]{40}\.json(?:\.[0-9.]+\.tmp)?$').hasMatch(name)) {
+          await entity.delete();
+        }
+      }
+    } catch (_) {
+      /* Disposable cache cleanup must not block reading. */
+    }
+  }
+
+  Future<void> _trim(Directory directory) async {
+    final entries = <({File file, FileStat stat})>[];
+    await for (final entity in directory.list(followLinks: false)) {
+      if (entity is! File) continue;
+      final stat = await entity.stat();
+      if (entity.path.endsWith('.tmp')) {
+        if (DateTime.now().difference(stat.modified) >
+            const Duration(days: 1)) {
+          await entity.delete();
+        }
+      } else if (entity.path.endsWith('.json')) {
+        entries.add((file: entity, stat: stat));
+      }
+    }
+    entries.sort((a, b) => a.stat.modified.compareTo(b.stat.modified));
+    var total = entries.fold(0, (sum, entry) => sum + entry.stat.size);
+    for (final entry in entries) {
+      if (total <= maxBytes) break;
+      await entry.file.delete();
+      total -= entry.stat.size;
+    }
   }
 
   Map<String, dynamic> _pageToJson(LaidOutPage page) => {

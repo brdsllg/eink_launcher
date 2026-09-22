@@ -40,6 +40,7 @@ class EpubPaginatorService {
     required ReaderSettings settings,
     required bool Function() isCancelled,
     required void Function(List<LaidOutPage>) onProgress,
+    Map<String, Size> imageSizes = const {},
   }) async {
     List<LaidOutPage> latest = const [];
     for (final pages in _steps(
@@ -47,6 +48,7 @@ class EpubPaginatorService {
       blocks: blocks,
       contentSize: contentSize,
       settings: settings,
+      imageSizes: imageSizes,
     )) {
       if (isCancelled()) return const [];
       latest = pages;
@@ -433,7 +435,7 @@ class TextBlockLayout {
 
   static String prefixFor(ContentBlock block, ReaderSettings settings) {
     final listPrefix = block.type == BlockType.listItem
-        ? '${'  ' * block.nestingLevel}${block.orderedList ? '1.' : '•'} '
+        ? '${'  ' * block.nestingLevel}${block.orderedList ? '${block.listOrdinal}.' : '•'} '
         : '';
     final quotePrefix = block.type == BlockType.blockquote ? '│ ' : '';
     final publisherIndent = settings.honorPublisherCss

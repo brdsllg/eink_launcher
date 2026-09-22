@@ -57,6 +57,7 @@ class ContentBlock {
   final BlockAlignment alignment;
   final int nestingLevel;
   final bool orderedList;
+  final int listOrdinal;
   final String? id;
   final String? resourcePath;
   final String? alternateText;
@@ -75,6 +76,7 @@ class ContentBlock {
     this.alignment = BlockAlignment.start,
     this.nestingLevel = 0,
     this.orderedList = false,
+    this.listOrdinal = 1,
     this.id,
     this.resourcePath,
     this.alternateText,

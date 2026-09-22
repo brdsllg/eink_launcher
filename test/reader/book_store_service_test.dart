@@ -163,7 +163,7 @@ void main() {
         expect(await File('${libraryFile.path}.corrupt.1').exists(), isFalse);
         await store.flush();
         expect(await backup.readAsString(), invalid);
-        expect(await libraryFile.readAsString(), contains('"books": {}'));
+        expect(jsonDecode(await libraryFile.readAsString())['books'], isEmpty);
       },
     );
   }

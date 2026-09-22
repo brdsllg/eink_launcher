@@ -3,10 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../services/startup_health_service.dart';
 
 import '../models/book_state.dart';
+import '../models/annotation.dart';
+import '../models/bookmark.dart';
+import '../models/doc_ref.dart';
 import '../models/reader_settings.dart';
 import '../models/reader_tabs_state.dart';
 
@@ -30,7 +34,11 @@ class BookStoreService {
   bool _writesBlocked = false;
   String? _recoveryWarning;
 
-  String? get recoveryWarning => _recoveryWarning;
+  final ValueNotifier<String?> saveError = ValueNotifier(null);
+  int _revision = 0;
+  int _savedRevision = 0;
+  bool get hasUnsavedChanges => _revision != _savedRevision;
+  String? get recoveryWarning => saveError.value ?? _recoveryWarning;
   bool get writesBlocked => _writesBlocked;
 
   ReaderSettings get globalSettings => _globalSettings;
@@ -51,6 +59,8 @@ class BookStoreService {
     _isLoaded = false;
     _writesBlocked = false;
     _recoveryWarning = null;
+    saveError.value = null;
+    _revision = _savedRevision = 0;
     _books.clear();
     _tabsState = ReaderTabsState();
     _globalSettings = const ReaderSettings();
@@ -67,24 +77,88 @@ class BookStoreService {
         final content = await _storageFile!.readAsString();
         try {
           final jsonMap = json.decode(content) as Map<String, dynamic>;
-
-          if (jsonMap.containsKey('globalSettings')) {
-            _globalSettings = ReaderSettings.fromJson(
-              jsonMap['globalSettings'] as Map<String, dynamic>,
-            );
+          final version = jsonMap['version'] ?? 1;
+          final supportedVersion = version == 1;
+          var damaged = false;
+          void recover(void Function() read) {
+            try {
+              read();
+            } catch (_) {
+              damaged = true;
+            }
           }
 
+          List<dynamic> validItems(
+            dynamic raw,
+            void Function(Map<String, dynamic>) validate,
+          ) {
+            if (raw == null) return [];
+            if (raw is! List) {
+              damaged = true;
+              return [];
+            }
+            final items = <dynamic>[];
+            for (final value in raw) {
+              recover(() {
+                validate(value as Map<String, dynamic>);
+                items.add(value);
+              });
+            }
+            return items;
+          }
+
+          if (jsonMap.containsKey('globalSettings')) {
+            recover(() {
+              _globalSettings = ReaderSettings.fromJson(
+                jsonMap['globalSettings'] as Map<String, dynamic>,
+              );
+            });
+          }
           if (jsonMap.containsKey('books')) {
-            final booksMap = jsonMap['books'] as Map<String, dynamic>;
-            _books.clear();
-            booksMap.forEach((key, value) {
-              _books[key] = BookState.fromJson(value as Map<String, dynamic>);
+            recover(() {
+              final booksMap = jsonMap['books'] as Map<String, dynamic>;
+              for (final entry in booksMap.entries) {
+                recover(() {
+                  final value = Map<String, dynamic>.from(entry.value as Map);
+                  value['bookmarks'] = validItems(value['bookmarks'], (v) {
+                    Bookmark.fromJson(v);
+                  });
+                  value['annotations'] = validItems(value['annotations'], (v) {
+                    Annotation.fromJson(v);
+                  });
+                  if (value['settingsOverride'] != null) {
+                    try {
+                      ReaderSettings.fromJson(
+                        value['settingsOverride'] as Map<String, dynamic>,
+                      );
+                    } catch (_) {
+                      value.remove('settingsOverride');
+                      damaged = true;
+                    }
+                  }
+                  final book = BookState.fromJson(value);
+                  _books[book.docId] = book;
+                });
+              }
             });
           }
           if (jsonMap.containsKey('tabs')) {
-            _tabsState = ReaderTabsState.fromJson(
-              jsonMap['tabs'] as Map<String, dynamic>,
-            );
+            recover(() {
+              final value = Map<String, dynamic>.from(jsonMap['tabs'] as Map);
+              value['documents'] = validItems(value['documents'], (v) {
+                DocRef.fromJson(v);
+              });
+              _tabsState = ReaderTabsState.fromJson(value);
+            });
+          }
+          if (!supportedVersion) {
+            _writesBlocked = true;
+            _recoveryWarning = 'This reading-state version is not supported. Available records were opened, but saving is disabled to protect the original.';
+          } else if (damaged) {
+            await _preserveCorruptFile();
+            if (!_writesBlocked) {
+              _recoveryWarning = 'Some reading-state records could not be loaded. The original was backed up; valid bookmarks and notes were recovered.';
+            }
           }
         } catch (error, stack) {
           _books.clear();
@@ -112,6 +186,7 @@ class BookStoreService {
       final backup = File('${_storageFile!.path}$suffix');
       if (await backup.exists()) continue;
       await _storageFile!.rename(backup.path);
+      _revision++;
       _recoveryWarning = 'Damaged reading state was backed up. New reading state will be saved separately.';
       return;
     }
@@ -142,6 +217,7 @@ class BookStoreService {
   }
 
   void _scheduleSave() {
+    _revision++;
     _debounceTimer?.cancel();
     _debounceTimer = Timer(_debounceDuration, () => flush());
   }
@@ -158,21 +234,24 @@ class BookStoreService {
 
   Future<void> _writeLatestState() async {
     if (_storageFile == null || !_isLoaded || _writesBlocked) return;
-
-    final data = {
-      'version': 1,
-      'globalSettings': _globalSettings.toJson(),
-      'books': _books.map((k, v) => MapEntry(k, v.toJson())),
-      'tabs': _tabsState.toJson(),
-    };
-
-    final content = const JsonEncoder.withIndent('  ').convert(data);
+    if (!hasUnsavedChanges) return;
+    final revision = _revision;
     final tmpFile = File('${_storageFile!.path}.tmp');
-
     try {
+      final data = {
+        'version': 1,
+        'globalSettings': _globalSettings.toJson(),
+        'books': _books.map((k, v) => MapEntry(k, v.toJson())),
+        'tabs': _tabsState.toJson(),
+      };
+
+      final content = jsonEncode(data);
       await tmpFile.writeAsString(content, flush: true);
       await tmpFile.rename(_storageFile!.path);
+      _savedRevision = revision;
+      saveError.value = null;
     } catch (_) {
+      saveError.value = 'Reading changes have not been saved. Free storage or restore access, then retry. Keep the app open to retain pending notes and bookmarks.';
       try {
         if (await tmpFile.exists()) {
           await tmpFile.delete();
@@ -183,6 +262,7 @@ class BookStoreService {
 
   void dispose() {
     _debounceTimer?.cancel();
+    saveError.dispose();
     _instance = null;
   }
 }

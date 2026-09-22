@@ -27,6 +27,16 @@ class TapZoneLayer extends StatefulWidget {
     this.pageTurnTapZonesEnabled = true,
   });
 
+  /// Forward a child tap that did not hit its interactive content.
+  static void dispatchMiss(BuildContext context, Offset globalPosition) {
+    final state = context.findAncestorStateOfType<_TapZoneLayerState>();
+    if (state == null) return;
+    final box = state.context.findRenderObject() as RenderBox;
+    state._dispatch(
+      zoneForDx(box.globalToLocal(globalPosition).dx, box.size.width),
+    );
+  }
+
   static ReaderTapZone zoneForDx(
     double dx,
     double width, {

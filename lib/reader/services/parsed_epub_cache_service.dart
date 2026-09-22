@@ -17,7 +17,7 @@ import 'tanach_sqlite_cache_service.dart';
 /// Disposable, versioned parse cache. Images are included so a hit never needs
 /// to reopen the ZIP. Source metadata and CSS mode invalidate stale blocks.
 class ParsedEpubCacheService {
-  static const version = 4;
+  static const version = 5;
   static const maxBytes = 64 * 1024 * 1024;
   final Directory? cacheDirectory;
   const ParsedEpubCacheService({this.cacheDirectory});
@@ -180,6 +180,7 @@ class ParsedEpubCacheService {
                 'alignment': block.alignment.name,
                 'nestingLevel': block.nestingLevel,
                 'orderedList': block.orderedList,
+                'listOrdinal': block.listOrdinal,
                 'id': block.id,
                 'resourcePath': block.resourcePath,
                 'alternateText': block.alternateText,
@@ -262,6 +263,7 @@ class ParsedEpubCacheService {
                 ),
                 nestingLevel: block['nestingLevel'] as int,
                 orderedList: block['orderedList'] as bool,
+                listOrdinal: block['listOrdinal'] as int? ?? 1,
                 id: block['id'] as String?,
                 resourcePath: block['resourcePath'] as String?,
                 alternateText: block['alternateText'] as String?,
