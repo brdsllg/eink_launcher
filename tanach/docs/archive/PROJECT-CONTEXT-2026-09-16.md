@@ -1,18 +1,23 @@
-# Tanach EPUB project — conversation handoff
+# Tanach EPUB project — conversation handoff (ARCHIVED, SUPERSEDED)
 
-Last updated: 18 September 2026. This is a curated project brief and implementation handoff, not a verbatim transcript. Later decisions below supersede earlier experiments. Read this before changing the project; do not repeat settled preference questions.
+> Archived 22 September 2026. This 16 September brief is superseded by
+> `docs/tanach-epub.md` (18 September), which carries the same settled requirements with the
+> current build and reader-integration status. Statements below such as “the full collection
+> is NOT built” and “no reader code has been changed” are no longer true. Kept for provenance
+> only; do not treat it as the current contract.
+
+Last updated: 16 September 2026. This is a curated project brief and implementation handoff, not a verbatim transcript. Later decisions below supersede earlier experiments. Read this before changing the project; do not repeat settled preference questions.
 
 ## Goal and current status
 
-Create a personal-use Tanach EPUB collection from Sefaria, with Hebrew, Orthodox Jewish English translations, and a restricted whitelist of full direct commentaries. Keep the content pipeline independent of the reader application. The Flutter reader in this repository now implements the Tanach contract and a lazy SQLite import/index cache; physical validation remains on the Bigme B751C.
+Create a personal-use Tanach EPUB collection from Sefaria, with Hebrew, Orthodox Jewish English translations, and a restricted whitelist of full direct commentaries. Keep the content pipeline independent of the reader application. The user has a functioning reader on a Bigme B751C and intends to adapt it to these EPUBs. The initial proposal described a Flutter reader, but its source code has not been supplied or inspected here.
 
-The full 39-book collection was built on 17 September 2026 under `build/tanach_full/outputs/`. The distributable is `tanach-39-epubs.zip`; individual books are in `books/`. It contains 23,206 verses and 203,039 unique selected commentary notes. All 39 EPUBs passed EPUBCheck 5.3.0, internal link/anchor validation, database invariants, heading checks, and grouped-note content-preservation checks. The current format remains presentation revision 5, with commentary grouped by source and verse. These checks do not establish on-device performance in every large book.
-
-Two source limitations were preserved rather than filled with invented text: Joshua 21:36–37 have no approved English translation and are Hebrew-only, and 1,645 Sefaria link-index records point to locations with no text in an approved selected export. The latter are retained in the full build report as unresolved pointers. Pending or unapproved editions remain excluded.
+The full collection is NOT built. Nine representative chapter samples have been built and repeatedly refined. The current format is presentation revision 5, with commentary grouped by source and verse. All nine latest samples passed EPUBCheck and internal link/anchor validation. Browser checks passed verse → index → bilingual Rashi commentary → verse navigation. These checks do not establish compatibility with the user's custom reader.
 
 ## Settled content requirements
 
 - Use 39 book divisions, not the traditional merged count of 24. The precise order is in source-selection.json.
+- Hebrew: vowels, no cantillation; qere/kri in the main text and ketiv/ksiv in brackets. Preserve Divine names as in the source.
 - Hebrew: vowels, no cantillation; it is fine to keep the kri in brackets and ksiv plain as is supplied by Sefaria. Preserve Divine names as in the source.
 - English: include approved Orthodox Jewish translations. Prefer Metsudah for each verse; fall back to Koren when Metsudah is unavailable. Do not invent fallback text for missing content.
 - Ask about genuinely uncertain translation or modern-commentary provenance. Do not ask whether obviously Orthodox commentators such as Ramban are Orthodox.
@@ -42,22 +47,22 @@ A previous review list misleadingly raised “Ramban Commentary” as a decision
 - Do not print translation edition labels before or after each verse. Remove prefixes such as “Ruth 3:1 · Koren” and suffixes such as “The Koren Jerusalem Bible.” Names belong in the translation selector; full credits belong at the end.
 - Commentary should have ONE source/verse heading, e.g. “Ibn Ezra on Ruth 3:1”, followed by separate paragraphs for its comments. Do not repeat “Ibn Ezra on Ruth 3:1:1”, “...:2” as visible headings. Keep the original references as metadata.
 
-## Reader integration status
+## Reader integration still outstanding
 
 The user reported that Ruth 3 offered “Book default”, Koren, and Silverstein. Switching to Koren correctly changed the translation, but also displayed a prefix and suffix label.
 
 EPUB-side changes completed: removed alternate-translation note-title prefixes; shortened alternate data-source labels; added data-translation-label and data-primary to the default inline translation. Ruth 3:1 is explicitly marked Metsudah.
 
-The native reader now:
+The native reader must:
 
-1. Seeds its selector with the inline primary translation as a real named option, using data-edition as identity and data-translation-label as display name. It selects Metsudah by default where available, otherwise Koren, without adding a generic “Book default” option.
-2. Adds alternate translations from the verse's note index and shows edition names only in the selector.
-3. On switching, renders only the alternate aside's direct English content div, not the whole aside, navigation links, or synthesized attribution labels. Switching back restores the original inline translation.
-4. Renders the bilingual verse heading as one row with English left and Hebrew right at the requested size.
-5. Renders each grouped commentary title once and preserves comment-segment boundaries without synthesizing titles from individual segment references.
-6. Rebuilds import/pagination caches when revised files change and respects explicit edition selection, with per-verse primary fallback when unavailable.
+1. Seed its selector with the inline primary translation as a real named option, using data-edition as identity and data-translation-label as display name. Select Metsudah by default where available, otherwise Koren. Do not add a generic “Book default” option.
+2. Add alternate translations from the verse's note index. Show edition names only in the selector.
+3. On switching, render only the alternate aside's direct English content div, not the whole aside, navigation links, or synthesized attribution labels. Switching back must restore the original inline translation.
+4. Render the bilingual verse heading as one row with English left and Hebrew right; preserve the requested size.
+5. Render each grouped commentary title once and preserve comment-segment boundaries. Do not synthesize titles from individual segment references.
+6. Rebuild import/pagination caches when importing the revised files. Respect explicit edition selection when available, with per-verse primary fallback when unavailable.
 
-The reader also fingerprints each recognized Tanach EPUB and imports its structured content into a disposable per-book SQLite database. Chapter XHTML is gzip-compressed, search uses FTS5 with Hebrew-mark normalization and visibility filters, chapters are projected lazily for the selected translation/commentaries, and at most three projected Tanach chapters remain resident. EPUB remains canonical; `library.json` continues to own positions, settings, bookmarks, and annotations. All 39 full EPUBs passed the final-schema host import, warm-reopen, first/last chapter load, and FTS integration test on 18 September 2026. The run took 5:01 and produced 486,289,408 bytes (463.8 MiB) of cache databases in total before cleanup, below the 768 MiB cache ceiling. These checks do not replace physical Bigme performance validation.
+No reader code has been changed. The “Book default” UI and reader-added suffix cannot be conclusively fixed or verified without its source code. The exact integration contract and acceptance checks are in outputs/reader-compatibility.md.
 
 ## Architecture and current EPUB contract
 
@@ -138,9 +143,10 @@ Do not assume the pipeline ZIP alone reproduces the build offline: retain the ex
 
 ## Next work
 
-1. Install the updated reader on the Bigme and test the largest full books, especially Genesis, Exodus, Leviticus, Deuteronomy, Numbers, and Psalms; measure cold import, warm reopen, pagination, memory pressure, FTS search, and note navigation.
-2. Let the user check the latest formatting on-device before treating the presentation as final. Do not revert settled preferences during troubleshooting.
-3. Review the explicitly reported source limitations only if broader edition approval or a different textual source is desired. Do not invent replacements for missing source text.
+1. Obtain the reader repository/location if the user wants its selector and rendering behavior fixed. Implement the narrow revision 5 integration changes and test on the actual reader.
+2. Let the user check the latest sample formatting before treating the presentation as final. Do not revert settled preferences during troubleshooting.
+3. Before generating the full 39-book collection, resolve or explicitly exclude pending edition choices; extend download scope; audit unresolved links and qere/ketiv cases; assess chapter sizes, load times and note navigation.
+4. Build and validate all books only when the content scope and format are ready. Do not claim the full collection already exists.
 
 Work autonomously on authorized changes, preserve full source text, and explain clearly which fixes belong in the EPUB versus the reader. Ask concise questions when a real content/provenance decision or missing reader location is needed; do not re-open obvious Orthodox-source approvals.
 

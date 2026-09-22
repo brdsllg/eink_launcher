@@ -145,6 +145,10 @@ independently backed-up `library.json`, while page geometry remains in the norma
 pagination cache. The importer/search/chapter-loader is integration-tested against
 all 39 generated full-book EPUBs, not only the nine presentation samples.
 
+The content pipeline that produces those EPUBs is a separate segment of this repository at
+`tanach/`; see `tanach/README.md` for its layout, commands, and the generated collection.
+The reader consumes only the produced files.
+
 Reader settings default to **Black and white**. Toggle **Page color** to show
 color PDF content and EPUB/Markdown images; the choice is saved per document.
 PDF **Image dithering** is optional and off by default. It quantizes gradients

@@ -63,3 +63,9 @@ app.*.map.json
 .env.*
 secrets.dart
 .aider*
+
+# Tanach content pipeline segment (see tanach/README.md for the layout)
+# Large local build data stays out of version control; the top-level guides do not.
+/tanach/work/
+/tanach/outputs/*
+!/tanach/outputs/*.md
