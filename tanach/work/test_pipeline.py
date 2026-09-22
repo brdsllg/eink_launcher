@@ -8,6 +8,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(pairs,[('במותי','בָּמֳתֵי')])
         self.assertIn('עַל־<span class="qere">בָּמֳתֵי</span>',got)
         self.assertIn('[במותי]',got)
+        self.assertIn('</span> <span class="ketiv">[במותי]</span> אָרֶץ',got)
+        self.assertNotIn('</span>אָרֶץ',got)
     def test_qere_only_does_not_consume_preceding_word(self):
         got,_=hebrew('תֹּאמְרִי [אֵלַי] אֶעֱשֶׂה','Ruth 3:5')
         self.assertEqual(got,'תֹּאמְרִי אֵלַי אֶעֱשֶׂה')
@@ -19,6 +21,7 @@ class PipelineTests(unittest.TestCase):
         got,pairs=hebrew('וְלַשְׁבִּית ענוי־[עֲנִיֵּי־] אָרֶץ','Amos 8:4')
         self.assertEqual(pairs,[('ענוי־','עֲנִיֵּי־')])
         self.assertIn('<span class="qere">עֲנִיֵּי־</span> <span class="ketiv">[ענוי־]</span>',got)
+        self.assertIn('<span class="ketiv">[ענוי־]</span> אָרֶץ',got)
     def test_ketiv_only(self):
         got,_=hebrew('כִּי אם גֹאֵל','Ruth 3:12')
         self.assertEqual(got,'כִּי [אם] גֹאֵל')

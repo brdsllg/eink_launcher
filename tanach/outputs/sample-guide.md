@@ -26,7 +26,7 @@ Nine chapter samples for testing on the Bigme B751C and your existing reader. Th
 | Ruth 3 | 18 | 69 | 4 | Metsudah | 0.03 MB |
 | Daniel 2 | 49 | 410 | 5 | Koren | 0.08 MB |
 
-There are 203,039 distinct commentary notes across the samples. Included comments retain their full text. Attachments use explicit chapter/verse structure (including selected supercommentary) or Sefaria links typed commentary. Broad citation links and whole-essay expansion are excluded. A verse-level link opens the source list, then an individual note opens the full text.
+There are 4,147 distinct commentary notes across the samples. Included comments retain their full text. Attachments use explicit chapter/verse structure (including selected supercommentary) or Sefaria links typed commentary. Broad citation links and whole-essay expansion are excluded. A verse-level link opens the source list, then an individual note opens the full text.
 
 ## Validation
 
@@ -47,7 +47,6 @@ Genesis 1 and Deuteronomy 32 remain useful loading tests because the selected di
 - Selecting a source does not guarantee a note on every sample verse. Only material present in the selected exports and attached under the direct-only policy is included.
 - Some source files report their license as “unknown”; the colophons retain that exact label rather than inventing one.
 - Commentary translations with uncertain provenance are withheld below. The original Hebrew remains included when available.
-- The current renderer deliberately stops on unreviewed qere/ketiv bracket forms outside the tested cases. Generalizing and validating those cases is required before building all 39 books.
 
 ## Commentary edition metadata to investigate
 

@@ -1,19 +1,19 @@
 # Tanach EPUB project — conversation handoff
 
-Last updated: 18 September 2026. This is a curated project brief and implementation handoff, not a verbatim transcript. Later decisions below supersede earlier experiments. Read this before changing the project; do not repeat settled preference questions.
+Last updated: 22 September 2026. This is a curated project brief and implementation handoff, not a verbatim transcript. Later decisions below supersede earlier experiments. Read this before changing the project; do not repeat settled preference questions.
 
 ## Goal and current status
 
 Create a personal-use Tanach EPUB collection from Sefaria, with Hebrew, Orthodox Jewish English translations, and a restricted whitelist of full direct commentaries. Keep the content pipeline independent of the reader application. The Flutter reader in this repository now implements the Tanach contract and a lazy SQLite import/index cache; physical validation remains on the Bigme B751C.
 
-The full 39-book collection was built on 17 September 2026 and lives in the `tanach/` segment of the reader repository, under `tanach/outputs/`. The distributable is `outputs/tanach-39-epubs.zip`; individual books are in `outputs/books/`. It contains 23,206 verses and 203,039 unique selected commentary notes. All 39 EPUBs passed EPUBCheck 5.3.0, internal link/anchor validation, database invariants, heading checks, and grouped-note content-preservation checks. The current format remains presentation revision 5, with commentary grouped by source and verse. These checks do not establish on-device performance in every large book.
+The full 39-book collection was rebuilt on 22 September 2026 and lives in the `tanach/` segment of the reader repository, under `tanach/outputs/`. The distributable is `outputs/tanach-39-epubs.zip`; individual books are in `outputs/books/`. It contains 23,206 verses and 203,039 unique selected commentary notes. All 39 EPUBs passed EPUBCheck 5.3.0, internal link/anchor validation, database invariants, heading checks, and grouped-note content-preservation checks. The current format remains presentation revision 5, with commentary grouped by source and verse. These checks do not establish on-device performance in every large book.
 
 Two source limitations were preserved rather than filled with invented text: Joshua 21:36–37 have no approved English translation and are Hebrew-only, and 1,645 Sefaria link-index records point to locations with no text in an approved selected export. The latter are retained in the full build report as unresolved pointers. Pending or unapproved editions remain excluded.
 
 ## Settled content requirements
 
 - Use 39 book divisions, not the traditional merged count of 24. The precise order is in source-selection.json.
-- Hebrew: vowels, no cantillation; it is fine to keep the kri in brackets and ksiv plain as is supplied by Sefaria. Preserve Divine names as in the source.
+- Hebrew: vowels, no cantillation; the kri (pointed, correct reading) is rendered first in the main text, followed by the bracketed ketiv (written form). Preserve Divine names as in the source.
 - English: include approved Orthodox Jewish translations. Prefer Metsudah for each verse; fall back to Koren when Metsudah is unavailable. Do not invent fallback text for missing content.
 - Ask about genuinely uncertain translation or modern-commentary provenance. Do not ask whether obviously Orthodox commentators such as Ramban are Orthodox.
 - Commentary: full text, Hebrew and available approved English. Missing English must not hide available Hebrew.
@@ -57,7 +57,7 @@ The native reader now:
 5. Renders each grouped commentary title once and preserves comment-segment boundaries without synthesizing titles from individual segment references.
 6. Rebuilds import/pagination caches when revised files change and respects explicit edition selection, with per-verse primary fallback when unavailable.
 
-The reader also fingerprints each recognized Tanach EPUB and imports its structured content into a disposable per-book SQLite database. Chapter XHTML is gzip-compressed, search uses FTS5 with Hebrew-mark normalization and visibility filters, chapters are projected lazily for the selected translation/commentaries, and at most three projected Tanach chapters remain resident. EPUB remains canonical; `library.json` continues to own positions, settings, bookmarks, and annotations. All 39 full EPUBs passed the final-schema host import, warm-reopen, first/last chapter load, and FTS integration test on 18 September 2026. The run took 5:01 and produced 486,289,408 bytes (463.8 MiB) of cache databases in total before cleanup, below the 768 MiB cache ceiling. These checks do not replace physical Bigme performance validation.
+The reader also fingerprints each recognized Tanach EPUB and imports its structured content into a disposable per-book SQLite database. Chapter XHTML is gzip-compressed, search uses FTS5 with Hebrew-mark normalization and visibility filters, chapters are projected lazily for the selected translation/commentaries, and at most three projected Tanach chapters remain resident. EPUB remains canonical; `library.json` continues to own positions, settings, bookmarks, and annotations. All 39 full EPUBs passed the final-schema host import, warm-reopen, first/last chapter load, and FTS integration test on 18 September 2026 against the then-current build. The current 22 September rebuild has not yet been run through the env-gated integration test suite; those tests require TANACH_FULL_BOOKS_DIR and TANACH_SAMPLES_DIR environment variables. The run took 5:01 and produced 486,289,408 bytes (463.8 MiB) of cache databases in total before cleanup, below the 768 MiB cache ceiling. These checks do not replace physical Bigme performance validation.
 
 ## Architecture and current EPUB contract
 
@@ -80,11 +80,11 @@ Source switches and translation controls are app features, not executable EPUB b
 
 ## Samples and verification
 
-Samples: Genesis 1; Deuteronomy 32; I Samuel 17; Isaiah 40; Jonah 1; Psalms 23; Job 1; Ruth 3; Daniel 2. They cover 283 verses and 4,147 original commentary notes, now presented in 1,749 source/verse groups. There are 218 Siftei Chakhamim notes. Earlier broad attachment builds had 8,781 notes; that larger count is obsolete.
+The nine chapter samples (Genesis 1; Deuteronomy 32; I Samuel 17; Isaiah 40; Jonah 1; Psalms 23; Job 1; Ruth 3; Daniel 2) were last built on 17 September 2026 and reflect an earlier normalization pass. They are stale relative to the 22 September full-collection rebuild and do not contain the current qere/ketiv span markup. Use the full books in `outputs/books/` for current-state testing. The samples cover 283 verses and 4,147 original commentary notes, presented in 1,749 source/verse groups. There are 218 Siftei Chakhamim notes.
 
-Latest checks verified every original attached note was retained with matching text, no inline Koren credit in verse sections, bilingual headings throughout, Metsudah as Ruth's primary, and exactly two Hebrew Ibn Ezra segments grouped under Ruth 3:1. All nine passed EPUBCheck and anchor checks. Browser preview had no horizontal overflow at the tested 800px viewport and passed note navigation.
+Latest checks on the full 39-book build verified every index noteref resolves (23,329 verse→index links, 114,443 index→note links, 0 broken), all verse sections have data-ref, all verse headings have exactly two language spans, translation labels are present, and comment segments and g- group asides are present in all 48 EPUBs. EPUBCheck structural validation covers the books; the reader's env-gated integration test is pending against the current build.
 
-The latest revised samples have not yet been confirmed by the user on the device. Do not claim the native selector, layout or suffix problem is solved there.
+The latest presentation changes have not yet been confirmed by the user on the device. Do not claim the native selector, layout or suffix problem is solved there.
 
 ## Segment workspace and important files
 

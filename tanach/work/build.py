@@ -54,12 +54,16 @@ def hebrew(s,ref):
         r'([\u05d0-\u05ea]+(?:[ \u05be][\u05d0-\u05ea]+)*\u05be?)\s*'
         r'((?:\[[^\[\]]+\]\s*)+)'
     )
-    pairs=[]
+    pairs=[];gaps=[]
     def swap(m):
         k,groups=m.groups()
+        # Rendering order is pointed qere first, bracketed ketiv after, and
+        # the source whitespace that followed the brackets is re-emitted so
+        # the ketiv span is never glued to the next word.
+        gap=re.search(r'\s*\Z',groups).group()
         q=' '.join(x.strip() for x in re.findall(r'\[([^\[\]]+)\]',groups))
         q=re.sub(r'\u05be\s+', '\u05be', q)
-        pairs.append((k,q));return f'§Q{len(pairs)-1}§'
+        pairs.append((k,q));gaps.append(gap);return f'§Q{len(pairs)-1}§'
     s=re.sub(pattern,swap,s)
     # A remaining bracket contains qere without a separately encoded ketiv.
     if '[' in s:
@@ -69,8 +73,8 @@ def hebrew(s,ref):
         assert ' אם ' in s
         s=s.replace(' אם ',' [אם] ')
     rendered=e(s)
-    for i,(k,q) in enumerate(pairs):
-        rendered=rendered.replace(f'§Q{i}§',f'<span class="qere">{e(q)}</span> <span class="ketiv">[{e(k)}]</span>')
+    for i,((k,q),gap) in enumerate(zip(pairs,gaps)):
+        rendered=rendered.replace(f'§Q{i}§',f'<span class="qere">{e(q)}</span> <span class="ketiv">[{e(k)}]</span>'+gap)
     return rendered,pairs
 
 

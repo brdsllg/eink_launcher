@@ -154,8 +154,7 @@ Honor each block’s `dir` and language. Do not reverse Hebrew strings or revers
 
 Use a font that supports Hebrew vowel marks, adequate line height, and mixed Hebrew/English text. Test for clipped marks above and below the line. No font is embedded in these samples. Preserve combining characters and grapheme boundaries when measuring, selecting, highlighting, or breaking text across pages.
 
-The base text already has vowels without cantillation, qere in the main text, and ketiv in brackets. The reader must not perform another bracket swap, remove vowel marks, or substitute Divine names. A qere-only word can appear without a bracketed partner; Ruth 3:12 also has a written-only word. Bracket contents are not reader commands.
-The base text already has vowels without cantillation, and keeps the kri in brackets and ksiv plain as supplied by Sefaria. The reader must not perform bracket swaps, remove vowel marks, or substitute Divine names. Bracket contents are plain text, not reader commands.
+The base text already has vowels without cantillation, qere rendered first in the main text, and ketiv in brackets after it. The reader must not perform another bracket swap, remove vowel marks, or substitute Divine names. A qere-only word can appear without a bracketed partner; Ruth 3:12 has a written-only word with no pointed qere. Bracket contents are not reader commands.
 
 Commentary can contain source footnotes, `<b>`, `<i>`, `<small>`, `<sup>`, paragraph blocks, and `<br>`. Preserve their readable content. A superscript inside the text is not necessarily an EPUB note link; identify note links by their actual attributes.
 
