@@ -1,5 +1,8 @@
 # Tanach EPUB segment
 
+> New here, or just want to know how to back this up and move it between computers?
+> Read [`HOW-TO-SYNC.md`](HOW-TO-SYNC.md) first — it is written in plain language.
+
 Self-contained, personal-use Tanach EPUB content pipeline and the collection it produces.
 It is deliberately independent of the Flutter reader in `lib/`: the reader only consumes the
 generated EPUBs, and nothing in this segment imports reader code.
@@ -62,13 +65,53 @@ log, for example:
 cmd /c "cd /d C:\Users\levi\eink_launcher && flutter test test\reader\tanach_full_sqlite_integration_test.dart > out.txt 2>&1"
 ```
 
+## Syncing across machines
+
+The segment splits into two payloads that need two different mechanisms.
+
+**Pipeline sources and configuration — normal git.** These are tracked (see the root
+`.gitignore`): `work/*.py`, `work/*.cjs`, `work/legacy/**`, `docs/**`, `README.md`, the
+`outputs/*.md` guides, and `outputs/source-selection.json` (the authoritative selection
+manifest). A `git clone` or `git pull` therefore gives a working pipeline; the other machine
+only needs Python 3.11+ for the offline steps and can fetch Java/EPUBCheck with
+`work/get_validation_tools.py`.
+
+**Raw data and generated payload — never git.** `work/cache/` (about 1.1 GB),
+`work/tanach.sqlite` (323 MB), `work/tools/` runtimes, `work/preview/`, `work/validation/`,
+and everything in `outputs/` except the markdown guides and the manifest: `books/` (67 MB),
+`samples/`, the ZIPs, JSON reports, and PNG previews.
+
+Choose one route for the payload:
+
+| Route | Steps | Notes |
+|---|---|---|
+| Direct file copy | Copy `tanach/outputs/`, plus `work/cache/` and `work/tanach.sqlite` if the other machine should rebuild offline. | Simplest. Nothing is published. |
+| GitHub Release assets | `git tag tanach-v5-2026-09-17`, `git push origin --tags`, then attach `outputs/tanach-39-epubs.zip`, its `.sha256`, and `outputs/tanach-pipeline.zip` to that release in the web UI. | Keeps binaries out of history; verify with `Get-FileHash` against the `.sha256`. |
+| Git LFS on a **private** remote | `git lfs install`, add `outputs/*.zip` and `outputs/books/*.epub` to a `.gitattributes`, then commit and push. | A plain `git clone` then brings the EPUBs. GitHub's free allowance is 1 GB storage and 1 GB/month bandwidth, and every rebuild re-uploads about 70 MB. |
+| Regenerate locally | Copy `work/cache/` plus `work/tanach.sqlite` to the second machine, then run `work/regenerate.py`. | The pipeline alone cannot rebuild offline; the cache has to be copied regardless. |
+
+The device is not a git target — send the books to the reader over ADB, for example
+`adb push tanach/outputs/books/. /sdcard/Download/Tanach/`.
+
+> **Licensing guard rail:** this repository is public, and the collection is personal-use
+> Sefaria-derived content with per-edition licences. Do not publish the EPUBs, the commentary
+> text, or the ZIPs to the public repository or its releases. Use a private LFS remote or a
+> direct file copy for the generated payload.
+
+Useful checks before committing:
+
+```powershell
+git status --ignored=matching -- tanach     # see exactly what is local-only
+git add -A --dry-run -- tanach              # see exactly what a commit would include
+```
+
 ## Version control
 
-The heavy data is git-ignored (see the root `.gitignore`):
-
-- `/tanach/work/` — cache, database, runtimes, preview (about 1.9 GB).
-- `/tanach/outputs/*` — books, samples, reports and ZIPs; the top-level `*.md` guides are
-  re-included so the reader contract and guides stay reviewable.
+- Tracked: `tanach/README.md`, `docs/**`, pipeline sources (`work/*.py`, `work/*.cjs`,
+  `work/legacy/**`), the `outputs/*.md` guides, and `outputs/source-selection.json`.
+- Local-only (git-ignored, about 2 GB): `work/cache/`, `work/tanach.sqlite`, `work/tools/`,
+  `work/preview/`, `work/validation/`, `outputs/books/`, `outputs/samples/`, the ZIPs, JSON
+  reports, and PNG previews.
 
 ## Cleanup log — 22 September 2026
 

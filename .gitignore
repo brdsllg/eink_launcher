@@ -65,7 +65,13 @@ secrets.dart
 .aider*
 
 # Tanach content pipeline segment (see tanach/README.md for the layout)
-# Large local build data stays out of version control; the top-level guides do not.
-/tanach/work/
+# Versioned: pipeline sources and the selection manifest. Local-only: raw cache, the
+# normalized database, runtimes, browser preview, generated EPUBs/ZIPs/reports.
+/tanach/work/*
+!/tanach/work/*.py
+!/tanach/work/*.cjs
+!/tanach/work/legacy/
+!/tanach/work/legacy/**
 /tanach/outputs/*
 !/tanach/outputs/*.md
+!/tanach/outputs/source-selection.json
