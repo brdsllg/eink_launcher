@@ -57,16 +57,15 @@ void main() {
         );
         await session.addBookmark('Second verse');
         await session.applySettings(
-          session.settings.copyWith(inlineCommentary: false),
-        );
-        expect((session.position as TextReadingPosition).blockId, 'v-two');
-        await session.applySettings(
           session.settings.copyWith(
-            inlineCommentary: true,
             commentarySources: ['Rashi on Genesis'],
             commentaryLanguage: 'en',
             fontSizeStep: 5,
           ),
+        );
+        expect((session.position as TextReadingPosition).blockId, 'v-two');
+        await session.applySettings(
+          session.settings.copyWith(commentarySources: []),
         );
         expect((session.position as TextReadingPosition).blockId, 'v-two');
         session.suspend();

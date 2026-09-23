@@ -62,7 +62,7 @@ void main() {
           final last = await chapterCache.loadChapter(
             book,
             lazy.last,
-            const ReaderSettings(inlineCommentary: false),
+            ReaderSettings(commentarySources: book.studySources),
           );
           expect(first.blocks, isNotEmpty, reason: file.path);
           expect(last.blocks, isNotEmpty, reason: file.path);

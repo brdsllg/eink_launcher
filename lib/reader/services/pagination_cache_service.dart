@@ -32,7 +32,6 @@ class PaginationCacheService {
     final source = jsonEncode({
       'version': _cacheVersion,
       'study': [
-        settings.inlineCommentary,
         [...settings.commentarySources]..sort(),
         settings.commentaryLanguage,
         settings.studyTranslation,

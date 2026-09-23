@@ -107,7 +107,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Inline commentary'), findsOneWidget);
+      expect(find.text('Commentary sources'), findsOneWidget);
       await tester.tap(find.text('Commentary sources'));
       await tester.pumpAndSettle();
       await Scrollable.ensureVisible(
@@ -115,15 +115,23 @@ void main() {
         alignment: 0.5,
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Rashi on Genesis'));
-      await tester.pumpAndSettle();
-      final choice = tester.widget<CheckboxListTile>(
+      var choice = tester.widget<CheckboxListTile>(
         find.ancestor(
           of: find.text('Rashi on Genesis'),
           matching: find.byType(CheckboxListTile),
         ),
       );
+      // Sources start unchecked; no commentary is shown until selected.
       expect(choice.value, isFalse);
+      await tester.tap(find.text('Rashi on Genesis'));
+      await tester.pumpAndSettle();
+      choice = tester.widget<CheckboxListTile>(
+        find.ancestor(
+          of: find.text('Rashi on Genesis'),
+          matching: find.byType(CheckboxListTile),
+        ),
+      );
+      expect(choice.value, isTrue);
       expect(tester.takeException(), isNull);
     },
   );

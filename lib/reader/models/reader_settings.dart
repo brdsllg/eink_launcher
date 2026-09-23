@@ -16,9 +16,8 @@ class ReaderSettings {
   final ParagraphMode paragraphMode;
   final bool honorPublisherCss;
 
-  final bool inlineCommentary;
-
-  /// Empty means all sources; exact EPUB source names are preserved.
+  /// Empty means no sources are selected, so no commentary is shown.
+  /// Exact EPUB source names are preserved.
   final List<String> commentarySources;
   final String commentaryLanguage;
 
@@ -45,7 +44,6 @@ class ReaderSettings {
   final bool pageButtonsEnabled;
 
   const ReaderSettings({
-    this.inlineCommentary = true,
     this.commentarySources = const [],
     this.commentaryLanguage = 'both',
     this.studyTranslation = '',
@@ -86,7 +84,6 @@ class ReaderSettings {
       allowZoomOutBeyondFit ? kPdfMinZoomScaleBeyondFit : kPdfMinZoomScale;
 
   ReaderSettings copyWith({
-    bool? inlineCommentary,
     List<String>? commentarySources,
     String? commentaryLanguage,
     String? studyTranslation,
@@ -111,7 +108,6 @@ class ReaderSettings {
     bool? pageButtonsEnabled,
   }) {
     return ReaderSettings(
-      inlineCommentary: inlineCommentary ?? this.inlineCommentary,
       commentarySources: commentarySources ?? this.commentarySources,
       commentaryLanguage: commentaryLanguage ?? this.commentaryLanguage,
       studyTranslation: studyTranslation ?? this.studyTranslation,
@@ -140,7 +136,6 @@ class ReaderSettings {
   }
 
   Map<String, dynamic> toJson() => {
-    'inlineCommentary': inlineCommentary,
     'commentarySources': commentarySources,
     'commentaryLanguage': commentaryLanguage,
     'studyTranslation': studyTranslation,
@@ -173,7 +168,6 @@ class ReaderSettings {
       _ => PdfFitMode.fitHeight,
     };
     return ReaderSettings(
-      inlineCommentary: json['inlineCommentary'] as bool? ?? true,
       commentarySources: List<String>.from(
         json['commentarySources'] as List? ?? const [],
       ),

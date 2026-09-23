@@ -156,11 +156,9 @@ class TanachLayoutService {
             if (!_commentaryCategories.contains(
                   note.attributes['data-category'],
                 ) ||
-                !settings.inlineCommentary ||
-                (settings.commentarySources.isNotEmpty &&
-                    !settings.commentarySources.contains(
-                      note.attributes['data-source'],
-                    ))) {
+                !settings.commentarySources.contains(
+                  note.attributes['data-source'],
+                )) {
               continue;
             }
             final copy = _copy(note, noteEntry.key, verse.id, 'commentary');
@@ -309,7 +307,6 @@ class TanachLayoutService {
   static String _projectionKey(ReaderSettings settings) {
     final sources = [...settings.commentarySources]..sort();
     return [
-      settings.inlineCommentary,
       sources.join('\u001f'),
       settings.commentaryLanguage,
       settings.studyTranslation,

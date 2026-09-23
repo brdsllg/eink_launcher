@@ -69,7 +69,13 @@ Uint8List fixture({bool broken = false}) {
 
 void main() {
   test('inline notes follow their invoking verse, with deduplication and shared notes', () {
-    final book = EpubParserService.parseBytesSync(fixture());
+    final original = EpubParserService.parseBytesSync(fixture());
+    // A fresh reader session starts with every source unselected; select
+    // everything the fixture offers to exercise the full inline-notes path.
+    final book = TanachLayoutService.layout(
+      original,
+      const ReaderSettings(commentarySources: ['Other', 'Rashi on Genesis']),
+    );
     final text = book.spine.first.blocks.map((b) => b.plainText).join('\n');
     expect(text.indexOf('Rashi 1:1'), lessThan(text.indexOf('Second verse')));
     expect('Rashi 1:1'.allMatches(text).length, 2);
@@ -105,6 +111,10 @@ void main() {
     'source and language selection preserve originals and stable block ids',
     () {
       final original = EpubParserService.parseBytesSync(fixture());
+      final base = TanachLayoutService.layout(
+        original,
+        const ReaderSettings(commentarySources: ['Rashi on Genesis']),
+      );
       final selected = TanachLayoutService.layout(
         original,
         const ReaderSettings(
@@ -118,7 +128,7 @@ void main() {
       expect(text, contains('Full English note'));
       expect(text, isNot(contains('רַשִׁי')));
       expect(text, isNot(contains('Other heading')));
-      final originalNote = original.spine.first.blocks.firstWhere(
+      final originalNote = base.spine.first.blocks.firstWhere(
         (b) => b.plainText == 'Full English note',
       );
       final selectedNote = selected.spine.first.blocks.firstWhere(
@@ -152,10 +162,7 @@ void main() {
     final original = EpubParserService.parseBytesSync(fixture());
     final selected = TanachLayoutService.layout(
       original,
-      const ReaderSettings(
-        studyTranslation: 'alternate-ed',
-        inlineCommentary: false,
-      ),
+      const ReaderSettings(studyTranslation: 'alternate-ed'),
     );
     final text = selected.spine.first.blocks.map((b) => b.plainText).join('\n');
     expect(text, contains('Alternate verse'));

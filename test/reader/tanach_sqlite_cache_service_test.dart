@@ -59,7 +59,7 @@ void main() {
       final chapter = await service.loadChapter(
         imported,
         0,
-        const ReaderSettings(),
+        const ReaderSettings(commentarySources: ['Rashi on Genesis']),
       );
       expect(chapter.isLoaded, isTrue);
       expect(chapter.isLazy, isTrue);
@@ -93,14 +93,14 @@ void main() {
 
       final hebrew = await TanachSqliteSearchService(
         databasePath: path,
-        settings: const ReaderSettings(),
+        settings: const ReaderSettings(commentarySources: ['Rashi on Genesis']),
       ).search(imported.spine, 'בראשית');
       expect(hebrew.matches, isNotEmpty);
       expect(hebrew.matches.first.position.blockId, 'v-genesis-1-1--block-1');
       final chapter = await service.loadChapter(
         imported,
         0,
-        const ReaderSettings(),
+        const ReaderSettings(commentarySources: ['Rashi on Genesis']),
       );
       final match = hebrew.matches.first;
       expect(
@@ -113,7 +113,7 @@ void main() {
 
       final commentary = await TanachSqliteSearchService(
         databasePath: path,
-        settings: const ReaderSettings(),
+        settings: const ReaderSettings(commentarySources: ['Rashi on Genesis']),
       ).search(imported.spine, 'Commentary text');
       expect(commentary.matches, isNotEmpty);
       expect(
@@ -123,13 +123,13 @@ void main() {
 
       final infix = await TanachSqliteSearchService(
         databasePath: path,
-        settings: const ReaderSettings(),
+        settings: const ReaderSettings(commentarySources: ['Rashi on Genesis']),
       ).search(imported.spine, 'mentar');
       expect(infix.matches, isNotEmpty);
 
       final hidden = await TanachSqliteSearchService(
         databasePath: path,
-        settings: const ReaderSettings(inlineCommentary: false),
+        settings: const ReaderSettings(),
       ).search(imported.spine, 'Commentary text');
       expect(hidden.matches, isEmpty);
 
@@ -197,9 +197,16 @@ void main() {
       expect(session.book!.spine[1].isLoaded, isTrue);
 
       await session.applySettings(
-        session.settings.copyWith(inlineCommentary: false),
+        session.settings.copyWith(commentarySources: ['Rashi on Genesis']),
       );
-      final text = session.book!.spine[1].blocks
+      var text = session.book!.spine[1].blocks
+          .map((block) => block.plainText)
+          .join('\n');
+      expect(text, contains('Commentary text'));
+      await session.applySettings(
+        session.settings.copyWith(commentarySources: []),
+      );
+      text = session.book!.spine[1].blocks
           .map((block) => block.plainText)
           .join('\n');
       expect(text, isNot(contains('Commentary text')));
@@ -238,6 +245,10 @@ void main() {
       );
       try {
         await session.open();
+        // Select a source so the search below has commentary to find.
+        await session.applySettings(
+          session.settings.copyWith(commentarySources: ['Rashi on Genesis']),
+        );
         final path = session.book!.tanachDatabasePath!;
         session.suspend();
         const other = DocRef(
@@ -298,7 +309,7 @@ void main() {
       try {
         await session.open();
         await session.applySettings(
-          session.settings.copyWith(inlineCommentary: false),
+          session.settings.copyWith(commentarySources: ['Rashi on Genesis']),
         );
         await session.goToPercent(.75);
         final cold = session.position.toJson();

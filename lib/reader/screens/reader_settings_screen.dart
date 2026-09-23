@@ -85,13 +85,6 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
       ),
     if (widget.studySources.isNotEmpty ||
         widget.studyTranslations.isNotEmpty) ...[
-      SwitchListTile(
-        title: const Text('Inline commentary'),
-        value: _settings.inlineCommentary,
-        onChanged: (value) => setState(
-          () => _settings = _settings.copyWith(inlineCommentary: value),
-        ),
-      ),
       const Text(
         'Selected commentary appears after each verse. If a language or translation is missing, the available text is kept.',
       ),
@@ -134,34 +127,44 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
         title: const Text('Commentary sources'),
         subtitle: Text(
           _settings.commentarySources.isEmpty
+              ? 'None selected'
+              : _settings.commentarySources.length == widget.studySources.length
               ? 'All sources'
               : '${_settings.commentarySources.length} selected',
         ),
         children: [
-          TextButton(
-            onPressed: () => setState(
-              () => _settings = _settings.copyWith(
-                commentarySources: [],
-                inlineCommentary: true,
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => setState(
+                    () => _settings = _settings.copyWith(
+                      commentarySources: List<String>.from(
+                        widget.studySources,
+                      ),
+                    ),
+                  ),
+                  child: const Text('Select all'),
+                ),
               ),
-            ),
-            child: const Text('Show all sources'),
+              Expanded(
+                child: TextButton(
+                  onPressed: () => setState(
+                    () => _settings = _settings.copyWith(
+                      commentarySources: const [],
+                    ),
+                  ),
+                  child: const Text('Deselect all'),
+                ),
+              ),
+            ],
           ),
           for (final source in widget.studySources)
             CheckboxListTile(
               title: Text(source),
-              value:
-                  _settings.inlineCommentary &&
-                  (_settings.commentarySources.isEmpty ||
-                      _settings.commentarySources.contains(source)),
+              value: _settings.commentarySources.contains(source),
               onChanged: (value) => setState(() {
-                final selected =
-                    (!_settings.inlineCommentary
-                            ? <String>[]
-                            : _settings.commentarySources.isEmpty
-                            ? widget.studySources
-                            : _settings.commentarySources)
-                        .toSet();
+                final selected = _settings.commentarySources.toSet();
                 if (value == true) {
                   selected.add(source);
                 } else {
@@ -169,7 +172,6 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
                 }
                 _settings = _settings.copyWith(
                   commentarySources: selected.toList(),
-                  inlineCommentary: selected.isNotEmpty,
                 );
               }),
             ),

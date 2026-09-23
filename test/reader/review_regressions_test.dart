@@ -91,7 +91,11 @@ void main() {
       projectStudy: false,
     );
     final book = await cache.import(doc, source, fingerprint: 'a');
-    final chapter = await cache.loadChapter(book, 0, const ReaderSettings());
+    final chapter = await cache.loadChapter(
+      book,
+      0,
+      const ReaderSettings(commentarySources: ['Rashi on Genesis']),
+    );
     expect(
       chapter.blocks.map((b) => b.plainText).join(),
       contains('First verse'),
@@ -160,7 +164,7 @@ void main() {
       final loaded = await cache.loadChapter(
         book,
         0,
-        const ReaderSettings(inlineCommentary: false),
+        const ReaderSettings(),
       );
       expect(loaded.characterCount, book.spine[0].characterCount);
     },
@@ -180,8 +184,12 @@ void main() {
   test(
     'stable annotation anchor follows the annotated text after filtering',
     () {
-      final original = EpubParserService.parseBytesSync(
+      final raw = EpubParserService.parseBytesSync(
         compatibility.fixture(),
+      );
+      final original = TanachLayoutService.layout(
+        raw,
+        const ReaderSettings(commentarySources: ['Rashi on Genesis']),
       );
       final index = original.spine[0].blocks.indexWhere(
         (b) => b.plainText == 'Full English note',
@@ -217,7 +225,7 @@ void main() {
       expect(matches, ['Full English note']);
       final hidden = TanachLayoutService.layout(
         original,
-        const ReaderSettings(inlineCommentary: false),
+        const ReaderSettings(),
       );
       expect([
         for (var i = 0; i < hidden.spine[0].blocks.length; i++)
@@ -236,7 +244,7 @@ void main() {
       final book = await cache.import(doc, source, fingerprint: 'a');
       final result = await TanachSqliteSearchService(
         databasePath: book.tanachDatabasePath!,
-        settings: const ReaderSettings(),
+        settings: const ReaderSettings(commentarySources: ['Rashi']),
       ).search(book.spine, 'Some note');
       final store = BookStoreService.instance;
       await store.init(customFile: File('${temp.path}/library.json'));
@@ -248,6 +256,9 @@ void main() {
       );
       try {
         await session.open();
+        await session.applySettings(
+          session.settings.copyWith(commentarySources: ['Rashi']),
+        );
         await session.goToToc(
           TocEntry(title: 'Match', position: result.matches.single.position),
         );
