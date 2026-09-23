@@ -8,8 +8,10 @@ import 'package:eink_launcher/reader/models/doc_ref.dart';
 import 'package:eink_launcher/reader/models/laid_out_page.dart';
 import 'package:eink_launcher/reader/models/parsed_book.dart';
 import 'package:eink_launcher/reader/models/reading_position.dart';
+import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:eink_launcher/reader/models/toc_entry.dart';
 import 'package:eink_launcher/reader/services/book_store_service.dart';
+import 'package:eink_launcher/reader/services/epub_paginator_service.dart';
 import 'package:eink_launcher/reader/services/pagination_cache_service.dart';
 import 'package:eink_launcher/reader/services/text_search_service.dart';
 import 'package:flutter/material.dart';
@@ -355,18 +357,187 @@ void main() {
         reason: 'the restored chapter is paginated first',
       );
 
-      await session.goToToc(_book.tableOfContents.last);
-      await _waitUntil(() {
-        return !session.isPaginating &&
-            (session.position as TextReadingPosition).spineIndex == 1;
-      });
+      // A jump requested while the next chapter is still mid-flight keeps the
+      // pages that are already published (no blank screen) and joins the layout
+      // that is already running instead of starting a second one.
+      final jump = session.goToToc(_book.tableOfContents.last);
+      expect(session.currentLaidOutPage, isNotNull);
+      expect(cache.loadCount, 2, reason: 'the in-flight chapter is reused');
+
       cache.releaseSecondLoad.complete();
       await initialPagination;
+      await jump;
 
       expect((session.position as TextReadingPosition).spineIndex, 1);
       expect(session.currentLaidOutPage!.start.spineIndex, 1);
     },
   );
+
+  test(
+    'page turns keep working while the rest of the book paginates',
+    () async {
+      session.dispose();
+      final cache = _GatedCache(
+        cacheDirectory: Directory('${directory.path}/turns'),
+        blockFrom: 2,
+      );
+      final paginator = _CountingPaginator();
+      session = TextReaderSession(
+        doc: doc,
+        bookStore: BookStoreService.instance,
+        paginationCache: cache,
+        paginator: paginator,
+        bookLoader: (_, _) async => _readingBook,
+      );
+      await session.open();
+
+      unawaited(session.prepareViewport(const Size(220, 180)));
+      await cache.entered.future;
+      expect(session.isPaginating, isTrue);
+      expect(session.currentLaidOutPage!.start.spineIndex, 0);
+
+      // Turns have to work while the remaining chapters are still being laid
+      // out: nothing waits for a whole chapter any more.
+      final first = session.currentPage;
+      await session.nextPage();
+      await session.nextPage();
+
+      expect(session.currentPage, first + 2);
+      expect((session.position as TextReadingPosition).spineIndex, 0);
+      expect(
+        paginator.calls[0],
+        1,
+        reason: 'a finished chapter is never laid out twice',
+      );
+
+      cache.release.complete();
+      await _waitUntil(() => !session.isPaginating);
+      expect(paginator.calls.keys, containsAll([0, 1, 2, 3]));
+      expect(session.pageCount, greaterThan(3));
+    },
+  );
+
+  test(
+    'a page turn waiting for a chapter joins the layout already running',
+    () async {
+      session.dispose();
+      final cache = _GatedCache(
+        cacheDirectory: Directory('${directory.path}/join'),
+        blockFrom: 1,
+      );
+      final paginator = _CountingPaginator();
+      session = TextReaderSession(
+        doc: doc,
+        bookStore: BookStoreService.instance,
+        paginationCache: cache,
+        paginator: paginator,
+        bookLoader: (_, _) async => _readingBook,
+      );
+      await session.open();
+
+      unawaited(session.prepareViewport(const Size(220, 180)));
+      await cache.entered.future;
+      expect(session.currentLaidOutPage, isNull, reason: 'no page exists yet');
+
+      final turn = session.nextPage();
+      // The turn must join the layout already running for that chapter instead
+      // of asking the cache (and the paginator) for that chapter a second time.
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(cache.loadCount, 1, reason: 'the running layout is reused');
+      cache.release.complete();
+      await turn;
+
+      expect(
+        paginator.calls[0],
+        1,
+        reason: 'the turn reused the layout the background pass had started',
+      );
+      expect(session.currentPage, 1);
+      expect(session.currentLaidOutPage!.start.spineIndex, 0);
+      await _waitUntil(() => !session.isPaginating);
+    },
+  );
+
+  test('typography changes do not hold page turns for the whole book', () async {
+    session.dispose();
+    final cache = _GatedCache(
+      cacheDirectory: Directory('${directory.path}/settings'),
+    );
+    session = TextReaderSession(
+      doc: doc,
+      bookStore: BookStoreService.instance,
+      paginationCache: cache,
+      bookLoader: (_, _) async => _readingBook,
+    );
+    cache.blockFrom = null;
+    await session.open();
+    await session.prepareViewport(const Size(220, 180));
+
+    // Keep the second chapter of the new layout unfinished so the reader is
+    // provably turning pages while the background pass is still running.
+    cache.blockFrom = cache.loadCount + 2;
+    await session.applySettings(session.settings.copyWith(fontSizeStep: 6));
+
+    expect(session.settings.fontSizeStep, 6);
+    expect(session.currentLaidOutPage, isNotNull);
+    expect(session.isPaginating, isTrue);
+    final before = session.currentPage;
+    await session.nextPage();
+    expect(session.currentPage, before + 1);
+
+    cache.release.complete();
+    await _waitUntil(() => !session.isPaginating);
+  });
+
+  test('no page is shown before the reader\'s own page is laid out', () async {
+    session.dispose();
+    final position = const TextReadingPosition(
+      spineIndex: 0,
+      blockIndex: 580,
+      charOffset: 0,
+    );
+    BookStoreService.instance.saveBookState(
+      BookState(
+        docId: doc.id,
+        lastPath: doc.path,
+        format: doc.format,
+        lastRead: DateTime.now(),
+        position: position,
+      ),
+    );
+    session = TextReaderSession(
+      doc: doc,
+      bookStore: BookStoreService.instance,
+      paginationCache: cache,
+      bookLoader: (_, _) async => _deepChapterBook,
+    );
+    await session.open();
+    unawaited(session.prepareViewport(const Size(220, 180)));
+
+    // While the chapter is still being measured, every page that exists is
+    // before the reading position. Showing one of them would look like a jump
+    // backwards and would persist that wrong position on the next turn.
+    var partialPages = 0;
+    for (var attempt = 0; attempt < 8000; attempt++) {
+      if (session.currentLaidOutPage != null) break;
+      if (session.pageCount > partialPages) partialPages = session.pageCount;
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(
+      partialPages,
+      greaterThan(0),
+      reason: 'pages were published before the reader\'s own page',
+    );
+
+    await _waitUntil(() => session.currentLaidOutPage != null);
+    final page = session.currentLaidOutPage!;
+    expect(_compare(page.start, position), lessThanOrEqualTo(0));
+    expect(_compare(position, page.end), lessThan(0));
+    expect(session.position, position);
+
+    await _waitUntil(() => !session.isPaginating);
+    expect(_compare(session.position as TextReadingPosition, position), 0);
+  });
 
   test('published pages remain in logical spine order', () async {
     await session.open();
@@ -478,6 +649,8 @@ class _BlockingPaginationCache extends PaginationCacheService {
   final Completer<void> releaseSecondLoad = Completer<void>();
   int _loadCount = 0;
 
+  int get loadCount => _loadCount;
+
   _BlockingPaginationCache({required super.cacheDirectory});
 
   @override
@@ -492,6 +665,82 @@ class _BlockingPaginationCache extends PaginationCacheService {
 
   @override
   Future<void> save(String key, List<LaidOutPage> pages) async {}
+}
+
+// Every load misses, and calls at or after [blockFrom] stay in flight until
+// [release] completes. Used to freeze background pagination at a known point.
+class _GatedCache extends PaginationCacheService {
+  _GatedCache({required super.cacheDirectory, this.blockFrom});
+
+  int? blockFrom;
+  final Completer<void> entered = Completer<void>();
+  final Completer<void> release = Completer<void>();
+  int loadCount = 0;
+
+  @override
+  Future<List<LaidOutPage>?> load(String key) async {
+    loadCount++;
+    final gate = blockFrom;
+    if (gate != null && loadCount >= gate) {
+      if (!entered.isCompleted) entered.complete();
+      await release.future;
+    }
+    return null;
+  }
+
+  @override
+  Future<void> save(String key, List<LaidOutPage> pages) async {}
+}
+
+// Counts how often a chapter is laid out (through either entry point), so
+// duplicated work shows up as a failure instead of a slow device.
+class _CountingPaginator extends EpubPaginatorService {
+  final Map<int, int> calls = {};
+
+  void _count(int spineIndex) =>
+      calls.update(spineIndex, (value) => value + 1, ifAbsent: () => 1);
+
+  @override
+  List<LaidOutPage> paginateSpine({
+    required int spineIndex,
+    required List<ContentBlock> blocks,
+    required Size contentSize,
+    required ReaderSettings settings,
+    Map<String, Size> imageSizes = const {},
+  }) {
+    _count(spineIndex);
+    return super.paginateSpine(
+      spineIndex: spineIndex,
+      blocks: blocks,
+      contentSize: contentSize,
+      settings: settings,
+      imageSizes: imageSizes,
+    );
+  }
+
+  @override
+  Future<List<LaidOutPage>> paginateSpineResponsive({
+    required int spineIndex,
+    required List<ContentBlock> blocks,
+    required Size contentSize,
+    required ReaderSettings settings,
+    required bool Function() isCancelled,
+    required void Function(List<LaidOutPage>) onProgress,
+    Map<String, Size> imageSizes = const {},
+    Duration yieldBudget = EpubPaginatorService.defaultYieldBudget,
+  }) {
+    _count(spineIndex);
+    return super.paginateSpineResponsive(
+      spineIndex: spineIndex,
+      blocks: blocks,
+      contentSize: contentSize,
+      settings: settings,
+      isCancelled: isCancelled,
+      onProgress: onProgress,
+      imageSizes: imageSizes,
+      yieldBudget: yieldBudget,
+    );
+  }
 }
 
 // Production saves intentionally run in the background. Wait for those writes
@@ -531,6 +780,49 @@ final _longText = List.filled(
   18,
   'A bilingual paragraph with enough words to wrap across several lines. ',
 ).join();
+
+/// Four chapters with several pages each, for tests that need a page turn to
+/// cross into text the background pass has not reached yet.
+final _readingBook = ParsedBook(
+  title: 'Reading book',
+  spine: [
+    for (var chapter = 0; chapter < 4; chapter++)
+      ParsedSpineItem(
+        id: 'chapter-$chapter',
+        href: 'chapter-$chapter.xhtml',
+        blocks: [
+          ContentBlock(
+            type: BlockType.heading1,
+            runs: [InlineRun(text: 'Chapter $chapter')],
+          ),
+          for (var paragraph = 0; paragraph < 4; paragraph++)
+            ContentBlock(
+              type: BlockType.paragraph,
+              runs: [InlineRun(text: _longText)],
+            ),
+        ],
+      ),
+  ],
+);
+
+/// A single chapter with enough blocks for the reading position to sit far
+/// behind the layout frontier while the chapter is still being measured.
+final _deepChapterBook = ParsedBook(
+  title: 'Deep chapter',
+  spine: [
+    ParsedSpineItem(
+      id: 'deep',
+      href: 'deep.xhtml',
+      blocks: [
+        for (var block = 0; block < 600; block++)
+          ContentBlock(
+            type: BlockType.paragraph,
+            runs: [InlineRun(text: 'Paragraph number $block.')],
+          ),
+      ],
+    ),
+  ],
+);
 
 final _book = ParsedBook(
   title: 'Test book',

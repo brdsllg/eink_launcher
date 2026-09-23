@@ -136,6 +136,13 @@ and images are cached on disk (64 MiB limit); source changes and publisher-style
 changes invalidate the cache. TXT detects likely hard-wrapped prose and paragraph
 indents while preserving deliberate line breaks in other text.
 
+Pagination is progressive. The chapter holding the reading position is measured
+first and publishes each finished page while the remaining chapters keep laying
+out in the background, forward first. Page turns, TOC and percent jumps,
+bookmarks, and typography or viewport changes wait only for the pages they show,
+never for a complete chapter or book, and each chapter is measured at most once
+even when a tap asks for it while it is already being laid out.
+
 Structured Tanach EPUBs use a separate disposable SQLite import cache. Raw XHTML
 is compressed per chapter, whole-book text is indexed with FTS5, and only a small
 working set of projected chapters stays in memory. The original EPUB remains the

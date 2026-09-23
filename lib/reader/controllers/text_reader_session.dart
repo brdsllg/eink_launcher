@@ -140,6 +140,17 @@ class TextReaderSession extends ReaderSession {
   final List<int> _chapterUseOrder = [];
   static const int _maxResidentTanachChapters = 3;
 
+  /// In-flight chapter layout per spine index for the current pagination
+  /// generation. Requests sharing a chapter share one layout, so a page turn
+  /// can never start a second, duplicate run of the chapter it is waiting for.
+  final Map<int, _ChapterLayout> _layouts = {};
+
+  /// Chapters whose layout failed in the current pagination generation.
+  final Set<int> _failedChapters = {};
+
+  /// Upper bound on "wait for the next batch" retries inside one page turn.
+  static const int _maxTurnAttempts = 64;
+
   TextReaderSession({
     required this.doc,
     BookStoreService? bookStore,
@@ -244,8 +255,27 @@ class TextReaderSession extends ReaderSession {
           );
   }
 
-  LaidOutPage? get currentLaidOutPage =>
-      _pages.isEmpty ? null : _pages[_currentPage];
+  /// The page to render, or null while the page holding [position] has not been
+  /// laid out yet.
+  ///
+  /// Chapters publish their pages while they are still being measured. Falling
+  /// back to the last page available would show text from *before* the reading
+  /// position and, on the next turn, move the saved position backwards, so the
+  /// UI keeps showing its "laying out pages" state until the reader's own page
+  /// exists.
+  LaidOutPage? get currentLaidOutPage {
+    if (_pages.isEmpty) return null;
+    final chapter = _position.spineIndex;
+    if (!_completedChapters.contains(chapter)) {
+      final pages = _chapterPages[chapter];
+      if (pages != null &&
+          pages.isNotEmpty &&
+          _comparePosition(_position, pages.last.end) > 0) {
+        return null;
+      }
+    }
+    return _pages[_currentPage.clamp(0, _pages.length - 1)];
+  }
 
   ContentBlock blockAt(int spineIndex, int blockIndex) =>
       _book!.spine[spineIndex].blocks[blockIndex];
@@ -305,8 +335,20 @@ class TextReaderSession extends ReaderSession {
     _isReady = false;
     _paginationGeneration++;
     _isPaginating = false;
+    _abandonLayouts();
     _persistState();
     notifyListeners();
+  }
+
+  /// Drops in-flight chapter layouts. Their generation check makes any late
+  /// publication a no-op, and their waiters are released so a pending
+  /// navigation can see that it was cancelled.
+  void _abandonLayouts() {
+    for (final layout in _layouts.values) {
+      layout.finish();
+    }
+    _layouts.clear();
+    _failedChapters.clear();
   }
 
   @override
@@ -337,6 +379,7 @@ class TextReaderSession extends ReaderSession {
     _completedChapters.clear();
     _imageSizes.clear();
     _chapterUseOrder.clear();
+    _abandonLayouts();
     super.dispose();
   }
 
@@ -362,7 +405,16 @@ class TextReaderSession extends ReaderSession {
     unawaited(prepareViewport(viewport));
   }
 
-  Future<void> prepareViewport(Size viewport) async {
+  /// Lays the document out for [viewport].
+  ///
+  /// [awaitComplete] decides what this call waits for. The reader can start on
+  /// the pages of the current position as soon as they exist either way; with
+  /// `false` the rest of the book keeps laying out in the background, which is
+  /// what typography changes use so page turns are never held for a whole book.
+  Future<void> prepareViewport(
+    Size viewport, {
+    bool awaitComplete = true,
+  }) async {
     final content = Size(
       (viewport.width - _settings.horizontalMargin * 2).clamp(
         1,
@@ -378,7 +430,7 @@ class TextReaderSession extends ReaderSession {
     }
     _viewport = viewport;
     _contentSize = content;
-    if (_isReady) await _repaginate(content);
+    if (_isReady) await _repaginate(content, awaitComplete: awaitComplete);
   }
 
   @override
@@ -400,28 +452,48 @@ class TextReaderSession extends ReaderSession {
       layout == _paginationGeneration;
 
   Future<void> _turnPage(int direction) async {
-    if (!_isReady || _book == null) return;
+    final book = _book;
+    if (!_isReady || book == null || book.spine.isEmpty) return;
     final lifecycle = _lifecycleGeneration;
-    final layout = _paginationGeneration;
-    final chapter = _position.spineIndex;
-    await _ensureChapterPages(chapter);
-    if (!_navigationCurrent(lifecycle, layout)) return;
-    final index = _pageIndexForPosition(_position);
-    final adjacent = index + direction;
-    if (adjacent >= 0 &&
-        adjacent < _pages.length &&
-        _pages[adjacent].start.spineIndex == chapter) {
-      _setCurrentPage(adjacent);
-      return;
-    }
-    for (
-      var next = chapter + direction;
-      next >= 0 && next < _book!.spine.length;
-      next += direction
-    ) {
-      await _ensureChapterPages(next);
-      if (!_navigationCurrent(lifecycle, layout)) return;
+    final pagination = _paginationGeneration;
+    var chapter = _position.spineIndex.clamp(0, book.spine.length - 1);
+    // Wait for the pages this turn needs — never for a whole chapter. A tap
+    // that lands on pages the background pass has not measured yet waits for
+    // the next batch (tens of milliseconds) instead of a complete layout.
+    await _ensureChapterPages(chapter, through: _position);
+    if (!_navigationCurrent(lifecycle, pagination)) return;
+    for (var attempt = 0; attempt < _maxTurnAttempts; attempt++) {
+      final index = _pageIndexForPosition(_position);
+      final adjacent = index + direction;
+      if (adjacent >= 0 &&
+          adjacent < _pages.length &&
+          _pages[adjacent].start.spineIndex == chapter &&
+          _pages[adjacent].end.spineIndex == chapter) {
+        _setCurrentPage(adjacent);
+        _trimResidentChapters();
+        return;
+      }
+      if (direction > 0 && !_completedChapters.contains(chapter)) {
+        // The reader is at the edge of what has been laid out so far: wait for
+        // the next batch rather than skipping ahead into another chapter.
+        final layout = _layoutFor(chapter);
+        if (layout == null) return;
+        await layout.nextPublication();
+        if (!_navigationCurrent(lifecycle, pagination)) return;
+        continue;
+      }
+      // The chapter is exhausted, so cross into its neighbour.
+      final next = chapter + direction;
+      if (next < 0 || next >= _book!.spine.length) return;
+      await _ensureChapterPages(
+        next,
+        need: direction > 0 ? _PageNeed.any : _PageNeed.complete,
+      );
+      if (!_navigationCurrent(lifecycle, pagination)) return;
       final pages = _chapterPages[next];
+      chapter = next;
+      // Skip chapters that laid out no pages at all (for example a decorative
+      // cover) and keep looking in the same direction.
       if (pages == null || pages.isEmpty) continue;
       _goToPosition(direction > 0 ? pages.first.start : pages.last.start);
       _trimResidentChapters();
@@ -432,29 +504,14 @@ class TextReaderSession extends ReaderSession {
   @override
   Future<void> goToPage(int pageIndex) async {
     if (!_isReady || _pages.isEmpty) return;
-    final lifecycle = _lifecycleGeneration;
-    final layout = _paginationGeneration;
-    final target = _pages[pageIndex.clamp(0, _pages.length - 1)].start;
-    await _ensureChapterLoaded(target.spineIndex);
-    if (!_navigationCurrent(lifecycle, layout)) return;
-    _goToPosition(target);
-    _trimResidentChapters();
+    await _jumpTo(_pages[pageIndex.clamp(0, _pages.length - 1)].start);
   }
 
   @override
   Future<void> goToToc(TocEntry entry) async {
     final target = entry.position;
     if (!_isReady || target is! TextReadingPosition) return;
-    final book = _book;
-    final lifecycle = _lifecycleGeneration;
-    final layout = _paginationGeneration;
-    if (book != null && book.hasLazyTanachContent) {
-      final spineIndex = _spineIndexForPosition(target, book);
-      await _ensureChapterPages(spineIndex);
-    }
-    if (!_navigationCurrent(lifecycle, layout)) return;
-    _goToPosition(target);
-    _trimResidentChapters();
+    await _jumpTo(target);
   }
 
   Future<bool> openLink(String href) async {
@@ -471,21 +528,13 @@ class TextReaderSession extends ReaderSession {
         : null;
     final block = anchor == null ? 0 : book.spine[spineIndex].anchors[anchor];
     if (block == null) return false;
-    final lifecycle = _lifecycleGeneration;
-    final layout = _paginationGeneration;
-    if (book.hasLazyTanachContent) {
-      await _ensureChapterPages(spineIndex);
-    }
-    if (!_navigationCurrent(lifecycle, layout)) return false;
-    _goToPosition(
+    return _jumpTo(
       TextReadingPosition(
         spineIndex: spineIndex,
         blockIndex: block,
         charOffset: 0,
       ),
     );
-    _trimResidentChapters();
-    return true;
   }
 
   @override
@@ -499,7 +548,9 @@ class TextReaderSession extends ReaderSession {
       (count) => count > targetCharacter,
     );
     if (spineIndex < 0) spineIndex = book.spine.length - 1;
-    if (book.hasLazyTanachContent) await _ensureChapterPages(spineIndex);
+    // A lazy chapter exposes its size before its text, so the offset inside the
+    // chapter can only be resolved once its blocks are loaded.
+    await _ensureChapterLoaded(spineIndex);
     if (!_navigationCurrent(lifecycle, layout)) return;
     final currentBook = _book!;
     final beforeSpine = spineIndex == 0
@@ -522,14 +573,13 @@ class TextReaderSession extends ReaderSession {
       remaining -= blocks[blockIndex].characterCount;
       blockIndex++;
     }
-    _goToPosition(
+    await _jumpTo(
       TextReadingPosition(
         spineIndex: spineIndex,
         blockIndex: blockIndex,
         charOffset: remaining.clamp(0, blocks[blockIndex].characterCount),
       ),
     );
-    _trimResidentChapters();
   }
 
   @override
@@ -620,7 +670,9 @@ class TextReaderSession extends ReaderSession {
     final viewport = _viewport;
     if (viewport != null) {
       _contentSize = null;
-      await prepareViewport(viewport);
+      // Wait only until the reading position has pages again. The remaining
+      // chapters keep laying out in the background so page turns stay usable.
+      await prepareViewport(viewport, awaitComplete: false);
     }
     if (!_disposed && generation == _lifecycleGeneration) {
       _persistState(settingsOverride: settings);
@@ -628,10 +680,22 @@ class TextReaderSession extends ReaderSession {
     }
   }
 
-  Future<void> _repaginate(Size contentSize) async {
+  /// Lays the whole document out again for [contentSize].
+  ///
+  /// The chapter holding the reading position is laid out first and publishes
+  /// its pages while it is still being measured, so a reader can start on the
+  /// current page and turn pages long before the book is finished. With
+  /// [awaitComplete] the call waits for the remaining chapters too; without it
+  /// only the current position is waited for and the rest keeps running in the
+  /// background.
+  Future<void> _repaginate(
+    Size contentSize, {
+    bool awaitComplete = true,
+  }) async {
     final book = _book;
     if (book == null || _isSuspended || _disposed) return;
     final generation = ++_paginationGeneration;
+    _abandonLayouts();
     _isPaginating = true;
     _chapterPages.clear();
     _completedChapters.clear();
@@ -639,95 +703,70 @@ class TextReaderSession extends ReaderSession {
     _currentPage = 0;
     notifyListeners();
 
+    final priority = _position.spineIndex.clamp(0, book.spine.length - 1);
+    // Read forward first: the chapters a reader is about to reach matter more
+    // than the ones behind, and the position's own chapter matters most.
+    final order = <int>[
+      priority,
+      for (var i = priority + 1; i < book.spine.length; i++) i,
+      for (var i = priority - 1; i >= 0; i--) i,
+    ];
+    final run = _runPagination(
+      contentSize: contentSize,
+      generation: generation,
+      order: order,
+      priority: priority,
+    );
+    if (awaitComplete) {
+      await run;
+      return;
+    }
+    await _ensureChapterPages(priority, through: _position);
+    if (_paginationCurrent(generation)) unawaited(run);
+  }
+
+  /// True while [generation] is still the layout the session wants.
+  bool _paginationCurrent(int generation) =>
+      !_disposed && !_isSuspended && generation == _paginationGeneration;
+
+  /// Lays out [order] one chapter at a time, publishing each chapter's pages as
+  /// they are measured. Page turns and jumps can ask for a chapter at any time;
+  /// they share the in-flight layout instead of starting a second one.
+  Future<void> _runPagination({
+    required Size contentSize,
+    required int generation,
+    required List<int> order,
+    required int priority,
+  }) async {
     try {
-      final priority = _position.spineIndex.clamp(0, book.spine.length - 1);
-      final order = <int>[
-        priority,
-        for (var i = 0; i < book.spine.length; i++)
-          if (i != priority) i,
-      ];
       for (final spineIndex in order) {
-        if (generation != _paginationGeneration || _isSuspended) return;
+        if (!_paginationCurrent(generation)) return;
         if (_completedChapters.contains(spineIndex)) continue;
-        final cacheKey = _paginationCache.keyFor(
-          docId: '${doc.id}:${book.contentFingerprint}',
-          spineIndex: spineIndex,
-          width: contentSize.width,
-          height: contentSize.height,
-          settings: _settings,
+        final layout = _layoutChapter(
+          spineIndex,
+          contentSize: contentSize,
+          generation: generation,
         );
-        var pages = await _paginationCache.load(cacheKey);
-        if (generation != _paginationGeneration || _isSuspended || _disposed) {
-          return;
+        if (layout != null) {
+          await layout.done;
+          if (layout.error != null) throw layout.error!;
         }
-        if (pages == null) {
-          await _ensureChapterLoaded(spineIndex);
-          if (generation != _paginationGeneration ||
-              _isSuspended ||
-              _disposed) {
-            return;
-          }
-          final blocks = _book!.spine[spineIndex].blocks;
-          if (blocks.length > 256) {
-            pages = await _paginator.paginateSpineResponsive(
-              spineIndex: spineIndex,
-              blocks: blocks,
-              contentSize: contentSize,
-              imageSizes: _imageSizes,
-              settings: _settings,
-              isCancelled: () =>
-                  _disposed ||
-                  _isSuspended ||
-                  generation != _paginationGeneration,
-              onProgress: (partial) {
-                if (_disposed ||
-                    _isSuspended ||
-                    generation != _paginationGeneration ||
-                    _completedChapters.contains(spineIndex) ||
-                    partial.isEmpty) {
-                  return;
-                }
-                _chapterPages[spineIndex] = partial;
-                _rebuildPages();
-                notifyListeners();
-              },
-            );
-          } else {
-            pages = _paginator.paginateSpine(
-              spineIndex: spineIndex,
-              blocks: blocks,
-              contentSize: contentSize,
-              imageSizes: _imageSizes,
-              settings: _settings,
-            );
-          }
-          if (_disposed ||
-              _isSuspended ||
-              generation != _paginationGeneration) {
-            return;
-          }
-          unawaited(_savePages(cacheKey, pages));
-        }
-        if (generation != _paginationGeneration || _isSuspended) return;
-        _chapterPages[spineIndex] = pages;
-        _completedChapters.add(spineIndex);
-        _rebuildPages();
-        if (book.hasLazyTanachContent && spineIndex != priority) {
+        if (!_paginationCurrent(generation)) return;
+        final book = _book;
+        if (book != null &&
+            book.hasLazyTanachContent &&
+            spineIndex != priority) {
           _trimResidentChapters();
         }
         notifyListeners();
         await Future<void>.delayed(Duration.zero);
       }
-      if (_disposed || generation != _paginationGeneration || _isSuspended) {
-        return;
-      }
+      if (!_paginationCurrent(generation)) return;
       _isPaginating = false;
       _error = null;
       notifyListeners();
     } catch (error) {
-      if (_disposed || generation != _paginationGeneration || _isSuspended) {
-        return;
-      }
+      if (!_paginationCurrent(generation)) return;
       _isPaginating = false;
       _isReady = false;
       _error = readerErrorMessage(error, doc.format);
@@ -743,52 +782,209 @@ class TextReaderSession extends ReaderSession {
     }
   }
 
-  Future<void> _ensureChapterPages(int spineIndex) async {
-    final lifecycle = _lifecycleGeneration;
-    final generation = _paginationGeneration;
+  /// Makes sure a navigation into [spineIndex] can show the page it needs.
+  ///
+  /// Layout is requested on demand and shared with the background pass, and the
+  /// call returns as soon as the pages it asked for exist — never after a whole
+  /// chapter has been laid out.
+  Future<void> _ensureChapterPages(
+    int spineIndex, {
+    TextReadingPosition? through,
+    _PageNeed need = _PageNeed.position,
+  }) async {
     final book = _book;
     if (book == null || spineIndex < 0 || spineIndex >= book.spine.length) {
       return;
     }
+    final lifecycle = _lifecycleGeneration;
+    final generation = _paginationGeneration;
     await _ensureChapterLoaded(spineIndex);
     if (!_navigationCurrent(lifecycle, generation)) return;
     if (_completedChapters.contains(spineIndex)) return;
     final contentSize = _contentSize;
     if (contentSize == null) return;
-    final liveBook = _book!;
-    final cacheKey = _paginationCache.keyFor(
-      docId: '${doc.id}:${liveBook.contentFingerprint}',
-      spineIndex: spineIndex,
-      width: contentSize.width,
-      height: contentSize.height,
-      settings: _settings,
+    await _awaitPages(
+      spineIndex,
+      need: need,
+      through: through,
+      contentSize: contentSize,
+      generation: generation,
     );
-    var pages = await _paginationCache.load(cacheKey);
-    if (!_navigationCurrent(lifecycle, generation)) return;
-    if (pages == null) {
-      final blocks = liveBook.spine[spineIndex].blocks;
-      pages = blocks.length > 256
-          ? await _paginator.paginateSpineResponsive(
-              spineIndex: spineIndex,
-              blocks: blocks,
-              contentSize: contentSize,
-              imageSizes: _imageSizes,
-              settings: _settings,
-              isCancelled: () => !_navigationCurrent(lifecycle, generation),
-              onProgress: (_) {},
-            )
-          : _paginator.paginateSpine(
-              spineIndex: spineIndex,
-              blocks: blocks,
-              contentSize: contentSize,
-              imageSizes: _imageSizes,
-              settings: _settings,
-            );
-      unawaited(_savePages(cacheKey, pages));
+  }
+
+  /// Waits until [spineIndex] satisfies [need], laying the chapter out on
+  /// demand. A chapter that already has the needed pages returns immediately.
+  Future<void> _awaitPages(
+    int spineIndex, {
+    required _PageNeed need,
+    required TextReadingPosition? through,
+    required Size contentSize,
+    required int generation,
+  }) async {
+    while (true) {
+      if (!_paginationCurrent(generation)) return;
+      if (_failedChapters.contains(spineIndex)) return;
+      if (_needSatisfied(need, through, spineIndex)) return;
+      final layout = _layoutChapter(
+        spineIndex,
+        contentSize: contentSize,
+        generation: generation,
+      );
+      // Nothing left to lay out: the chapter is finished (possibly with no
+      // pages at all, like a decorative cover) or its layout failed.
+      if (layout == null) return;
+      if (_needSatisfied(need, through, spineIndex)) return;
+      await layout.nextPublication();
     }
-    if (!_navigationCurrent(lifecycle, generation)) return;
+  }
+
+  bool _needSatisfied(
+    _PageNeed need,
+    TextReadingPosition? through,
+    int spineIndex,
+  ) {
+    if (_completedChapters.contains(spineIndex)) return true;
+    final pages = _chapterPages[spineIndex];
+    return switch (need) {
+      _PageNeed.any => pages != null && pages.isNotEmpty,
+      _PageNeed.position =>
+        pages != null &&
+            pages.isNotEmpty &&
+            through != null &&
+            _comparePosition(through, pages.last.end) <= 0,
+      _PageNeed.complete => false,
+    };
+  }
+
+  /// Jumps to [target], waiting only until that position has pages.
+  ///
+  /// Published pages are kept, so a jump never blanks the page on screen, and
+  /// the target chapter is laid out straight away instead of waiting for the
+  /// background pass to reach it.
+  Future<bool> _jumpTo(TextReadingPosition target) async {
+    final book = _book;
+    if (book == null || book.spine.isEmpty || !_isReady) return false;
+    final lifecycle = _lifecycleGeneration;
+    final generation = _paginationGeneration;
+    final spineIndex = _spineIndexForPosition(target, book);
+    await _ensureChapterPages(spineIndex, through: target);
+    if (!_navigationCurrent(lifecycle, generation)) return false;
+    _goToPosition(target);
+    _trimResidentChapters();
+    return true;
+  }
+
+  _ChapterLayout? _layoutFor(int spineIndex) => _layouts[spineIndex];
+
+  /// Starts (or joins) the layout of one chapter.
+  ///
+  /// A turn that needs a chapter the background pass has not reached yet starts
+  /// it here and shares the work with any request already in flight, so the
+  /// same chapter is never laid out twice.
+  _ChapterLayout? _layoutChapter(
+    int spineIndex, {
+    required Size contentSize,
+    required int generation,
+  }) {
+    final book = _book;
+    if (book == null || spineIndex < 0 || spineIndex >= book.spine.length) {
+      return null;
+    }
+    if (_completedChapters.contains(spineIndex) ||
+        _failedChapters.contains(spineIndex)) {
+      return null;
+    }
+    final existing = _layouts[spineIndex];
+    if (existing != null) return existing;
+    final layout = _ChapterLayout(spineIndex);
+    _layouts[spineIndex] = layout;
+    unawaited(
+      _runChapterLayout(
+        layout,
+        contentSize: contentSize,
+        generation: generation,
+      ),
+    );
+    return layout;
+  }
+
+  Future<void> _runChapterLayout(
+    _ChapterLayout layout, {
+    required Size contentSize,
+    required int generation,
+  }) async {
+    final spineIndex = layout.spineIndex;
+    try {
+      final book = _book;
+      if (book == null || spineIndex >= book.spine.length) return;
+      final cacheKey = _paginationCache.keyFor(
+        docId: '${doc.id}:${book.contentFingerprint}',
+        spineIndex: spineIndex,
+        width: contentSize.width,
+        height: contentSize.height,
+        settings: _settings,
+      );
+      final cached = await _paginationCache.load(cacheKey);
+      if (!_paginationCurrent(generation)) return;
+      if (cached != null) {
+        _publishChapter(
+          spineIndex,
+          cached,
+          complete: true,
+          generation: generation,
+        );
+        return;
+      }
+      // Lazy chapters load their text only when it is really needed, so a
+      // cached layout for a Tanach chapter does not pull it into memory.
+      await _ensureChapterLoaded(spineIndex);
+      if (!_paginationCurrent(generation)) return;
+      final blocks = _book!.spine[spineIndex].blocks;
+      final pages = await _paginator.paginateSpineResponsive(
+        spineIndex: spineIndex,
+        blocks: blocks,
+        contentSize: contentSize,
+        imageSizes: _imageSizes,
+        settings: _settings,
+        isCancelled: () => !_paginationCurrent(generation),
+        onProgress: (partial) => _publishChapter(
+          spineIndex,
+          partial,
+          complete: false,
+          generation: generation,
+        ),
+      );
+      if (!_paginationCurrent(generation)) return;
+      unawaited(_savePages(cacheKey, pages));
+      _publishChapter(
+        spineIndex,
+        pages,
+        complete: true,
+        generation: generation,
+      );
+    } catch (error) {
+      if (_paginationCurrent(generation)) _failedChapters.add(spineIndex);
+      layout.fail(error);
+    } finally {
+      if (_layouts[spineIndex] == layout) _layouts.remove(spineIndex);
+      layout.finish();
+    }
+  }
+
+  /// Publishes the pages measured so far for one chapter. Running this per batch
+  /// is what lets a reader start before the chapter — or the book — is done.
+  void _publishChapter(
+    int spineIndex,
+    List<LaidOutPage> pages, {
+    required bool complete,
+    required int generation,
+  }) {
+    if (!_paginationCurrent(generation)) return;
+    if (!complete && pages.isEmpty) return;
     _chapterPages[spineIndex] = pages;
-    _completedChapters.add(spineIndex);
+    if (complete) _completedChapters.add(spineIndex);
+    // Release waiters first so a pending turn sees the pages it was waiting for.
+    _layouts[spineIndex]?.published();
     _rebuildPages();
     notifyListeners();
   }
@@ -857,7 +1053,9 @@ class TextReaderSession extends ReaderSession {
     final protected = _position.spineIndex;
     while (_chapterUseOrder.length > _maxResidentTanachChapters) {
       final candidate = _chapterUseOrder.firstWhere(
-        (index) => index != protected,
+        // A chapter with pages still being measured must stay loaded: the
+        // paginator and the renderer both need its blocks.
+        (index) => index != protected && !_layouts.containsKey(index),
         orElse: () => -1,
       );
       if (candidate < 0) return;
@@ -948,17 +1146,6 @@ class TextReaderSession extends ReaderSession {
     final book = _book;
     if (book == null || book.spine.isEmpty) return;
     _position = _clampPosition(target, book);
-    if (!_chapterPages.containsKey(_position.spineIndex)) {
-      // Retain the requested logical target until its priority chapter has
-      // been laid out. Snapping against another loaded chapter would silently
-      // lose TOC/percent jumps during progressive pagination.
-      _currentPage = _pageIndexForPosition(_position);
-      _persistState();
-      notifyListeners();
-      final contentSize = _contentSize;
-      if (contentSize != null) unawaited(_repaginate(contentSize));
-      return;
-    }
     _currentPage = _pageIndexForPosition(_position);
     // Keep the logical target (including a search match's character offset).
     // Snapping to the page start can hide it after a typography/viewport change.
@@ -1078,5 +1265,74 @@ class TextReaderSession extends ReaderSession {
     final block = a.blockIndex.compareTo(b.blockIndex);
     if (block != 0) return block;
     return a.charOffset.compareTo(b.charOffset);
+  }
+}
+
+/// What a navigation needs before it can show a chapter's page.
+enum _PageNeed {
+  /// At least one page exists (crossing forward into a chapter).
+  any,
+
+  /// The pages cover the position the reader is going to (turning a page, or
+  /// jumping to a TOC entry, search match, or bookmark).
+  position,
+
+  /// The chapter is finished. Crossing backwards needs its last page, and page
+  /// breaks are only known once the whole chapter has been measured.
+  complete,
+}
+
+/// Layout work for one spine item within one pagination generation.
+///
+/// Both the background pass and page turns ask for chapters through this
+/// object, so a chapter is laid out once and every waiter is woken by the same
+/// publication. [done] completes even when the work is abandoned (suspension,
+/// memory pressure, or a newer layout), which keeps pending navigations from
+/// waiting forever.
+class _ChapterLayout {
+  _ChapterLayout(this.spineIndex);
+
+  final int spineIndex;
+  final Completer<void> _done = Completer<void>();
+  final List<Completer<void>> _publications = [];
+  bool _finished = false;
+  Object? _error;
+
+  /// Set when the chapter was laid out but the layout failed.
+  Object? get error => _error;
+
+  Future<void> get done => _done.future;
+
+  /// Resolves when more pages become available, or immediately when no more
+  /// will (the chapter finished or the work was abandoned).
+  Future<void> nextPublication() {
+    if (_finished) return Future<void>.value();
+    final completer = Completer<void>();
+    _publications.add(completer);
+    return completer.future;
+  }
+
+  void published() => _releaseWaiters();
+
+  void fail(Object error) {
+    _error = error;
+    _finish();
+  }
+
+  /// Releases waiters and lets the background pass move on, whatever the
+  /// outcome. Safe to call more than once.
+  void finish() => _finish();
+
+  void _finish() {
+    _finished = true;
+    if (!_done.isCompleted) _done.complete();
+    _releaseWaiters();
+  }
+
+  void _releaseWaiters() {
+    for (final waiter in _publications) {
+      if (!waiter.isCompleted) waiter.complete();
+    }
+    _publications.clear();
   }
 }

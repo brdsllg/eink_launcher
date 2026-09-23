@@ -136,6 +136,16 @@ Parsing uses background isolates where practical. The UI isolate performs final
 font measurement because it owns Flutter text layout. Pagination caches are keyed
 by document identity, chapter, viewport, and typography.
 
+Pagination is progressive and shared. The chapter holding the reading position is
+laid out first and publishes each finished page as it is measured; the remaining
+chapters follow, forward first, in the background. Page turns, TOC and percent
+jumps, bookmarks, and typography or viewport changes wait only for the pages they
+show — never for a whole chapter — and every request for a chapter joins the
+layout already running for it, so a chapter is measured at most once. Until the
+page holding the reading position exists the text view keeps its "laying out
+pages" state instead of showing a page from before the position, which would move
+the saved position backwards on the next turn.
+
 Recognized Tanach EPUBs take a bounded-memory variant of this path. First open
 creates a per-book SQLite cache containing gzip-compressed chapter XHTML, spine
 and navigation metadata, resources, stable verse targets, and a contentless FTS5

@@ -16,6 +16,15 @@ import 'hyphenation_service.dart';
 class EpubPaginatorService {
   const EpubPaginatorService();
 
+  /// Blocks measured between mandatory yields. Keeps one synchronous stretch
+  /// short enough that the UI isolate can still handle taps and frames.
+  static const int _blocksPerBatch = 16;
+
+  /// How much layout work may pass before completed pages are published again.
+  /// A reader can start on the pages that already exist instead of waiting for
+  /// the whole chapter, and the paced snapshots stay cheap.
+  static const Duration defaultYieldBudget = Duration(milliseconds: 16);
+
   List<LaidOutPage> paginateSpine({
     required int spineIndex,
     required List<ContentBlock> blocks,
@@ -33,6 +42,12 @@ class EpubPaginatorService {
   }
 
   /// Yield between batches while keeping the same page state and geometry.
+  ///
+  /// [onProgress] receives a growing snapshot of the pages laid out so far, so
+  /// a caller can publish them while the rest of the chapter is still being
+  /// measured. The first finished page is reported immediately; later pages at
+  /// most every [yieldBudget] of layout work. The final list is the same one
+  /// [paginateSpine] returns.
   Future<List<LaidOutPage>> paginateSpineResponsive({
     required int spineIndex,
     required List<ContentBlock> blocks,
@@ -41,6 +56,7 @@ class EpubPaginatorService {
     required bool Function() isCancelled,
     required void Function(List<LaidOutPage>) onProgress,
     Map<String, Size> imageSizes = const {},
+    Duration yieldBudget = defaultYieldBudget,
   }) async {
     List<LaidOutPage> latest = const [];
     for (final pages in _steps(
@@ -49,6 +65,7 @@ class EpubPaginatorService {
       contentSize: contentSize,
       settings: settings,
       imageSizes: imageSizes,
+      yieldBudget: yieldBudget,
     )) {
       if (isCancelled()) return const [];
       latest = pages;
@@ -64,6 +81,7 @@ class EpubPaginatorService {
     required Size contentSize,
     required ReaderSettings settings,
     Map<String, Size> imageSizes = const {},
+    Duration yieldBudget = defaultYieldBudget,
   }) sync* {
     if (contentSize.width <= 0 || contentSize.height <= 0 || blocks.isEmpty) {
       yield const [];
@@ -73,6 +91,11 @@ class EpubPaginatorService {
     final pages = <LaidOutPage>[];
     var pageSlices = <BlockSlice>[];
     var usedHeight = 0.0;
+    // Yield points only slice the same growing page list, so the geometry of
+    // every page is identical to a single synchronous [paginateSpine] run.
+    final stopwatch = Stopwatch()..start();
+    var publishedPages = 0;
+    var lastYield = Duration.zero;
 
     void finishPage() {
       if (pageSlices.isEmpty) return;
@@ -99,7 +122,9 @@ class EpubPaginatorService {
     }
 
     for (var blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-      if (blockIndex > 0 && blockIndex % 32 == 0) {
+      if (blockIndex > 0 && blockIndex % _blocksPerBatch == 0) {
+        publishedPages = pages.length;
+        lastYield = stopwatch.elapsed;
         yield List<LaidOutPage>.unmodifiable(pages);
       }
       final block = blocks[blockIndex];
@@ -188,6 +213,16 @@ class EpubPaginatorService {
             usedHeight >= contentSize.height - 0.01) {
           finishPage();
         }
+      }
+      // Publish whatever this block completed. The first page of a chapter is
+      // reported immediately so a reader can start on it; later pages are paced
+      // by [yieldBudget] because each snapshot copies the growing page list.
+      if (pages.length != publishedPages &&
+          (publishedPages == 0 ||
+              stopwatch.elapsed - lastYield >= yieldBudget)) {
+        publishedPages = pages.length;
+        lastYield = stopwatch.elapsed;
+        yield List<LaidOutPage>.unmodifiable(pages);
       }
     }
     finishPage();
