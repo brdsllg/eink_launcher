@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 
 import '../models/annotation.dart';
@@ -19,7 +21,7 @@ class BlockSliceView extends StatefulWidget {
   final Uint8List? imageBytes;
   final Size? imageSize;
   final Future<void> Function(String word)? onDefineWord;
-  final void Function(String href)? onOpenLink;
+  final Future<void> Function(String href)? onOpenLink;
   final List<Annotation> annotations;
   final void Function(Annotation annotation)? onOpenAnnotation;
   final Future<void> Function(TextSelection range, String text, bool addNote)?
@@ -372,7 +374,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
                   details.localPosition,
                 );
                 if (href != null) {
-                  widget.onOpenLink!(href);
+                  unawaited(widget.onOpenLink!(href));
                 } else {
                   TapZoneLayer.dispatchMiss(context, details.globalPosition);
                 }

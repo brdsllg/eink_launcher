@@ -71,8 +71,6 @@ class TextReaderSession extends ReaderSession {
   }
 
   int _settingsGeneration = 0;
-  final List<TextReadingPosition> _linkHistory = [];
-  bool get canGoBackFromLink => _linkHistory.isNotEmpty;
   ReaderSettings _settings = const ReaderSettings();
   TextReadingPosition _position = const TextReadingPosition(
     spineIndex: 0,
@@ -459,7 +457,7 @@ class TextReaderSession extends ReaderSession {
     _trimResidentChapters();
   }
 
-  bool openLink(String href) {
+  Future<bool> openLink(String href) async {
     final book = _book;
     if (book == null || !_isReady) return false;
     final target = href.startsWith('#')
@@ -473,7 +471,12 @@ class TextReaderSession extends ReaderSession {
         : null;
     final block = anchor == null ? 0 : book.spine[spineIndex].anchors[anchor];
     if (block == null) return false;
-    _linkHistory.add(_anchoredPosition(_position));
+    final lifecycle = _lifecycleGeneration;
+    final layout = _paginationGeneration;
+    if (book.hasLazyTanachContent) {
+      await _ensureChapterPages(spineIndex);
+    }
+    if (!_navigationCurrent(lifecycle, layout)) return false;
     _goToPosition(
       TextReadingPosition(
         spineIndex: spineIndex,
@@ -481,11 +484,8 @@ class TextReaderSession extends ReaderSession {
         charOffset: 0,
       ),
     );
+    _trimResidentChapters();
     return true;
-  }
-
-  void backFromLink() {
-    if (_linkHistory.isNotEmpty) _goToPosition(_linkHistory.removeLast());
   }
 
   @override

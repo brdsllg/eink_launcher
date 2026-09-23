@@ -11,7 +11,6 @@ import '../models/reader_settings.dart';
 class ReaderSettingsScreen extends StatefulWidget {
   final ReaderSettings initialSettings;
   final DocFormat format;
-  final VoidCallback? onBackToText;
   final List<String> studySources;
   final List<StudyTranslationOption> studyTranslations;
   final String? primaryStudyTranslationId;
@@ -20,7 +19,6 @@ class ReaderSettingsScreen extends StatefulWidget {
     super.key,
     required this.initialSettings,
     this.format = DocFormat.pdf,
-    this.onBackToText,
     this.studySources = const [],
     this.studyTranslations = const [],
     this.primaryStudyTranslationId,
@@ -78,11 +76,6 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
   }
 
   List<Widget> _textControls() => [
-    if (widget.onBackToText != null)
-      TextButton(
-        onPressed: widget.onBackToText,
-        child: const Text("Back to previous reading position"),
-      ),
     if (widget.studySources.isNotEmpty ||
         widget.studyTranslations.isNotEmpty) ...[
       const Text(

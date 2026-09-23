@@ -168,24 +168,13 @@ class _TextPageViewState extends State<TextPageView> {
                       text,
                       addNote,
                     ),
-                    onOpenLink: (href) {
-                      final opened = widget.session.openLink(href);
+                    onOpenLink: (href) async {
+                      final opened = await widget.session.openLink(href);
                       if (!opened) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
                               'This link is not available in the reading text.',
-                            ),
-                          ),
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            duration: const Duration(seconds: 10),
-                            content: const Text('Followed book link'),
-                            action: SnackBarAction(
-                              label: 'Back',
-                              onPressed: widget.session.backFromLink,
                             ),
                           ),
                         );

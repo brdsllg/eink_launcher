@@ -323,13 +323,6 @@ class _ReaderScreenState extends State<ReaderScreen>
         ReaderSettingsScreen(
           initialSettings: session.settings,
           format: session.doc.format,
-          onBackToText:
-              session is TextReaderSession && session.canGoBackFromLink
-              ? () {
-                  Navigator.of(context).pop();
-                  session.backFromLink();
-                }
-              : null,
           studySources: session is TextReaderSession
               ? session.book?.studySources ?? const []
               : const [],

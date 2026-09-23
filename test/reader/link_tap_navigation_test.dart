@@ -55,7 +55,7 @@ void main() {
                       ),
                       settings: settings,
                       pageHeight: 400,
-                      onOpenLink: (_) => linkTaps++,
+                      onOpenLink: (_) async => linkTaps++,
                     ),
                   ],
                 ),

@@ -261,6 +261,78 @@ void main() {
   });
 
   test(
+    'openLink to another spine chapter produces a laid-out page immediately',
+    () async {
+      // Regression: synchronous _goToPosition called by the old openLink left
+      // the page blank (grey) when the target chapter had not yet been paginated.
+      // The fix makes openLink async and calls _ensureChapterPages before
+      // navigating, so content is ready by the time the call returns.
+      await session.open();
+      await session.prepareViewport(const Size(220, 180));
+
+      // Start on chapter one (spineIndex 0).
+      expect((session.position as TextReadingPosition).spineIndex, 0);
+
+      // Follow a link to two.xhtml (spineIndex 1). No anchor needed — block 0.
+      final opened = await session.openLink('two.xhtml');
+      expect(opened, isTrue);
+      expect((session.position as TextReadingPosition).spineIndex, 1);
+      // The page must be laid out — not null/grey — and must match the position.
+      final page = session.currentLaidOutPage;
+      expect(page, isNotNull);
+      expect(page!.start.spineIndex, 1);
+    },
+  );
+
+  test(
+    'openLink with a fragment anchor navigates to the correct block',
+    () async {
+      // Build a book where chapter two has a named anchor on block 1.
+      final bookWithAnchor = ParsedBook(
+        title: 'Anchor test',
+        spine: [
+          ParsedSpineItem(
+            id: 'one',
+            href: 'one.xhtml',
+            blocks: _book.spine[0].blocks,
+          ),
+          ParsedSpineItem(
+            id: 'two',
+            href: 'two.xhtml',
+            blocks: _book.spine[1].blocks,
+            anchors: const {'para': 1},
+          ),
+        ],
+        tableOfContents: _book.tableOfContents,
+      );
+      session.dispose();
+      session = TextReaderSession(
+        doc: doc,
+        bookStore: BookStoreService.instance,
+        paginationCache: cache,
+        bookLoader: (_, _) async => bookWithAnchor,
+      );
+      await session.open();
+      await session.prepareViewport(const Size(220, 180));
+
+      final opened = await session.openLink('two.xhtml#para');
+      expect(opened, isTrue);
+      final pos = session.position as TextReadingPosition;
+      expect(pos.spineIndex, 1);
+      expect(pos.blockIndex, 1);
+    },
+  );
+
+  test('openLink returns false for unknown href', () async {
+    await session.open();
+    await session.prepareViewport(const Size(220, 180));
+    final opened = await session.openLink('missing.xhtml');
+    expect(opened, isFalse);
+    // Position must be unchanged.
+    expect((session.position as TextReadingPosition).spineIndex, 0);
+  });
+
+  test(
     'retains a TOC target requested during progressive pagination',
     () async {
       session.dispose();
