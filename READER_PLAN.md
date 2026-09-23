@@ -148,14 +148,19 @@ the saved position backwards on the next turn.
 
 Recognized Tanach EPUBs take a bounded-memory variant of this path. First open
 creates a per-book SQLite cache containing gzip-compressed chapter XHTML, spine
-and navigation metadata, resources, stable verse targets, and a contentless FTS5
-index with separately stored display text. Later opens validate the EPUB SHA-256
+and navigation metadata, resources, stable verse targets, and a normalized
+substring-search column with separately stored display text. Later opens validate
+the EPUB SHA-256
 and cache schema before using it. Chapters are projected for the active translation
 and commentary settings on demand; background pagination may visit the remaining
-chapters sequentially, but only three projected chapters remain resident. FTS
-queries preserve Hebrew-mark normalization and honor commentary visibility,
-source/language filters, and translation selection. A bounded substring fallback
-preserves the former in-memory search semantics for infix queries.
+chapters sequentially, but only three projected chapters remain resident. Search
+queries use `instr()` on a Hebrew-mark-normalized text column and honor commentary
+visibility, source/language filters, and translation selection. A bounded substring
+fallback preserves the former in-memory search semantics for infix queries.
+
+> **TODO:** Dual-cache architecture complexity. The current system uses both a JSON parse cache (`parsed_epubs/`, 64 MB limit) and a SQLite content cache (`tanach_sqlite/`, 768 MB limit) for Tanach EPUBs. The JSON cache holds fully parsed books; the SQLite cache holds gzip-compressed XHTML plus projected chapters. These two caches have separate eviction systems and overlapping data. When the JSON cache hits, the system re-imports to SQLite even if the SQLite DB is current. Evaluate whether the JSON cache is still needed given the SQLite cache, or whether they should be consolidated into a single system.
+
+> **TODO:** Build pipeline maintainability. `work/build.py` is a single 450+ line script handling database reading, XHTML generation, EPUB packaging, credits, TOC, and reporting. There is no incremental rebuild support — running `regenerate.py` rebuilds all 39 EPUBs from scratch. Consider: splitting build.py into smaller modules, adding single-book rebuild capability for testing, automating verification that rebuilt EPUBs match expected checksums, and detecting Sefaria source changes that would affect content.
 
 The Tanach database is disposable cache data and is never the owner of bookmarks,
 annotations, settings, or positions. Those remain in `library.json`; pagination
@@ -360,6 +365,14 @@ test documents, and the limits of screenshot-based evidence.
 2. If a symptom recurs with another book, capture precise preview/sharpen timing
    or traces as needed to diagnose it.
 3. Tune caches or renderer policy only for a repeatable measured improvement.
+
+> **Note:** EPUB structure notes. The current EPUB package uses: `mimetype`, `META-INF/container.xml`, `EPUB/package.opf`, `EPUB/nav.xhtml`, `EPUB/toc.ncx`, `EPUB/style.css`, `EPUB/title.xhtml`, `EPUB/chapter-N.xhtml`, and `EPUB/credits.xhtml`. The spine specifies `page-progression-direction="ltr"`. The package does not include an EPUB 3 `toc.xhtml` in the manifest (only `nav.xhtml` with `epub:type="toc"` and the legacy `toc.ncx`), no `epub:type="page-list"` for verse-level navigation, and minimal package metadata (no `dc:date` with actual build timestamp — the `dcterms:modified` is hardcoded to `2026-09-17T00:00:00Z`, no `dc:publisher`, no `dc:rights`). These are not blockers for the current reader but may matter for compatibility with other EPUB readers or future distribution.
+
+> **Note:** Reader-side integration gaps to verify: verse-to-verse commentary navigation (when a commentary note references another verse via `data-ref`, does the reader resolve it to a reading position?), commentary notes spanning multiple verses (the same `data-note-id` appearing in multiple verse groups — the reader must not discard segments from one group because another group contains the same note), book-level vs. chapter-level settings persistence for commentary source selection, and search result navigation to commentary (when `instr` search finds a match in commentary text, does the reader correctly navigate to the projected commentary block?).
+
+## Suggested opening instruction for a new project
+
+> **TODO:** Performance considerations. The integration test took 5:01 for all 39 books and produced 463.8 MiB of cache databases. Genesis 1 is disproportionately large at 3+ MB of XHTML with 345+ asides. Loading a chapter decompresses the full XHTML, re-parses it with `html.parse()`, then projects blocks — for a 3 MB chapter this is non-trivial. The import runs in an isolate but provides no progress callbacks. Evaluate whether the 768 MB SQLite cache limit is appropriate given the actual data size, and whether higher gzip compression levels during import would reduce storage and I/O at the cost of one-time CPU.
 
 Version 1.0.3 software verification was **277 passing Flutter tests** with the generated
 native PDFium check enabled and clean static analysis. Host tests verify state,
