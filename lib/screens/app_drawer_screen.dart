@@ -219,7 +219,10 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
           iconCell(
             IconButton(
               padding: EdgeInsets.zero,
-              icon: Icon(_searchOpen ? Icons.close : Icons.arrow_back),
+              icon: Icon(
+                _searchOpen ? Icons.close : Icons.arrow_back,
+                size: kReaderChromeIconSize,
+              ),
               tooltip: _searchOpen ? 'Close search' : 'Back',
               onPressed: _searchOpen
                   ? _closeSearch
@@ -260,26 +263,18 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
             const SizedBox(
               key: Key('apps-clock-cell'),
               width: 72,
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: ClockText(
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                child: ClockText(
+                  fillAvailableSpace: true,
+                  style: TextStyle(color: Colors.black),
                 ),
               ),
             ),
             iconCell(
               IconButton(
                 padding: EdgeInsets.zero,
-                icon: const Icon(Icons.search),
+                icon: const Icon(Icons.search, size: kReaderChromeIconSize),
                 tooltip: 'Search apps',
                 onPressed: _openSearch,
               ),
@@ -287,14 +282,14 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
             iconCell(
               IconButton(
                 padding: EdgeInsets.zero,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(Icons.refresh, size: kReaderChromeIconSize),
                 tooltip: 'Refresh apps',
                 onPressed: _refresh,
               ),
             ),
             iconCell(
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert),
+                icon: const Icon(Icons.more_vert, size: kReaderChromeIconSize),
                 tooltip: 'More options',
                 padding: EdgeInsets.zero,
                 popUpAnimationStyle: AnimationStyle.noAnimation,

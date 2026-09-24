@@ -39,6 +39,8 @@ script file location, so no configuration is needed:
 
 ```powershell
 python -X utf8 work/regenerate.py            # redraw EPUBs from work/tanach.sqlite
+python -X utf8 work/regenerate.py --book Obadiah # rebuild one book for a trial
+python -X utf8 work/audit_chapter_compression.py --level 6 # measure chapter gzip size
 python -X utf8 work/validate.py              # EPUBCheck 5.3.0 + structure/anchor checks over outputs/books
 python -X utf8 work/package_full.py          # checksums + outputs/tanach-39-epubs.zip
 python -X utf8 work/package_samples.py       # guides + outputs/tanach-samples.zip + tanach-pipeline.zip

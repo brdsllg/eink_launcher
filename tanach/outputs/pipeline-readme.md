@@ -1,6 +1,6 @@
 # Tanach EPUB pipeline
 
-Current state: the full 39-book collection is built (revision 5, 17 September 2026) in
+Current state: the full 39-book collection was rebuilt (revision 5, 22 September 2026) in
 outputs/books/, and outputs/samples/ holds the nine chapter samples used for reader checks.
 Python 3.11+ standard library is sufficient for downloading and building.
 Use UTF-8 mode on Windows: `python -X utf8 ...`.
@@ -15,6 +15,13 @@ Rebuild from the existing cache:
 
 Redraw EPUBs from the existing SQLite database after a presentation-only edit:
     python -X utf8 work/regenerate.py
+    python -X utf8 work/regenerate.py --book Obadiah  # one-book trial
+
+The one-book command leaves full-coverage.json unchanged. ZIP timestamps can change on a
+rebuild even when member contents are identical; refresh package checksums after acceptance.
+
+Audit chapter XHTML compression on the current books:
+    python -X utf8 work/audit_chapter_compression.py --level 6
 
 Package the current deliverables:
     python -X utf8 work/package_full.py      # checksums + outputs/tanach-39-epubs.zip

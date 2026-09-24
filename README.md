@@ -157,11 +157,11 @@ The content pipeline that produces those EPUBs is a separate segment of this rep
 `tanach/`; see `tanach/README.md` for its layout, commands, and the generated collection.
 The reader consumes only the produced files.
 
-> **Note:** The Tanach EPUB reader integration uses a dual-cache architecture: a JSON parse cache holds fully parsed books, and a SQLite content cache holds gzip-compressed chapter XHTML, projected chapters, and search text. These caches have separate eviction policies and overlapping data. For non-Tanach EPUBs, only the JSON cache is used.
+> **Note:** Normal Tanach opens use a disposable SQLite cache containing gzip-compressed chapter XHTML and normalized substring-search text. Projected chapters live in reader memory, not in SQLite. The JSON parse cache serves ordinary EPUBs and can supply a legacy Tanach cache hit if SQLite is missing; newly parsed Tanach books are not written to JSON.
 
-> **Note:** Content accuracy notes for the EPUB builder (`work/build.py`): Ruth 3:12 has a hardcoded assertion and string replacement (`assert ' אם ' in s` / `s.replace(' אם ', ' [אם] ')`) that is a special-case fix — this should have a comment explaining why it's needed. The `WARN` list collects `qere_without_ketiv` warnings during Hebrew rendering but these are never surfaced in build output. The qere/ketiv rendering uses `§Q N§` placeholder tokens that must be fully replaced — there is no final verification scan confirming no placeholders remain. The 1,645 unresolved Sefaria link-index pointers and Joshua 21:36-37 Hebrew-only verses are documented in `build-report.json` but should be verified to remain stable across rebuilds.
+> **Note:** The EPUB builder documents the Ruth 3:12 ketiv-only exception, prints warning counts during normalization, and rejects unresolved qere placeholders. The 1,645 unresolved Sefaria link-index pointers and Joshua 21:36-37 Hebrew-only verses are documented in `build-report.json`; compare these counts on future source rebuilds.
 
-> **Note:** Error handling and edge cases to verify in the SQLite cache: corrupt database recovery currently catches exceptions and falls back to reparsing, but the corrupt file persists and is retried on every open; partial import recovery if the temporary file rename fails; memory usage when loading very large chapters (Genesis 1 at 3+ MB uncompressed XHTML produces a large DOM); missing maximum chapter size protection; and fingerprint mismatch handling (old database is not cleaned up until `_trim` runs).
+> **Note:** A corrupt, unpinned SQLite cache file is removed before the EPUB is reparsed. Remaining cache checks include partial import recovery if a temporary-file rename fails, memory use for very large chapters such as Genesis 1, and behavior if a chapter exceeds available device memory.
 
 Reader settings default to **Black and white**. Toggle **Page color** to show
 color PDF content and EPUB/Markdown images; the choice is saved per document.

@@ -75,8 +75,8 @@ class ReaderMenuOverlay extends StatelessWidget {
         const _StatusCell(
           key: Key('reader-battery-cell'),
           child: BatteryStatus(
-            style: TextStyle(fontSize: 12),
-            iconSize: kReaderChromeIconSize,
+            style: TextStyle(fontSize: 16, height: 1),
+            iconSize: 32,
           ),
         ),
         const _StatusCell(
@@ -256,7 +256,7 @@ class _StatusCell extends StatelessWidget {
   Widget build(BuildContext context) {
     if (fill) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
         child: child,
       );
     }
@@ -332,13 +332,13 @@ class _MenuButton extends StatelessWidget {
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.zero,
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 2),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: kReaderChromeIconSize),
+                  Icon(icon, size: kReaderChromeIconSize - 2),
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(

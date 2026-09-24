@@ -663,31 +663,34 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
                 fill: true,
               ),
               Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _displayName(_controller.currentPath),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: (barHeight * 0.4).clamp(17.0, 24.0),
-                          height: 1,
-                        ),
-                      ),
-                      if (_controller.status.isNotEmpty)
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Text(
-                          _controller.status,
+                          _displayName(_controller.currentPath),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: (barHeight * 0.21).clamp(10.0, 13.0),
+                            fontSize: (barHeight * 0.4).clamp(17.0, 24.0),
                             height: 1,
-                            color: Colors.grey,
                           ),
                         ),
-                    ],
+                        if (_controller.status.isNotEmpty)
+                          Text(
+                            _controller.status,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: (barHeight * 0.21).clamp(10.0, 13.0),
+                              height: 1,
+                              color: Colors.grey,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -695,8 +698,8 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
                 const Key('browser-battery-cell'),
                 unitWidth,
                 const BatteryStatus(
-                  style: TextStyle(fontSize: 12, height: 1),
-                  iconSize: kReaderChromeIconSize,
+                  style: TextStyle(fontSize: 15, height: 1),
+                  iconSize: 30,
                 ),
               ),
               SizedBox(

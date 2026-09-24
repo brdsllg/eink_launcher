@@ -1,4 +1,4 @@
-import collections,hashlib,json,sqlite3,zipfile
+import collections,hashlib,json,re,sqlite3,zipfile
 from sync import ROOT,CACHE,key
 out=ROOT/'outputs'
 config=json.loads((out/'source-selection.json').read_text(encoding='utf-8'))
@@ -25,11 +25,17 @@ for s in config['sources']:
     if s['selected_versions']:s['license_status']='Recorded per selected edition; unknown means metadata does not supply a license.'
 for t in config['translations']:
     t['cached_edition_metadata']=[d for u,d in editions.items() if d['version_title']==t['version_title'] and d['title'] in config['preferences']['book_order']]
-config['stage']='samples_built_full_collection_not_built'
+config['stage']='full_collection_built'
 config['preferences']['note_navigation']='Verse-level index links to source-tagged, full-text footnote asides.'
 (out/'source-selection.json').write_text(json.dumps(config,ensure_ascii=False,indent=2),encoding='utf-8')
 coverage=json.loads((out/'sample-coverage.json').read_text(encoding='utf-8'))
 build=json.loads((out/'build-report.json').read_text(encoding='utf-8'))
+sample_note_ids=set()
+for epub_path in sorted((out/'samples').glob('*.epub')):
+    with zipfile.ZipFile(epub_path) as epub:
+        for name in epub.namelist():
+            if name.endswith('.xhtml'):
+                sample_note_ids.update(re.findall(rb'data-note-id="([^"]+)"',epub.read(name)))
 validation=json.loads((out/'validation-results.json').read_text())
 assert len(validation)==9 and all(r['epubcheck_exit']==0 and r['structure']=='pass' for r in validation)
 pending=collections.defaultdict(set)
@@ -54,7 +60,7 @@ lines=['# Tanach EPUB sample set','',
 for c in coverage:
     default='Metsudah' if all('Metsudah' in t for t in c['primary_translations']) else 'Koren'
     lines.append(f"| {c['book']} {c['chapters'][0]} | {c['verses']} | {c['notes']:,} | {len(c['sources'])} | {default} | {c['bytes']/1048576:.2f} MB |")
-lines+=['',f"There are {build['notes']:,} distinct commentary notes across the samples. Included comments retain their full text. Attachments use explicit chapter/verse structure (including selected supercommentary) or Sefaria links typed commentary. Broad citation links and whole-essay expansion are excluded. A verse-level link opens the source list, then an individual note opens the full text.",'',
+lines+=['',f"There are {len(sample_note_ids):,} distinct commentary notes across the samples. Included comments retain their full text. Attachments use explicit chapter/verse structure (including selected supercommentary) or Sefaria links typed commentary. Broad citation links and whole-essay expansion are excluded. A verse-level link opens the source list, then an individual note opens the full text.",'',
     '## Validation','',
     '- All nine EPUBs passed EPUBCheck 5.3.0.',
     '- Every local file link and anchor was checked; all note references resolve to footnote asides. No duplicate IDs or remaining cantillation in base-text paragraphs.',
@@ -68,7 +74,7 @@ lines+=['',f"There are {build['notes']:,} distinct commentary notes across the s
     '- Selecting a source does not guarantee a note on every sample verse. Only material present in the selected exports and attached under the direct-only policy is included.',
     '- Some source files report their license as “unknown”; the colophons retain that exact label rather than inventing one.',
     '- Commentary translations with uncertain provenance are withheld below. The original Hebrew remains included when available.',
-    '- The current renderer deliberately stops on unreviewed qere/ketiv bracket forms outside the tested cases. Generalizing and validating those cases is required before building all 39 books.','',
+    '',
     '## Commentary edition metadata to investigate','',
     'This is an internal edition-review queue, not a list of commentators whose Orthodox status is in doubt. The earlier request for a blanket decision was premature: generic edition labels need metadata and content checks first. These English edition variants are withheld for now; the named commentators can already be included through other editions. Only a specific unresolved religious or editorial choice should be referred back to the user.','',
     'Ramban is approved and already included: the Genesis and Deuteronomy samples contain Hebrew and English Ramban. The additional edition labeled “Ramban Commentary” links to Judaica Press but contains no exported text. It has been removed from this review queue; no user decision is needed for it.','',
@@ -90,7 +96,7 @@ lines+=['','## Reader integration','',
 (out/'source-review.md').write_text('# Source review status\n\nYour 23 commentary groups are recorded in selected-commentaries.md and source-selection.json. Only direct commentary is attached. Metsudah is primary with Koren fallback; Targum and all unselected commentary works are excluded.\n\nSee sample-guide.md for sample coverage and remaining edition metadata checks. These checks concern editions, not the Orthodox status of already approved classical commentators.\n',encoding='utf-8')
 readme='''# Tanach EPUB pipeline
 
-Current state: the full 39-book collection is built (revision 5, 17 September 2026) in
+Current state: the full 39-book collection was rebuilt (revision 5, 22 September 2026) in
 outputs/books/, and outputs/samples/ holds the nine chapter samples used for reader checks.
 Python 3.11+ standard library is sufficient for downloading and building.
 Use UTF-8 mode on Windows: `python -X utf8 ...`.
@@ -105,6 +111,13 @@ Rebuild from the existing cache:
 
 Redraw EPUBs from the existing SQLite database after a presentation-only edit:
     python -X utf8 work/regenerate.py
+    python -X utf8 work/regenerate.py --book Obadiah  # one-book trial
+
+The one-book command leaves full-coverage.json unchanged. ZIP timestamps can change on a
+rebuild even when member contents are identical; refresh package checksums after acceptance.
+
+Audit chapter XHTML compression on the current books:
+    python -X utf8 work/audit_chapter_compression.py --level 6
 
 Package the current deliverables:
     python -X utf8 work/package_full.py      # checksums + outputs/tanach-39-epubs.zip
@@ -137,7 +150,7 @@ with zipfile.ZipFile(out/'tanach-samples.zip','w',zipfile.ZIP_DEFLATED) as z:
     for p in sorted((out/'samples').glob('*.epub')):z.write(p,p.name)
     for name in ('sample-guide.md','validation-results.json','sample-coverage.json','reader-compatibility.md','selected-commentaries.md'):z.write(out/name,name)
 with zipfile.ZipFile(out/'tanach-pipeline.zip','w',zipfile.ZIP_DEFLATED) as z:
-    for name in ('sync.py','plan.py','build.py','regenerate.py','validate.py','test_pipeline.py','inventory.py','get_validation_tools.py','package_samples.py'):
+    for name in ('sync.py','plan.py','build.py','regenerate.py','validate.py','test_pipeline.py','inventory.py','get_validation_tools.py','package_samples.py','audit_chapter_compression.py'):
         z.write(ROOT/'work'/name,'work/'+name)
     z.write(out/'source-selection.json','outputs/source-selection.json')
     z.write(out/'pipeline-readme.md','README.md')

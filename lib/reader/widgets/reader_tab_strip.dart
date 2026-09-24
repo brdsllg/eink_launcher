@@ -144,7 +144,7 @@ class _PageArrow extends StatelessWidget {
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
       padding: EdgeInsets.zero,
-      icon: FittedBox(fit: BoxFit.scaleDown, child: Icon(icon, size: 44)),
+      icon: Icon(icon, size: kReaderChromeIconSize),
     );
   }
 }

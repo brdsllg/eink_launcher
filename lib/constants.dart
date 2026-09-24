@@ -38,7 +38,7 @@ const double kReaderChromeRowHeight = 56;
 double readerHeaderActionWidth(double availableWidth) =>
     availableWidth < 360 ? 48 : 56;
 
-const double kReaderChromeIconSize = 24;
+const double kReaderChromeIconSize = 30;
 
 /// File extensions opened by the built-in document reader.
 const Set<String> kReadableExtensions = {'.pdf', '.epub', '.txt', '.md'};

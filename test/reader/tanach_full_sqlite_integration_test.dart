@@ -33,6 +33,7 @@ void main() {
       final chapterCache = TanachSqliteCacheService(
         cacheDirectory: Directory('${cacheDirectory.path}/tanach_sqlite'),
       );
+      var totalDatabaseBytes = 0;
       try {
         for (final file in files) {
           final watch = Stopwatch()..start();
@@ -81,16 +82,20 @@ void main() {
             reason: file.path,
           );
           watch.stop();
+          final databaseBytes = File(book.tanachDatabasePath!).lengthSync();
+          totalDatabaseBytes += databaseBytes;
           // ignore: avoid_print
           print(
             jsonEncode({
               'book': file.uri.pathSegments.last,
               'milliseconds': watch.elapsedMilliseconds,
               'chapters': lazy.length,
-              'databaseBytes': File(book.tanachDatabasePath!).lengthSync(),
+              'databaseBytes': databaseBytes,
             }),
           );
         }
+        // ignore: avoid_print
+        print(jsonEncode({'totalDatabaseBytes': totalDatabaseBytes}));
       } finally {
         if (await cacheDirectory.exists()) {
           await cacheDirectory.delete(recursive: true);

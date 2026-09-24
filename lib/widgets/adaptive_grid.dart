@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../constants.dart';
 import 'control_bar_row.dart';
 
 /// A content-first header: bounded icon cells and a title that takes the rest.
@@ -33,7 +34,11 @@ class GridAppBar extends StatelessWidget implements PreferredSizeWidget {
     final back =
         leading ??
         (automaticallyImplyLeading && Navigator.of(context).canPop()
-            ? const BackButton()
+            ? IconButton(
+                tooltip: 'Back',
+                icon: const Icon(Icons.arrow_back, size: kReaderChromeIconSize),
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
             : null);
     return AppBar(
       automaticallyImplyLeading: false,

@@ -24,7 +24,10 @@ for p in sorted(books.glob('*.epub')):
         ids={};trees={}
         for name in z.namelist():
             if name.endswith(('.xhtml','.opf','.ncx','.xml')):
-                root=ET.fromstring(z.read(name));trees[name]=root
+                source=z.read(name)
+                if name.endswith('.xhtml'):
+                    assert not re.search(rb'\xc2\xa7Q\d+\xc2\xa7',source),('Unresolved qere placeholder',p.name,name)
+                root=ET.fromstring(source);trees[name]=root
                 vals=[n.attrib['id'] for n in root.iter() if 'id' in n.attrib]
                 assert len(vals)==len(set(vals)),('Duplicate ID',name)
                 ids[name]=set(vals)

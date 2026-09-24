@@ -71,6 +71,13 @@ class TanachSqliteCacheService {
         () => _readSkeleton(file.path, fingerprint: fingerprint),
       );
     } catch (_) {
+      // A broken disposable database should not be reopened on every launch.
+      // A live session may still be using the file, so leave pinned paths alone.
+      if (!_pins.containsKey(_pathKey(file.path))) {
+        try {
+          await file.delete();
+        } catch (_) {}
+      }
       return null;
     }
   }

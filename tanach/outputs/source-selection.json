@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "stage": "samples_built_full_collection_not_built",
+  "stage": "full_collection_built",
   "preferences": {
     "use": "personal",
     "book_divisions": 39,

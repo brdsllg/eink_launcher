@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'constants.dart';
 import 'reader/controllers/reader_session_registry.dart';
 import 'reader/services/book_store_service.dart';
 import 'reader/widgets/reading_state_warning.dart';
@@ -110,6 +111,7 @@ class MyApp extends StatelessWidget {
         dividerColor: Colors.black,
         iconButtonTheme: IconButtonThemeData(
           style: ButtonStyle(
+            iconSize: const WidgetStatePropertyAll(kReaderChromeIconSize),
             foregroundColor: _pressedForeground,
             backgroundColor: _pressedBackground,
             overlayColor: const WidgetStatePropertyAll(Colors.transparent),

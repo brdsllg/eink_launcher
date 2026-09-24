@@ -158,7 +158,7 @@ queries use `instr()` on a Hebrew-mark-normalized text column and honor commenta
 visibility, source/language filters, and translation selection. A bounded substring
 fallback preserves the former in-memory search semantics for infix queries.
 
-> **TODO:** Dual-cache architecture complexity. The current system uses both a JSON parse cache (`parsed_epubs/`, 64 MB limit) and a SQLite content cache (`tanach_sqlite/`, 768 MB limit) for Tanach EPUBs. The JSON cache holds fully parsed books; the SQLite cache holds gzip-compressed XHTML plus projected chapters. These two caches have separate eviction systems and overlapping data. When the JSON cache hits, the system re-imports to SQLite even if the SQLite DB is current. Evaluate whether the JSON cache is still needed given the SQLite cache, or whether they should be consolidated into a single system.
+The cache review found that a current Tanach SQLite database is checked first and returned immediately. A legacy JSON hit is imported only when SQLite is absent or stale; new Tanach parses are stored only in SQLite. Ordinary EPUBs still use JSON. SQLite stores gzip XHTML and search text; projected chapters are held in reader memory. Typography-only settings changes now keep those projected blocks instead of re-parsing them. The two disk limits apply to different formats, so no cache consolidation is needed for normal Tanach opens.
 
 > **TODO:** Build pipeline maintainability. `work/build.py` is a single 450+ line script handling database reading, XHTML generation, EPUB packaging, credits, TOC, and reporting. There is no incremental rebuild support — running `regenerate.py` rebuilds all 39 EPUBs from scratch. Consider: splitting build.py into smaller modules, adding single-book rebuild capability for testing, automating verification that rebuilt EPUBs match expected checksums, and detecting Sefaria source changes that would affect content.
 
@@ -372,7 +372,8 @@ test documents, and the limits of screenshot-based evidence.
 
 ## Suggested opening instruction for a new project
 
-> **TODO:** Performance considerations. The integration test took 5:01 for all 39 books and produced 463.8 MiB of cache databases. Genesis 1 is disproportionately large at 3+ MB of XHTML with 345+ asides. Loading a chapter decompresses the full XHTML, re-parses it with `html.parse()`, then projects blocks — for a 3 MB chapter this is non-trivial. The import runs in an isolate but provides no progress callbacks. Evaluate whether the 768 MB SQLite cache limit is appropriate given the actual data size, and whether higher gzip compression levels during import would reduce storage and I/O at the cost of one-time CPU.
+The 22 September all-book integration run passed on this host in 2:43 and produced 208,474,112 bytes (198.8 MiB) of cache databases. The current 39 EPUBs contain 929 chapter XHTML files totaling 310.6 MiB uncompressed; level-6 gzip reduces those chapter files to 66.9 MiB. Genesis 1 is 3,006,495 bytes uncompressed and 819,762 bytes at level 6. Chapter loading still parses and projects the decompressed XHTML, so device latency and peak memory need Bigme measurement. The 768 MiB disk limit has about 569 MiB of headroom for this collection. Import runs in an isolate without progress callbacks.
+Level-9 gzip saved only 733,119 bytes across all chapters compared with level 6, about 1% of the compressed XHTML. Keep the present compression level unless device measurements show a different bottleneck.
 
 Version 1.0.3 software verification was **277 passing Flutter tests** with the generated
 native PDFium check enabled and clean static analysis. Host tests verify state,

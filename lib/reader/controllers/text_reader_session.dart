@@ -610,8 +610,17 @@ class TextReaderSession extends ReaderSession {
     final generation = _lifecycleGeneration;
     final settingsGeneration = ++_settingsGeneration;
     _position = _anchoredPosition(_position);
+    final previousSettings = _settings;
     final mustReparse =
-        settings.honorPublisherCss != _settings.honorPublisherCss;
+        settings.honorPublisherCss != previousSettings.honorPublisherCss;
+    final previousSources = previousSettings.commentarySources.toSet();
+    final nextSources = settings.commentarySources.toSet();
+    final studyProjectionChanged =
+        mustReparse ||
+        settings.commentaryLanguage != previousSettings.commentaryLanguage ||
+        settings.studyTranslation != previousSettings.studyTranslation ||
+        previousSources.length != nextSources.length ||
+        !previousSources.containsAll(nextSources);
     _paginationGeneration++;
     _settings = settings;
     _persistState(settingsOverride: settings);
@@ -641,7 +650,9 @@ class TextReaderSession extends ReaderSession {
       }
     }
     final source = _book;
-    if (source != null && source.hasLazyTanachContent) {
+    if (source != null &&
+        source.hasLazyTanachContent &&
+        studyProjectionChanged) {
       _book = _unloadLazyChapters(source);
       _chapterUseOrder.clear();
       await _ensureChapterLoaded(

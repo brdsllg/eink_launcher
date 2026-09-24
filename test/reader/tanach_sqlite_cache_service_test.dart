@@ -78,6 +78,21 @@ void main() {
     },
   );
 
+  test('removes a corrupt unpinned database before reparsing', () async {
+    final service = TanachSqliteCacheService(
+      cacheDirectory: Directory('${directory.path}/cache'),
+    );
+    final file = await service.databaseFile(doc);
+    await file.parent.create(recursive: true);
+    await file.writeAsString('not a SQLite database');
+
+    expect(
+      await service.loadIfCurrent(doc, fingerprint: 'fingerprint-a'),
+      isNull,
+    );
+    expect(await file.exists(), isFalse);
+  });
+
   test(
     'SQLite searches normalized Hebrew and respects commentary filters',
     () async {
@@ -195,6 +210,14 @@ void main() {
       );
       expect((session.position as TextReadingPosition).spineIndex, 1);
       expect(session.book!.spine[1].isLoaded, isTrue);
+
+      final projectedChapter = session.book!.spine[1];
+      await session.applySettings(
+        session.settings.copyWith(
+          fontSizeStep: session.settings.fontSizeStep + 1,
+        ),
+      );
+      expect(session.book!.spine[1], same(projectedChapter));
 
       await session.applySettings(
         session.settings.copyWith(commentarySources: ['Rashi on Genesis']),

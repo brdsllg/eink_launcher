@@ -70,11 +70,15 @@ def hebrew(s,ref):
         WARN.append(dict(kind='qere_without_ketiv',ref=ref,text=s))
         s=re.sub(r'\[([^\[\]]+)\]',lambda m:m.group(1),s)
     if ref=='Ruth 3:12':
+        # The source marks אם as ketiv only; keep it bracketed even though
+        # this verse has no pointed qere to trigger the general swap above.
         assert ' אם ' in s
         s=s.replace(' אם ',' [אם] ')
     rendered=e(s)
     for i,((k,q),gap) in enumerate(zip(pairs,gaps)):
         rendered=rendered.replace(f'§Q{i}§',f'<span class="qere">{e(q)}</span> <span class="ketiv">[{e(k)}]</span>'+gap)
+    if re.search(r'§Q\d+§', rendered):
+        raise ValueError(f'Unresolved qere placeholder in {ref}')
     return rendered,pairs
 
 
@@ -298,6 +302,7 @@ def main():
     report=dict(attachment_policy=CONFIG['preferences'].get('attachment_policy','all_approved_links'),verses=len(verse_keys),notes=len(attached),attachments=len(attachments),link_types=dict(link_counts),warnings=WARN,unresolved_links=unresolved)
     (OUT/'build-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps({k:v for k,v in report.items() if k not in ('warnings','unresolved_links')}))
+    print('Warnings by kind:',json.dumps(dict(collections.Counter(w['kind'] for w in WARN)),ensure_ascii=False),flush=True)
     generate(conn,edition_info,chapters_by_book)
 
 CSS='''body {font-family:serif; margin:5%; color:#111; background:#fff; line-height:1.5;}
@@ -352,14 +357,17 @@ def translation_label(name):
     if 'Torah Yesharah' in name:return 'Torah Yesharah'
     return name
 
-def generate(conn,editions,chapters_by_book=None):
+def generate(conn,editions,chapters_by_book=None,books=None):
     conn.row_factory=sqlite3.Row
     if chapters_by_book is None:
         chapters_by_book={book:[r[0] for r in conn.execute('SELECT DISTINCT chapter FROM verses WHERE book=? ORDER BY chapter',(book,))] for book in BOOK_ORDER}
+    selected_books=BOOK_ORDER if books is None else [book for book in BOOK_ORDER if book in books]
+    if not selected_books or (books is not None and set(selected_books)!=set(books)):
+        raise ValueError('Unknown or empty book selection')
     book_dir=OUT/'books';book_dir.mkdir(exist_ok=True)
     preview=ROOT/'work/preview';preview.mkdir(exist_ok=True)
     summary=[]
-    for book in BOOK_ORDER:
+    for book in selected_books:
         chapters=chapters_by_book[book]
         bs=slug(book);files={'style.css':re.sub(r'direction:(?:rtl|ltr); ?','',CSS)};used=set();total_notes=set();total_trans=collections.Counter();book_notes=collections.Counter()
         title=book
@@ -448,7 +456,8 @@ def generate(conn,editions,chapters_by_book=None):
         for name,value in files.items():
             if name.endswith(('.xhtml','.css')):(pdir/name).write_text(value,encoding='utf-8')
         summary.append(dict(book=book,chapters=chapters,verses=conn.execute('SELECT count(*) FROM verses WHERE book=?',(book,)).fetchone()[0],notes=len(total_notes),sources=dict(book_notes),primary_translations=dict(total_trans),bytes=target.stat().st_size,file=target.name))
-    (OUT/'full-coverage.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding='utf-8')
+    if books is None:
+        (OUT/'full-coverage.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding='utf-8')
     print('Generated',len(summary),'complete book EPUBs',flush=True)
 
 def category_slug(c):return {'Rishonim on Tanakh':'rishon','Acharonim on Tanakh':'acharon','Modern Commentary on Tanakh':'modern'}.get(c,'other')
