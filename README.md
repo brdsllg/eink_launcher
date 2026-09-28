@@ -1,3 +1,5 @@
+user note: i have no idea how to code so keep things non-technical 
+
 # E-Ink Launcher & File Manager
 
 An Android home launcher, file manager, and document reader built with Flutter
