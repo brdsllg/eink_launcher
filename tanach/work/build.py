@@ -323,8 +323,8 @@ aside {margin:1.5em 0; border-top:1px solid #bbb; padding-top:.7em;}
 .note-he {font-family:"Noto Serif Hebrew","David","Times New Roman",serif; text-align:right; font-size:1em; line-height:1.8;}
 .note-en {text-align:left; font-size:1em; line-height:1.65;}
 .note-paragraph {margin:.65em 0;}
-.ketiv {font-size:.85em;}
-.embedded-footnote {font-size:.85em;}
+.ketiv {font-size:1em;}
+.embedded-footnote {font-size:1em;}
 .colophon {overflow-wrap:anywhere; font-size:.9em;}
 .backlinks {font-family:sans-serif; font-size:.75em; margin:1em 0 0;}
 '''
