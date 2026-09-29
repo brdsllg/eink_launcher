@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -54,6 +55,7 @@ class FileBrowserController extends ChangeNotifier {
   bool _searchOpen = false;
   bool _selecting = false;
   final Set<String> _selectedPaths = {};
+  Map<String, int> _trashDaysLeft = const {};
 
   FileOperationsService get ops => _ops;
   String get currentPath => _currentPath;
@@ -67,6 +69,20 @@ class FileBrowserController extends ChangeNotifier {
   Set<String> get selectedPaths => _selectedPaths;
   bool get hasSelection => _selectedPaths.isNotEmpty;
   bool get atRoot => _currentPath == kStorageRoot;
+
+  /// True in the Recycle Bin or any folder inside it.
+  bool get inTrash => _ops.isInTrash(_currentPath);
+
+  /// True only at the bin's top level, where items can be restored.
+  bool get atTrashRoot => _ops.isTrashRoot(_currentPath);
+
+  /// Days left before [entry] is purged (e.g. "12d"), or null outside the
+  /// bin's top level or when the item has no record.
+  String? trashDaysLabel(FileEntry entry) {
+    if (!atTrashRoot) return null;
+    final days = _trashDaysLeft[entry.name];
+    return days == null ? null : '${days}d';
+  }
 
   /// Loads shared preferences and the persisted home folder. Idempotent.
   Future<void> init({bool useStorageRoot = false}) async {
@@ -114,6 +130,7 @@ class FileBrowserController extends ChangeNotifier {
       if (_disposed) return;
       _permissionGranted = granted;
       if (granted) {
+        unawaited(purgeExpiredTrash());
         try {
           await loadFolder(_currentPath, propagateError: true);
         } catch (error, stack) {
@@ -179,7 +196,9 @@ class FileBrowserController extends ChangeNotifier {
           .timeout(const Duration(seconds: 15));
       if (_disposed || token != _loadToken) return;
 
-      _entries = entries;
+      // The bin's hidden folder is reached from the menu, not the listing.
+      _entries = entries.where((e) => e.path != _ops.trashRoot).toList();
+      _trashDaysLeft = atTrashRoot ? _ops.trashDaysRemaining() : const {};
       if (resetPage) {
         _currentPage = 0;
       } else if (_itemsPerPage > 0) {
@@ -191,7 +210,9 @@ class FileBrowserController extends ChangeNotifier {
         );
         _currentPage = _currentPage.clamp(0, totalPages - 1);
       }
-      _status = entries.isEmpty ? 'Empty folder' : '';
+      _status = _entries.isEmpty
+          ? (atTrashRoot ? 'Recycle Bin is empty' : 'Empty folder')
+          : '';
       notifyListeners();
 
       loadStatsForCurrentPage();
@@ -273,7 +294,32 @@ class FileBrowserController extends ChangeNotifier {
 
   void goUp() {
     if (atRoot) return;
+    // The bin lives in a hidden folder, so "up" from it returns home rather
+    // than exposing that folder.
+    if (atTrashRoot) {
+      loadFolder(_homeFolder);
+      return;
+    }
     loadFolder(_parentPath(_currentPath));
+  }
+
+  /// Opens the Recycle Bin as a folder, purging anything past 30 days first so
+  /// expired items are never shown.
+  Future<void> openTrash() async {
+    if (_disposed) return;
+    _ops.ensureTrashDir();
+    await _ops.purgeExpiredTrash();
+    if (_disposed) return;
+    await loadFolder(_ops.trashItemsDir);
+  }
+
+  /// Permanently removes bin items older than 30 days. Run at startup and on
+  /// returning to the app, since a launcher can stay alive for weeks.
+  Future<void> purgeExpiredTrash() async {
+    if (_disposed || !_permissionGranted) return;
+    final purged = await _ops.purgeExpiredTrash();
+    if (_disposed || purged == 0 || !inTrash) return;
+    reloadAfterMutation();
   }
 
   /// Saves the current folder as home. Returns a snack message.
@@ -363,15 +409,53 @@ class FileBrowserController extends ChangeNotifier {
     return 'Renamed';
   }
 
-  /// Deletes [paths]. See [paste] for how [onErrors] is used.
+  /// Deletes [paths]: into the Recycle Bin from a normal folder, permanently
+  /// when already inside the bin. See [paste] for how [onErrors] is used.
   Future<String> deleteSelectedPaths(
     List<String> paths, {
     void Function(List<String> errors)? onErrors,
   }) async {
-    final errors = await _ops.deleteEntries(paths);
+    final permanent = inTrash;
+    final errors = permanent
+        ? await _ops.deleteFromTrash(paths)
+        : await _ops.trashEntries(paths);
     reloadAfterMutation();
     exitSelection();
-    if (errors.isEmpty) return 'Deleted';
+    if (errors.isEmpty) {
+      return permanent ? 'Deleted permanently' : 'Moved to Recycle Bin';
+    }
+    if (onErrors != null) {
+      onErrors(errors);
+      return '';
+    }
+    return 'Some items could not be deleted';
+  }
+
+  /// Restores the selected bin items to the folders they were deleted from.
+  /// See [paste] for how [onErrors] is used.
+  Future<String> restoreSelected({
+    void Function(List<String> errors)? onErrors,
+  }) async {
+    final errors = await _ops.restoreEntries(_selectedPaths.toList());
+    reloadAfterMutation();
+    exitSelection();
+    if (errors.isEmpty) return 'Restored';
+    if (onErrors != null) {
+      onErrors(errors);
+      return '';
+    }
+    return 'Some items could not be restored';
+  }
+
+  /// Permanently deletes everything in the Recycle Bin. See [paste] for how
+  /// [onErrors] is used.
+  Future<String> emptyTrash({
+    void Function(List<String> errors)? onErrors,
+  }) async {
+    final errors = await _ops.emptyTrash();
+    reloadAfterMutation();
+    exitSelection();
+    if (errors.isEmpty) return 'Recycle Bin emptied';
     if (onErrors != null) {
       onErrors(errors);
       return '';

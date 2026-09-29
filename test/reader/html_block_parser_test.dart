@@ -71,7 +71,7 @@ void main() {
     expect(blocks.single.direction, BlockTextDirection.rtl);
   });
 
-  test('preserves revision-5 Tanach layout semantics without a CSS engine', () {
+  test('preserves revision-5 Tanach layout semantics and the 1.1 Hebrew scale', () {
     final blocks = HtmlBlockParser.parseSync('''
       <section class="verse" id="v-ruth-3-1">
         <h2 class="verse-heading" dir="ltr">
@@ -102,18 +102,26 @@ void main() {
     expect(hebrew.alignment, BlockAlignment.right);
     expect(hebrew.lineHeight, 1.8);
     expect(hebrew.textIndentEm, 0);
+    expect(hebrew.fontSizeMultiplier, 1.1);
     final english = blocks.firstWhere(
       (block) => block.plainText == 'In the beginning',
     );
     expect(english.alignment, BlockAlignment.left);
     expect(english.lineHeight, 1.65);
+    expect(english.fontSizeMultiplier, isNull);
     final title = blocks.firstWhere(
       (block) => block.plainText == 'Ibn Ezra on Ruth 3:1',
     );
     expect(title.fontSizeMultiplier, 0.8);
     expect(title.forceBold, isTrue);
-    expect(blocks.where((block) => {'אחד', 'שנים'}.contains(block.plainText)),
-        hasLength(2));
+    final hebrewNoteBlocks = blocks
+        .where((block) => {'אחד', 'שנים'}.contains(block.plainText))
+        .toList();
+    expect(hebrewNoteBlocks, hasLength(2));
+    expect(
+      hebrewNoteBlocks.every((block) => block.fontSizeMultiplier == 1.1),
+      isTrue,
+    );
   });
 
   test('parses a complete XHTML document on a background isolate', () async {

@@ -17,6 +17,14 @@ const double kNavBarHeight = 56.0;
 const int kPortraitBarCount = 15;
 const int kLandscapeBarCount = 12;
 
+// Recycle bin. A hidden folder on the same volume as the user's files, so
+// deleting is an instant rename rather than a copy. The browser hides it from
+// folder listings and search; it is opened from the + menu instead.
+const String kTrashRoot = '$kStorageRoot/.eink_trash';
+
+// How long deleted items stay in the bin before they are purged automatically.
+const Duration kTrashRetention = Duration(days: 30);
+
 // No page-transition animations (e-ink ghosting/jank risk). Wrap any pushed
 // route in this instead of using MaterialPageRoute directly.
 Route<T> noTransitionRoute<T>(Widget page) {

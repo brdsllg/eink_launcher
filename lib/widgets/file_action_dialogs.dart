@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../constants.dart';
 import 'adaptive_grid.dart';
 
 // File dialogs share a bounded content panel and equal action cells.
@@ -64,14 +65,27 @@ Future<String?> showRenameDialog(
 }
 
 /// Delete-confirm dialog. Resolves with true if the user confirms deletion.
-Future<bool> showDeleteConfirmDialog(BuildContext context, int count) {
+///
+/// Normally deleting moves items to the Recycle Bin; [permanent] is for items
+/// already inside the bin, where deleting is final.
+Future<bool> showDeleteConfirmDialog(
+  BuildContext context,
+  int count, {
+  bool permanent = false,
+}) {
   final noun = count == 1 ? 'item' : 'items';
   return showDialog<bool>(
     context: context,
     animationStyle: AnimationStyle.noAnimation,
     builder: (context) => GridDialog(
-      title: const Text('Delete'),
-      content: Text('Delete $count $noun?\n\nThis can\'t be undone.'),
+      title: Text(permanent ? 'Delete Forever' : 'Delete'),
+      content: Text(
+        permanent
+            ? 'Permanently delete $count $noun?\n\nThis can\'t be undone.'
+            : 'Move $count $noun to the Recycle Bin?\n\n'
+                  'Items there are deleted automatically after '
+                  '${kTrashRetention.inDays} days.',
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
@@ -80,6 +94,32 @@ Future<bool> showDeleteConfirmDialog(BuildContext context, int count) {
         TextButton(
           onPressed: () => Navigator.of(context).pop(true),
           child: const Text('Delete'),
+        ),
+      ],
+    ),
+  ).then((v) => v ?? false);
+}
+
+/// Empty-bin confirm dialog. Resolves with true if the user confirms.
+Future<bool> showEmptyBinConfirmDialog(BuildContext context, int count) {
+  final noun = count == 1 ? 'item' : 'items';
+  return showDialog<bool>(
+    context: context,
+    animationStyle: AnimationStyle.noAnimation,
+    builder: (context) => GridDialog(
+      title: const Text('Empty Recycle Bin'),
+      content: Text(
+        'Permanently delete all $count $noun in the Recycle Bin?'
+        '\n\nThis can\'t be undone.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Empty'),
         ),
       ],
     ),

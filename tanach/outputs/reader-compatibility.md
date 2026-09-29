@@ -224,7 +224,7 @@ Exact patches require the reader repository or the relevant parser, renderer, li
 
 ## Presentation revision 5 — 16 September 2026
 
-The verse heading is a single h2 with two spans: English left and Hebrew right, laid out with flex space-between and explicit per-span direction. The heading is 1.15em; verse and commentary bodies remain 1em. A literal space separates the spans even if styling is discarded. A native renderer must build one horizontal row with two independently directed labels, not concatenate strings or put each label in a separate row. Respect left-to-right page progression and no paragraph indentation.
+The verse heading is a single h2 with two spans: English left and Hebrew right, laid out with flex space-between and explicit per-span direction. The heading is 1.15em; Hebrew verse and Hebrew commentary bodies are 1.1em, and English translation and commentary bodies remain 1em. A literal space separates the spans even if styling is discarded. A native renderer must build one horizontal row with two independently directed labels, not concatenate strings or put each label in a separate row. Respect left-to-right page progression and no paragraph indentation.
 
 Each commentary aside now groups one source for one base verse. Render its note-title once, without an extra segment number. Under each language, preserve every comment-segment block as a separate paragraph block, in document order. Do not synthesize headings from each segment's data-ref. Group anchors now begin g-; rebuild import and pagination caches for this revision. Original note IDs survive as data-note-id; a note spanning multiple verses may appear in multiple groups. Do not discard an entire group's segments merely because another group contains the same original note.
 
@@ -235,3 +235,8 @@ The EPUB cannot control native dropdown wording. The reader should seed the sele
 Then add alternate translation asides reached from that verse's index, using their data-edition and short data-source label. Switching should replace only the translation body with the aside's direct English div, not the entire aside or its backlinks. Show source names only in the selector, never before or after the displayed verse. Alternate asides now contain no note-title. Full edition attribution stays in credits.xhtml. Switching back to Metsudah must restore the original inline text. Default selection is per verse because availability can vary; remember explicit user choices by edition when available and otherwise use that verse's primary option.
 
 Device acceptance checks: Ruth 3:1 initially shows Metsudah selected; Koren selects different text without any prefix/suffix label; switching back restores Metsudah; Ibn Ezra on Ruth 3:1 has one title and two separate Hebrew comment blocks; the bilingual verse heading occupies one row. Reader source code is needed to implement or verify these native UI behaviors.
+
+## Hebrew scale amendment — 28 September 2026
+
+Hebrew verse text (`.hebrew`) and Hebrew commentary text (`.note-he`) render at 1.1em; the English translation and English commentary bodies stay 1em. The verse heading (1.15em) and the note title (.8em) are unchanged. A renderer that replaces the publisher stylesheet with class semantics must use the same 1.1 multiplier for those two classes, as the bundled reader does. No anchor, grouping, or metadata revision changed, so presentation revision 5 remains the current structure; the rebuilt EPUBs carry new file fingerprints and are re-imported by the normal cache-identity check.
+

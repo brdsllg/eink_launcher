@@ -6,7 +6,7 @@ Last updated: 22 September 2026. This is a curated project brief and implementat
 
 Create a personal-use Tanach EPUB collection from Sefaria, with Hebrew, Orthodox Jewish English translations, and a restricted whitelist of full direct commentaries. Keep the content pipeline independent of the reader application. The Flutter reader in this repository now implements the Tanach contract and a lazy SQLite import/index cache; physical validation remains on the Bigme B751C.
 
-The full 39-book collection was rebuilt on 22 September 2026 and lives in the `tanach/` segment of the reader repository, under `tanach/outputs/`. The distributable is `outputs/tanach-39-epubs.zip`; individual books are in `outputs/books/`. It contains 23,206 verses and 203,039 unique selected commentary notes. All 39 EPUBs passed EPUBCheck 5.3.0, internal link/anchor validation, database invariants, heading checks, and grouped-note content-preservation checks. The current format remains presentation revision 5, with commentary grouped by source and verse. These checks do not establish on-device performance in every large book.
+The full 39-book collection was rebuilt on 22 September 2026 and lives in the `tanach/` segment of the reader repository, under `tanach/outputs/`. The distributable is `outputs/tanach-39-epubs.zip`; individual books are in `outputs/books/`. It contains 23,206 verses and 203,039 unique selected commentary notes. All 39 EPUBs passed EPUBCheck 5.3.0, internal link/anchor validation, database invariants, heading checks, and grouped-note content-preservation checks. The current format remains presentation revision 5 (amended 28 September 2026: Hebrew verse and Hebrew commentary bodies render at 1.1em), with commentary grouped by source and verse. These checks do not establish on-device performance in every large book.
 
 Two source limitations were preserved rather than filled with invented text: Joshua 21:36–37 have no approved English translation and are Hebrew-only, and 1,645 Sefaria link-index records point to locations with no text in an approved selected export. The latter are retained in the full build report as unresolved pointers. Pending or unapproved editions remain excluded.
 
@@ -68,7 +68,7 @@ Pipeline: Sefaria export discovery/selection → local cache → normalized SQLi
 Each EPUB has one XHTML resource per included chapter, a stylesheet, OPF/spine, EPUB navigation, NCX compatibility navigation, and final credits. Series metadata groups the samples. The current sample files each contain one selected chapter.
 
 - section.verse has stable v-{book}-{chapter}-{verse} anchors and data-ref.
-- .hebrew contains the prepared Hebrew source text.
+- .hebrew contains the prepared Hebrew source text. Verse Hebrew and Hebrew commentary (.note-he) render at 1.1em; English bodies stay 1em. A renderer that replaces publisher CSS with class semantics must keep that Hebrew scale.
 - .translation contains default English, opaque data-edition, data-primary="true", and a short data-translation-label. It intentionally has no data-source attribute.
 - The verse's “Notes & translations” link targets an index aside. Its links target alternate translations or grouped commentaries. Resolve actual hrefs and namespaces rather than guessing IDs.
 - Alternate translation asides have epub:type="footnote", data-category="translation", short data-source, and data-edition. They have no visible note-title; their direct English div is the replacement text.

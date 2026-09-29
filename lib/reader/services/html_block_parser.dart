@@ -510,11 +510,16 @@ class _HtmlWalker {
     final isTranslation = classes.contains('translation');
     final isEnglish = isTranslation || inEnglishNote;
     final isNoteParagraph = classes.contains('note-paragraph');
+    // These multipliers mirror the EPUB stylesheet: the verse heading is
+    // 1.15em, the note title is .8em, and the Hebrew verse (.hebrew) plus the
+    // Hebrew commentary body (.note-he) are 1.1em. English bodies stay 1em.
     return _BlockPresentation(
       fontSizeMultiplier: isVerseHeading
           ? 1.15
           : isNoteTitle
           ? 0.8
+          : isHebrew
+          ? 1.1
           : null,
       lineHeight: isNoteTitle
           ? 1.45

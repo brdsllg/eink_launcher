@@ -50,7 +50,8 @@ class FileBrowserScreen extends StatefulWidget {
   State<FileBrowserScreen> createState() => _FileBrowserScreenState();
 }
 
-class _FileBrowserScreenState extends State<FileBrowserScreen> {
+class _FileBrowserScreenState extends State<FileBrowserScreen>
+    with WidgetsBindingObserver {
   late final FileBrowserController _controller;
   late final StartupHealthService _startupHealth;
   late final ReaderSessionRegistry _registry;
@@ -66,11 +67,23 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
     _controller = widget.controller ?? FileBrowserController();
     _startupHealth = widget.startupHealth ?? StartupHealthService.instance;
     _registry = widget.registry ?? ReaderSessionRegistry.instance;
+    WidgetsBinding.instance.addObserver(this);
     _initialize();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // A launcher can stay alive for weeks, so expired Recycle Bin items are
+    // also purged whenever the app returns to the foreground, not just at
+    // startup.
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_controller.purgeExpiredTrash());
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     unawaited(SystemChrome.setPreferredOrientations(const []));
     super.dispose();
@@ -285,11 +298,32 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
 
   Future<void> _confirmDeleteSelected() async {
     final count = _controller.selectedPaths.length;
-    final confirmed = await showDeleteConfirmDialog(context, count);
+    final confirmed = await showDeleteConfirmDialog(
+      context,
+      count,
+      permanent: _controller.inTrash,
+    );
     if (!confirmed || !mounted) return;
     final msg = await _controller.deleteSelectedPaths(
       _controller.selectedPaths.toList(),
       onErrors: (errors) => _showErrorsDialog('Delete errors', errors),
+    );
+    _showSnack(msg);
+  }
+
+  Future<void> _confirmEmptyBin() async {
+    final count = _controller.entries.length;
+    final confirmed = await showEmptyBinConfirmDialog(context, count);
+    if (!confirmed || !mounted) return;
+    final msg = await _controller.emptyTrash(
+      onErrors: (errors) => _showErrorsDialog('Delete errors', errors),
+    );
+    _showSnack(msg);
+  }
+
+  Future<void> _restoreSelected() async {
+    final msg = await _controller.restoreSelected(
+      onErrors: (errors) => _showErrorsDialog('Restore errors', errors),
     );
     _showSnack(msg);
   }
@@ -325,6 +359,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
   // storage root is literally "0" (Android's per-user storage id), which is
   // meaningless to look at, so special-case it.
   String _displayName(String path) {
+    if (_controller.ops.isTrashRoot(path)) return 'Recycle Bin';
     if (path == kStorageRoot) return 'Internal Storage';
     final segments = path.split('/').where((s) => s.isNotEmpty);
     return segments.isEmpty ? path : segments.last;
@@ -340,6 +375,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
         entry: entry,
         isSelected: isSelected,
         isOpening: _openingPath == entry.path,
+        subLabel: _controller.trashDaysLabel(entry),
         height: barHeight,
         onTap: _openingPath != null || _openingTabs
             ? null
@@ -505,7 +541,28 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
     }
   }
 
-  List<Widget> _selectionActions(double barHeight) => [
+  List<Widget> _selectionActions(double barHeight) =>
+      _controller.inTrash ? _trashActions(barHeight) : _browseActions(barHeight);
+
+  // In the Recycle Bin: Restore (top level only, where the origin is known)
+  // and a permanent Delete. Copy, Cut and Rename don't apply there.
+  List<Widget> _trashActions(double barHeight) => [
+    if (_controller.atTrashRoot)
+      _barAction(
+        Icons.restore,
+        'Restore',
+        _restoreSelected,
+        barHeight: barHeight,
+      ),
+    _barAction(
+      Icons.delete_outline,
+      'Delete',
+      _confirmDeleteSelected,
+      barHeight: barHeight,
+    ),
+  ];
+
+  List<Widget> _browseActions(double barHeight) => [
     if (_singleSelectedFile != null)
       _barAction(
         Icons.open_in_new,
@@ -725,6 +782,10 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
                         _openTabs();
                       case 'newFolder':
                         _promptNewFolder();
+                      case 'trash':
+                        _controller.openTrash();
+                      case 'emptyTrash':
+                        _confirmEmptyBin();
                       case 'orientation':
                         _toggleBrowserOrientation();
                       case 'paste':
@@ -739,7 +800,19 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
                   itemBuilder: (context) => [
                     _boxedMenuItem('search', 'Search'),
                     _boxedMenuItem('tabs', 'Tabs'),
-                    _boxedMenuItem('newFolder', 'New Folder'),
+                    _boxedMenuItem(
+                      'newFolder',
+                      'New Folder',
+                      enabled: !_controller.inTrash,
+                    ),
+                    _boxedMenuItem('trash', 'Recycle Bin'),
+                    _boxedMenuItem(
+                      'emptyTrash',
+                      'Empty Recycle Bin',
+                      enabled:
+                          _controller.atTrashRoot &&
+                          _controller.entries.isNotEmpty,
+                    ),
                     _boxedMenuItem(
                       'orientation',
                       MediaQuery.orientationOf(context) == Orientation.landscape
@@ -749,7 +822,8 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
                     _boxedMenuItem(
                       'paste',
                       'Paste',
-                      enabled: _controller.ops.hasClipboard,
+                      enabled:
+                          _controller.ops.hasClipboard && !_controller.inTrash,
                       onLongPress: _openAppDrawerFromPaste,
                       last: true,
                     ),

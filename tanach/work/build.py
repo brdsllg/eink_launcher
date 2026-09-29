@@ -309,7 +309,7 @@ CSS='''body {font-family:serif; margin:5%; color:#111; background:#fff; line-hei
 h1 {font-size:1.25em; line-height:1.35; margin:1em 0;}
 h2 {font-size:1.1em; line-height:1.4;}
 .verse {margin:1.2em 0 1.7em; padding-bottom:1em; border-bottom:1px solid #ccc;}
-.hebrew {font-family:"Noto Serif Hebrew","David","Times New Roman",serif; font-size:1em; text-align:right; line-height:1.8; margin:.4em 0;}
+.hebrew {font-family:"Noto Serif Hebrew","David","Times New Roman",serif; font-size:1.1em; text-align:right; line-height:1.8; margin:.4em 0;}
 .translation {font-size:1em; text-align:left; line-height:1.65; margin:.55em 0;}
 .verse-heading {display:flex; justify-content:space-between; align-items:baseline; margin:.65em 0 .35em; font-size:1.15em; font-weight:bold; line-height:1.4;}
 .comment-segment {margin:.7em 0;}
@@ -320,7 +320,7 @@ a {color:inherit; text-decoration:underline;}
 aside {margin:1.5em 0; border-top:1px solid #bbb; padding-top:.7em;}
 .commentary-note {margin:1.5em 0; padding:.6em 0; border-top:1px solid #bbb;}
 .note-title {font-family:sans-serif; font-size:.8em; font-weight:bold; line-height:1.45; margin:0 0 .7em; text-align:left;}
-.note-he {font-family:"Noto Serif Hebrew","David","Times New Roman",serif; text-align:right; font-size:1em; line-height:1.8;}
+.note-he {font-family:"Noto Serif Hebrew","David","Times New Roman",serif; text-align:right; font-size:1.1em; line-height:1.8;}
 .note-en {text-align:left; font-size:1em; line-height:1.65;}
 .note-paragraph {margin:.65em 0;}
 .ketiv {font-size:1em;}

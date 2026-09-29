@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:io';
 
+import '../constants.dart';
 import '../models/file_entry.dart';
 
 class SearchParams {
@@ -116,6 +117,8 @@ class StreamingSearchService {
             dirPath,
           ).list(followLinks: false)) {
             if (current != generation || found >= maxResults) return;
+            // Deleted items live in the Recycle Bin, not in search results.
+            if (child.path == kTrashRoot) continue;
             final name = child.path.replaceAll('\\', '/').split('/').last;
             final isDir = child is Directory;
             if (name.toLowerCase().contains(queryLower)) {

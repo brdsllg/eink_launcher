@@ -16,6 +16,10 @@ class FileEntryTile extends StatelessWidget {
   final VoidCallback? onLongPress;
   final double height;
 
+  /// Optional short note shown under the size/folder marker in the right-hand
+  /// cell — the Recycle Bin uses it for the days left before an item is purged.
+  final String? subLabel;
+
   const FileEntryTile({
     super.key,
     required this.entry,
@@ -24,6 +28,7 @@ class FileEntryTile extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     this.height = kRowHeight,
+    this.subLabel,
   });
 
   // A bounded metadata column keeps sizes and folder markers aligned while
@@ -33,6 +38,8 @@ class FileEntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inverted = isSelected || isOpening;
+    final iconSize = (height * 0.48).clamp(22.0, 30.0).toDouble();
+    final note = subLabel;
     return InvertingInkWell(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -80,21 +87,21 @@ class FileEntryTile extends StatelessWidget {
                 ),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: inverted
-                      ? Icon(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (inverted)
+                        Icon(
                           entry.isDirectory
                               ? Icons.folder
                               : Icons.insert_drive_file,
                           color: Colors.white,
-                          size: (height * 0.48).clamp(22.0, 30.0).toDouble(),
+                          size: iconSize,
                         )
-                      : entry.isDirectory
-                      ? Icon(
-                          Icons.folder,
-                          color: Colors.grey,
-                          size: (height * 0.48).clamp(22.0, 30.0).toDouble(),
-                        )
-                      : Text(
+                      else if (entry.isDirectory)
+                        Icon(Icons.folder, color: Colors.grey, size: iconSize)
+                      else
+                        Text(
                           entry.sizeLabel ?? '',
                           style: TextStyle(
                             fontSize: (height * 0.28)
@@ -104,6 +111,19 @@ class FileEntryTile extends StatelessWidget {
                             color: Colors.black,
                           ),
                         ),
+                      if (note != null)
+                        Text(
+                          note,
+                          style: TextStyle(
+                            fontSize: (height * 0.24)
+                                .clamp(11.0, 14.0)
+                                .toDouble(),
+                            height: 1.2,
+                            color: inverted ? Colors.white : Colors.black,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],

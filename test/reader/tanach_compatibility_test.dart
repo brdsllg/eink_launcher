@@ -105,6 +105,18 @@ void main() {
     );
     expect(heading.hasSplitLayout, isTrue);
     expect(heading.fontSizeMultiplier, 1.15);
+    final hebrewVerse = book.spine.first.blocks.firstWhere(
+      (block) => block.plainText == 'בְּרֵאשִׁית [כתיב]',
+    );
+    expect(hebrewVerse.fontSizeMultiplier, 1.1);
+    final hebrewCommentary = book.spine.first.blocks.firstWhere(
+      (block) => block.plainText.contains('רַשִׁי'),
+    );
+    expect(hebrewCommentary.fontSizeMultiplier, 1.1);
+    final englishCommentary = book.spine.first.blocks.firstWhere(
+      (block) => block.plainText == 'Full English note',
+    );
+    expect(englishCommentary.fontSizeMultiplier, isNull);
   });
 
   test(

@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 
+import '../constants.dart';
 import '../models/clipboard_state.dart';
 import 'no_replace_rename.dart';
 
@@ -13,6 +15,21 @@ import 'no_replace_rename.dart';
 // rest; failing items are reported back as human-readable messages rather than
 // thrown up into the UI.
 class FileOperationsService {
+  /// [trashRoot], [now] and [trashRetention] exist so tests can point the
+  /// recycle bin at a temp folder and move the clock.
+  FileOperationsService({
+    String? trashRoot,
+    DateTime Function()? now,
+    Duration? trashRetention,
+  }) : _trashRoot = trashRoot ?? kTrashRoot,
+       _now = now ?? DateTime.now,
+       _trashRetention = trashRetention ?? kTrashRetention;
+
+  final String _trashRoot;
+  final DateTime Function() _now;
+  final Duration _trashRetention;
+  Future<void> _trashQueue = Future<void>.value();
+
   ClipboardState? _clipboard;
   Future<List<String>>? _activePaste;
 
@@ -82,6 +99,267 @@ class FileOperationsService {
       }
     }
     return errors;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Recycle bin
+  //
+  // Deleted items are moved (an instant rename on the same volume) into
+  // [trashItemsDir]. A small JSON index beside that folder remembers where each
+  // item came from and when it was deleted, so it can be restored and purged
+  // once it is older than the retention period. Every bin mutation runs one at
+  // a time through [_serialized] because each one read-modify-writes the index.
+  // ---------------------------------------------------------------------------
+
+  /// The hidden folder that holds the bin ([trashItemsDir] and the index).
+  String get trashRoot => _trashRoot;
+
+  /// The folder the user browses as the Recycle Bin.
+  String get trashItemsDir => '$_trashRoot/items';
+
+  String get _trashIndexPath => '$_trashRoot/index.json';
+
+  /// True for the bin folder itself and anything inside it.
+  bool isInTrash(String path) {
+    final p = _slashed(path);
+    final items = _slashed(trashItemsDir);
+    return p == items || p.startsWith('$items/');
+  }
+
+  /// True only for the bin's top level, where items still have a record of
+  /// where they came from (and so can be restored).
+  bool isTrashRoot(String path) => _slashed(path) == _slashed(trashItemsDir);
+
+  /// Creates the bin folder if needed so it can be listed while still empty.
+  void ensureTrashDir() {
+    try {
+      Directory(trashItemsDir).createSync(recursive: true);
+    } catch (_) {
+      // Listing the folder will report the problem.
+    }
+  }
+
+  /// Moves each of [paths] into the bin instead of deleting it. Returns error
+  /// messages — empty on full success. One failed item never blocks the others.
+  Future<List<String>> trashEntries(List<String> paths) {
+    return _serialized(() async {
+      try {
+        Directory(trashItemsDir).createSync(recursive: true);
+      } catch (e) {
+        return ['Could not open the Recycle Bin: $e'];
+      }
+      final errors = <String>[];
+      final index = _readTrashIndex();
+      for (final path in paths) {
+        try {
+          final type = FileSystemEntity.typeSync(path, followLinks: false);
+          if (type == FileSystemEntityType.notFound) {
+            throw const FileSystemException('No longer exists');
+          }
+          final dest = _uniqueDestination(trashItemsDir, _basename(path));
+          await _moveForPaste(path, dest, type);
+          index[_basename(dest)] = _TrashRecord(
+            originalPath: _slashed(path),
+            deletedAt: _now(),
+          );
+        } catch (e) {
+          errors.add('Could not delete ${_basename(path)}: $e');
+        }
+      }
+      _writeTrashIndex(index);
+      return errors;
+    });
+  }
+
+  /// Moves each of [paths] (top-level bin items) back to the folder it was
+  /// deleted from, recreating that folder if it is gone. A name clash gets a
+  /// " (1)" suffix, never an overwrite. Returns error messages.
+  Future<List<String>> restoreEntries(List<String> paths) {
+    return _serialized(() async {
+      final errors = <String>[];
+      final index = _readTrashIndex();
+      for (final path in paths) {
+        final name = _basename(path);
+        try {
+          final type = FileSystemEntity.typeSync(path, followLinks: false);
+          if (type == FileSystemEntityType.notFound) {
+            index.remove(name);
+            throw const FileSystemException('No longer in the Recycle Bin');
+          }
+          final original = index[name]?.originalPath;
+          // Without a record (index lost) fall back to the storage root.
+          final targetDir = original != null
+              ? _parentOf(original)
+              : _parentOf(_trashRoot);
+          final targetName = original != null ? _basename(original) : name;
+          Directory(targetDir).createSync(recursive: true);
+          final dest = _uniqueDestination(targetDir, targetName);
+          await _moveForPaste(path, dest, type);
+          index.remove(name);
+        } catch (e) {
+          errors.add('Could not restore $name: $e');
+        }
+      }
+      _writeTrashIndex(index);
+      return errors;
+    });
+  }
+
+  /// Permanently deletes items that are already in the bin, and forgets them.
+  Future<List<String>> deleteFromTrash(List<String> paths) {
+    return _serialized(() => _deleteTrashItems(paths));
+  }
+
+  /// Permanently deletes everything in the bin. Returns error messages.
+  Future<List<String>> emptyTrash() {
+    return _serialized(() {
+      final List<String> paths;
+      try {
+        final dir = Directory(trashItemsDir);
+        paths = dir.existsSync()
+            ? dir.listSync(followLinks: false).map((e) => e.path).toList()
+            : <String>[];
+      } catch (e) {
+        return Future.value(['Could not read the Recycle Bin: $e']);
+      }
+      return _deleteTrashItems(paths);
+    });
+  }
+
+  Future<List<String>> _deleteTrashItems(List<String> paths) async {
+    final errors = await deleteEntries(paths);
+    final index = _readTrashIndex();
+    var changed = false;
+    for (final path in paths) {
+      final name = _basename(path);
+      if (index.containsKey(name) && !_exists(path)) {
+        index.remove(name);
+        changed = true;
+      }
+    }
+    if (changed) _writeTrashIndex(index);
+    return errors;
+  }
+
+  /// Whole days left before each top-level bin item is purged (rounded up, so
+  /// a fresh item shows 30), keyed by the item's name in the bin.
+  Map<String, int> trashDaysRemaining() {
+    final now = _now();
+    return {
+      for (final entry in _readTrashIndex().entries)
+        entry.key:
+            (entry.value.deletedAt
+                        .add(_trashRetention)
+                        .difference(now)
+                        .inMinutes /
+                    Duration.minutesPerDay)
+                .ceil()
+                .clamp(0, _trashRetention.inDays)
+                .toInt(),
+    };
+  }
+
+  /// Permanently deletes bin items older than the retention period (30 days).
+  /// Returns how many were removed. Items with no record — e.g. the index was
+  /// lost — are given a fresh deletion time rather than purged, so nothing is
+  /// ever removed on a guess.
+  Future<int> purgeExpiredTrash() {
+    return _serialized(() async {
+      final dir = Directory(trashItemsDir);
+      final List<FileSystemEntity> items;
+      try {
+        if (!dir.existsSync()) return 0;
+        items = dir.listSync(followLinks: false);
+      } catch (_) {
+        return 0;
+      }
+
+      final index = _readTrashIndex();
+      final cutoff = _now().subtract(_trashRetention);
+      final present = <String>{};
+      var purged = 0;
+      var changed = false;
+
+      for (final item in items) {
+        final name = _basename(item.path);
+        present.add(name);
+        final record = index[name];
+        if (record == null) {
+          index[name] = _TrashRecord(originalPath: null, deletedAt: _now());
+          changed = true;
+        } else if (record.deletedAt.isBefore(cutoff)) {
+          try {
+            if (FileSystemEntity.typeSync(item.path, followLinks: false) ==
+                FileSystemEntityType.directory) {
+              await Directory(item.path).delete(recursive: true);
+            } else {
+              await File(item.path).delete();
+            }
+            index.remove(name);
+            purged++;
+            changed = true;
+          } catch (_) {
+            // Try again on the next purge.
+          }
+        }
+      }
+
+      // Forget records whose item is no longer in the bin.
+      final stale = index.keys.where((k) => !present.contains(k)).toList();
+      for (final key in stale) {
+        index.remove(key);
+        changed = true;
+      }
+      if (changed) _writeTrashIndex(index);
+      return purged;
+    });
+  }
+
+  Future<T> _serialized<T>(Future<T> Function() action) {
+    final result = _trashQueue.then((_) => action());
+    _trashQueue = result.then<void>((_) {}, onError: (_) {});
+    return result;
+  }
+
+  Map<String, _TrashRecord> _readTrashIndex() {
+    final index = <String, _TrashRecord>{};
+    try {
+      final file = File(_trashIndexPath);
+      if (!file.existsSync()) return index;
+      final decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map) return index;
+      decoded.forEach((name, value) {
+        if (name is! String || value is! Map) return;
+        final at = value['at'];
+        if (at is! int) return;
+        final from = value['from'];
+        index[name] = _TrashRecord(
+          originalPath: from is String ? from : null,
+          deletedAt: DateTime.fromMillisecondsSinceEpoch(at),
+        );
+      });
+    } catch (_) {
+      // A missing or damaged index is not fatal: unrecorded items are adopted
+      // with a fresh deletion time by the next purge.
+    }
+    return index;
+  }
+
+  void _writeTrashIndex(Map<String, _TrashRecord> index) {
+    try {
+      final json = jsonEncode({
+        for (final entry in index.entries)
+          entry.key: {
+            'from': entry.value.originalPath,
+            'at': entry.value.deletedAt.millisecondsSinceEpoch,
+          },
+      });
+      final tmp = File('$_trashIndexPath.tmp');
+      tmp.writeAsStringSync(json, flush: true);
+      tmp.renameSync(_trashIndexPath);
+    } catch (_) {
+      // Best effort: without the index, items are adopted on the next purge.
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -255,6 +533,9 @@ class FileOperationsService {
   // Small helpers
   // ---------------------------------------------------------------------------
 
+  String _slashed(String path) =>
+      Platform.isWindows ? path.replaceAll('\\', '/') : path;
+
   String _basename(String path) {
     if (Platform.isWindows) path = path.replaceAll('\\', '/');
     final trimmed = path.endsWith('/')
@@ -271,4 +552,13 @@ class FileOperationsService {
     final idx = trimmed.lastIndexOf('/');
     return idx <= 0 ? '/' : trimmed.substring(0, idx);
   }
+}
+
+/// Where a recycle-bin item was deleted from and when. [originalPath] is null
+/// for an item that turned up in the bin without a record.
+class _TrashRecord {
+  const _TrashRecord({required this.originalPath, required this.deletedAt});
+
+  final String? originalPath;
+  final DateTime deletedAt;
 }
