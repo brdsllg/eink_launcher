@@ -170,7 +170,7 @@ class _TextPageViewState extends State<TextPageView> {
                     ),
                     onOpenLink: (href) async {
                       final opened = await widget.session.openLink(href);
-                      if (!opened) {
+                      if (!opened && context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
