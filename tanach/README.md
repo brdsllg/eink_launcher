@@ -1,7 +1,5 @@
 # Tanach EPUB segment
 
-> New here, or just want to know how to back this up and move it between computers?
-> Read [`HOW-TO-SYNC.md`](HOW-TO-SYNC.md) first — it is written in plain language.
 
 Self-contained, personal-use Tanach EPUB content pipeline and the collection it produces.
 It is deliberately independent of the Flutter reader in `lib/`: the reader only consumes the
