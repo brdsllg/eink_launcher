@@ -51,6 +51,7 @@ class PaginationCacheService {
       'hyphenate': settings.hyphenate,
       'paragraphMode': settings.paragraphMode.name,
       'publisherCss': settings.honorPublisherCss,
+      'parshaHeadings': settings.showParshaAliyot,
     });
     return sha1.convert(utf8.encode(source)).toString();
   }

@@ -22,7 +22,7 @@ import 'tanach_layout_service.dart';
 /// only when requested, while normalized text selects substring search candidates.
 /// User state deliberately remains outside this database.
 class TanachSqliteCacheService {
-  static const schemaVersion = 3;
+  static const schemaVersion = 4;
   static const maxCacheBytes = 768 * 1024 * 1024;
 
   static final Map<String, int> _pins = {};
@@ -225,6 +225,7 @@ class TanachSqliteCacheService {
         spine: book.spine,
         resources: book.resources,
         tableOfContents: book.tableOfContents,
+        parshaTableOfContents: book.parshaTableOfContents,
         tanachDatabasePath: path,
       );
 
@@ -293,6 +294,10 @@ class TanachSqliteCacheService {
         resources: Map.unmodifiable(resources),
         tableOfContents: [
           for (final value in jsonDecode(meta['toc'] ?? '[]') as List)
+            TocEntry.fromJson(value as Map<String, dynamic>),
+        ],
+        parshaTableOfContents: [
+          for (final value in jsonDecode(meta['parsha_toc'] ?? '[]') as List)
             TocEntry.fromJson(value as Map<String, dynamic>),
         ],
         tanachDatabasePath: path,
@@ -452,6 +457,12 @@ class TanachSqliteCacheService {
           'primary_translation_id': primary ?? '',
           'toc': jsonEncode(
             book.tableOfContents.map((entry) => entry.toJson()).toList(),
+          ),
+          'parsha_toc': jsonEncode(
+            [
+              for (final entry in book.parshaTableOfContents)
+                entry.toJson(),
+            ],
           ),
         };
         for (final entry in meta.entries) {

@@ -225,6 +225,11 @@ class TanachLayoutService {
         }
       }
     }
+    // The dual-structure Torah books carry both heading families; show only
+    // the one the reader's table of contents currently follows.
+    for (final document in documents.values) {
+      _applyHeadingMode(document, showParshaAliyot: settings.showParshaAliyot);
+    }
     final spine = book.spine.map((item) {
       if (item.isLoaded &&
           !changedPaths.contains(item.href) &&
@@ -289,6 +294,7 @@ class TanachLayoutService {
       spine: spine,
       resources: book.resources,
       tableOfContents: book.tableOfContents.map(remap).toList(),
+      parshaTableOfContents: book.parshaTableOfContents.map(remap).toList(),
       studyDocuments: book.studyDocuments,
       studySources: sources.toList()..sort(),
       studyTranslations: List<StudyTranslationOption>.unmodifiable(
@@ -304,6 +310,30 @@ class TanachLayoutService {
 
   static const _commentaryCategories = {'rishon', 'acharon', 'modern'};
 
+  /// Keeps only one heading family in a dual-structure Torah chapter.
+  ///
+  /// The builder emits the chapter heading next to the Parshah/Aliyah
+  /// headings, so a reader that follows one table of contents must not also
+  /// page through the other's headings. Chapters without a Parshah heading
+  /// are left untouched.
+  static void _applyHeadingMode(
+    Document document, {
+    required bool showParshaAliyot,
+  }) {
+    final dual = document.querySelector('h1.parsha-heading') != null;
+    if (dual && showParshaAliyot) {
+      for (final heading in document.querySelectorAll('body h1')) {
+        if (!heading.classes.contains('parsha-heading')) heading.remove();
+      }
+      return;
+    }
+    for (final heading
+        in document.querySelectorAll('.parsha-heading, .aliyah-heading')) {
+      heading.remove();
+    }
+  }
+
+
   static String _projectionKey(ReaderSettings settings) {
     final sources = [...settings.commentarySources]..sort();
     return [
@@ -311,6 +341,7 @@ class TanachLayoutService {
       settings.commentaryLanguage,
       settings.studyTranslation,
       settings.honorPublisherCss,
+      settings.showParshaAliyot,
     ].join('\u001e');
   }
 

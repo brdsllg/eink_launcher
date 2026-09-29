@@ -48,6 +48,12 @@ class ParsedBook {
   final List<ParsedSpineItem> spine;
   final Map<String, Uint8List> resources;
   final List<TocEntry> tableOfContents;
+
+  /// The alternate Parshah/Aliyah navigation of the five books of the Torah.
+  ///
+  /// Empty for every other book, which is what lets the reader show the
+  /// toggle only where the publication actually carries one.
+  final List<TocEntry> parshaTableOfContents;
   final List<int> cumulativeCharacterCounts;
 
   /// Path to a disposable, fingerprinted Tanach content cache. When present,
@@ -69,10 +75,13 @@ class ParsedBook {
     required this.spine,
     this.resources = const {},
     this.tableOfContents = const [],
+    this.parshaTableOfContents = const [],
     this.tanachDatabasePath,
   }) : cumulativeCharacterCounts = _buildCumulativeCounts(spine);
 
   bool get hasLazyTanachContent => tanachDatabasePath != null;
+
+  bool get hasParshaToc => parshaTableOfContents.isNotEmpty;
 
   int get characterCount =>
       cumulativeCharacterCounts.isEmpty ? 0 : cumulativeCharacterCounts.last;

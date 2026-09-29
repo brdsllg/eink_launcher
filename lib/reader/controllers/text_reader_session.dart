@@ -233,7 +233,20 @@ class TextReaderSession extends ReaderSession {
   ReadingPosition get position => _anchoredPosition(_position);
 
   @override
-  List<TocEntry> get toc => _book?.tableOfContents ?? _retainedToc;
+  List<TocEntry> get toc {
+    final book = _book;
+    return book == null ? _retainedToc : _activeToc(book);
+  }
+
+  /// The table of contents the current heading mode follows: the Parshah and
+  /// Aliyah list of a Torah book while that toggle is on, the chapter list
+  /// otherwise.
+  List<TocEntry> _activeToc(ParsedBook book) {
+    final parsha = book.parshaTableOfContents;
+    return _settings.showParshaAliyot && parsha.isNotEmpty
+        ? parsha
+        : book.tableOfContents;
+  }
 
   @override
   ReaderSettings get settings => _settings;
@@ -311,7 +324,7 @@ class TextReaderSession extends ReaderSession {
       if (_disposed || generation != _lifecycleGeneration) return;
       _clampPositionToBook();
       _hasLoadedBook = true;
-      _retainedToc = projected.tableOfContents;
+      _retainedToc = _activeToc(projected);
       _isReady = true;
       _isSuspended = false;
       _error = null;
@@ -619,6 +632,7 @@ class TextReaderSession extends ReaderSession {
         mustReparse ||
         settings.commentaryLanguage != previousSettings.commentaryLanguage ||
         settings.studyTranslation != previousSettings.studyTranslation ||
+        settings.showParshaAliyot != previousSettings.showParshaAliyot ||
         previousSources.length != nextSources.length ||
         !previousSources.containsAll(nextSources);
     _paginationGeneration++;
@@ -640,7 +654,7 @@ class TextReaderSession extends ReaderSession {
         }
         _pinDatabase(book.tanachDatabasePath);
         if (!book.hasLazyTanachContent) _clampPositionToBook();
-        _retainedToc = book.tableOfContents;
+        _retainedToc = _activeToc(book);
       } catch (error) {
         if (_disposed || generation != _lifecycleGeneration) return;
         _error = readerErrorMessage(error, doc.format);
@@ -665,7 +679,7 @@ class TextReaderSession extends ReaderSession {
         return;
       }
       _clampPositionToBook();
-      _retainedToc = _book!.tableOfContents;
+      _retainedToc = _activeToc(_book!);
     } else if (source != null && source.studyDocuments.isNotEmpty) {
       final projected = await _project(source, settings);
       if (_disposed ||
@@ -675,7 +689,7 @@ class TextReaderSession extends ReaderSession {
       }
       _book = projected;
       _clampPositionToBook();
-      _retainedToc = projected.tableOfContents;
+      _retainedToc = _activeToc(projected);
     }
     _error = null;
     final viewport = _viewport;
@@ -1119,6 +1133,7 @@ class TextReaderSession extends ReaderSession {
         spine: List.unmodifiable(spine),
         resources: book.resources,
         tableOfContents: book.tableOfContents,
+        parshaTableOfContents: book.parshaTableOfContents,
         tanachDatabasePath: book.tanachDatabasePath,
       );
 

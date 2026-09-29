@@ -46,6 +46,12 @@ python -X utf8 work/package_full.py          # checksums + outputs/tanach-39-epu
 python -X utf8 work/package_samples.py       # guides + outputs/tanach-samples.zip + tanach-pipeline.zip
 ```
 
+`work/derive_parshiyot.py` derives the Parshah/Aliyah table the five Torah books embed:
+it reads Hebcal's public leyning API once (cached in `work/cache/leyning/`), validates the
+seven aliyah boundaries against `work/tanach.sqlite`, and rewrites the generated
+`PARSHIYOT` block inside `work/build.py`. Run it with `--check` to verify without
+rewriting; the build itself never touches the network.
+
 `work/build.py`, `work/test_pipeline.py`, `work/check_heading_presentation.py`,
 `work/check_grouped_notes.py`, and `work/visual-check.cjs` cover normalization, headings,
 comment grouping, and browser rendering. `work/tools/` holds the extracted Java runtime and

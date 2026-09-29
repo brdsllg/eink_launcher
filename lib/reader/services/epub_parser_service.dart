@@ -220,6 +220,15 @@ class EpubParserService {
     }
     if (toc.isEmpty) toc = _fallbackToc(spine);
 
+    var parshaToc = const <TocEntry>[];
+    if (navItem != null) {
+      try {
+        parshaToc = _parseParshaNavigation(archive, navItem, spine);
+      } on FormatException {
+        // A missing alternate navigation only removes the toggle.
+      }
+    }
+
     final parsed = ParsedBook(
       studyDocuments: hasStudy ? xhtmlDocuments : const {},
       contentFingerprint: sha256.convert(bytes).toString(),
@@ -231,6 +240,7 @@ class EpubParserService {
       spine: List<ParsedSpineItem>.unmodifiable(spine),
       resources: Map<String, Uint8List>.unmodifiable(resources),
       tableOfContents: List<TocEntry>.unmodifiable(toc),
+      parshaTableOfContents: List<TocEntry>.unmodifiable(parshaToc),
     );
     return hasStudy && projectStudy
         ? TanachLayoutService.layout(
@@ -419,6 +429,35 @@ List<TocEntry> _parseNavList(
     }
   }
   return entries;
+}
+
+/// The Parshah/Aliyah navigation list of a dual-structure Torah book.
+///
+/// Only the five books of the Torah carry this second list, and EPUB allows
+/// exactly one nav with the `toc` semantic, so it ships as `epub:type="other"`.
+List<TocEntry> _parseParshaNavigation(
+  Archive archive,
+  _ManifestItem item,
+  List<ParsedSpineItem> spine,
+) {
+  final source = _readText(
+    archive,
+    item.resolvedPath,
+    description: 'EPUB navigation document',
+  );
+  final document = html_parser.parse(source);
+  final nav = document.querySelector('nav#parsha-toc');
+  if (nav == null) return const [];
+  final rootList = nav.children
+      .where((child) => child.localName == 'ol')
+      .firstOrNull;
+  if (rootList == null) return const [];
+  return _parseNavList(
+    rootList,
+    navDocumentPath: item.resolvedPath,
+    spine: spine,
+    level: 0,
+  );
 }
 
 List<TocEntry> _parseNcx(

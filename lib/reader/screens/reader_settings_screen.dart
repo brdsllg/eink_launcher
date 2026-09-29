@@ -15,6 +15,10 @@ class ReaderSettingsScreen extends StatefulWidget {
   final List<StudyTranslationOption> studyTranslations;
   final String? primaryStudyTranslationId;
 
+  /// True when the publication carries the Parshah/Aliyah table of contents,
+  /// so only Torah readers are offered the switch.
+  final bool hasParshaToc;
+
   const ReaderSettingsScreen({
     super.key,
     required this.initialSettings,
@@ -22,6 +26,7 @@ class ReaderSettingsScreen extends StatefulWidget {
     this.studySources = const [],
     this.studyTranslations = const [],
     this.primaryStudyTranslationId,
+    this.hasParshaToc = false,
   });
 
   @override
@@ -319,6 +324,36 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
         ],
       ),
     ),
+    if (widget.hasParshaToc)
+      _SettingsGroup(
+        label: 'Headings and table of contents',
+        child: GridActions(
+          minCellWidth: 120,
+          maxColumns: 2,
+          children: [
+            _ChoiceButton(
+              key: const Key('reader-settings-chapter-headings'),
+              label: 'Chapters',
+              selected: !_settings.showParshaAliyot,
+              onPressed: () => setState(
+                () => _settings = _settings.copyWith(
+                  showParshaAliyot: false,
+                ),
+              ),
+            ),
+            _ChoiceButton(
+              key: const Key('reader-settings-parsha-headings'),
+              label: 'Parshiyot and aliyot',
+              selected: _settings.showParshaAliyot,
+              onPressed: () => setState(
+                () => _settings = _settings.copyWith(
+                  showParshaAliyot: true,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
   ];
 
   /// Only the controls the active fit mode actually honours.

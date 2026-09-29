@@ -16,6 +16,10 @@ class ReaderSettings {
   final ParagraphMode paragraphMode;
   final bool honorPublisherCss;
 
+  /// Torah only: show the Parshah/Aliyah headings and table of contents
+  /// instead of the chapter ones.
+  final bool showParshaAliyot;
+
   /// Empty means no sources are selected, so no commentary is shown.
   /// Exact EPUB source names are preserved.
   final List<String> commentarySources;
@@ -56,6 +60,7 @@ class ReaderSettings {
     this.hyphenate = true,
     this.paragraphMode = ParagraphMode.blankLine,
     this.honorPublisherCss = true,
+    this.showParshaAliyot = false,
     this.fitMode = PdfFitMode.fitHeight,
     this.autoCrop = true,
     this.splitOverlap = kPdfDefaultSplitOverlap,
@@ -96,6 +101,7 @@ class ReaderSettings {
     bool? hyphenate,
     ParagraphMode? paragraphMode,
     bool? honorPublisherCss,
+    bool? showParshaAliyot,
     PdfFitMode? fitMode,
     bool? autoCrop,
     double? splitOverlap,
@@ -120,6 +126,7 @@ class ReaderSettings {
       hyphenate: hyphenate ?? this.hyphenate,
       paragraphMode: paragraphMode ?? this.paragraphMode,
       honorPublisherCss: honorPublisherCss ?? this.honorPublisherCss,
+      showParshaAliyot: showParshaAliyot ?? this.showParshaAliyot,
       fitMode: fitMode ?? this.fitMode,
       autoCrop: autoCrop ?? this.autoCrop,
       splitOverlap: splitOverlap ?? this.splitOverlap,
@@ -148,6 +155,7 @@ class ReaderSettings {
     'hyphenate': hyphenate,
     'paragraphMode': paragraphMode.name,
     'honorPublisherCss': honorPublisherCss,
+    'showParshaAliyot': showParshaAliyot,
     'fitMode': fitMode.name,
     'autoCrop': autoCrop,
     'splitOverlap': splitOverlap,
@@ -185,6 +193,7 @@ class ReaderSettings {
           ? ParagraphMode.values.byName(json['paragraphMode'] as String)
           : ParagraphMode.blankLine,
       honorPublisherCss: json['honorPublisherCss'] as bool? ?? true,
+      showParshaAliyot: json['showParshaAliyot'] as bool? ?? false,
       fitMode: fitMode,
       autoCrop: json['autoCrop'] as bool? ?? true,
       splitOverlap:
