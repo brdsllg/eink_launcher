@@ -1,7 +1,12 @@
 # Talmud EPUB plan (handoff)
 
-Status: **pilot pipeline implemented — no Sefaria data fetched yet.**
-Run `python talmud/work/sync.py catalog` to begin. Mirrors `tanach/docs/tanach-epub.md`.
+Status: **pilot build complete - device validation and reader integration remain.**
+As of 2026-09-30, six pilot tractates have been fetched, normalized, generated,
+and validated: Berakhot, Shabbat, Bava Metzia, Bava Batra, Sanhedrin, and Tamid.
+All six EPUBs pass EPUBCheck and structural validation. The generated data is
+kept locally under `work/` and `outputs/` and is ignored by git.
+
+Mirrors `tanach/docs/tanach-epub.md`.
 Read that and `tanach/outputs/reader-compatibility.md` first: the Talmud product
 should behave like the Tanach product wherever this doc is silent.
 
@@ -111,15 +116,16 @@ is applied per tractate.
 Follow the Tanach stages and reuse scripts and validators wherever possible:
 
 1. Inventory: Bavli refs, versions, linked commentary sources, sizes. ✅
-2. Fetch and cache from Sefaria, reusing the Tanach fetch approach. ✅ (scripts ready)
+2. Fetch and cache from Sefaria, reusing the Tanach fetch approach. ✅
 3. Normalize into `talmud.sqlite` (segments, Hebrew/Aramaic, English, commentary
    segments, links). ✅ (build.py normalize stage)
 4. Generate one EPUB per masechta, one XHTML document per amud, with the
    Tanach-style segment-to-index-to-source aside structure. ✅ (build.py generate stage)
 5. Validate: EPUBCheck, structure and anchor checks, Hebrew integrity, link audit. ✅
 6. Measure sizes and on-device load, then decide commentary expansion and
-   large-tractate handling. ⏳ (requires device after fetch + build)
-7. Package samples, then the full set. ✅ (scripts ready)
+  large-tractate handling. ⏳ (requires device testing)
+7. Package samples. ✅
+8. Build and validate the remaining 31 masechtos. ⏳
 
 ## Reader work (after the pipeline)
 
@@ -128,6 +134,9 @@ Follow the Tanach stages and reuse scripts and validators wherever possible:
 - Paragraph vs continuous-by-amud setting, with the `Berakhot 2a:1` heading in
   paragraph mode.
 - Commentary picker ordering: Rashi, Tosafot, rest.
+
+No Talmud reader integration has landed yet; `lib/` currently contains no
+Talmud-specific references.
 
 ## Future scope
 
@@ -138,8 +147,17 @@ Follow the Tanach stages and reuse scripts and validators wherever possible:
 
 ## Open Questions / Blockers
 
-These were identified during implementation. Nothing below blocks writing the
-pipeline scripts; they will matter when the first fetch runs.
+These were identified during implementation. The pilot pipeline is operational;
+the items below affect the full build or reader integration.
+
+### Current build findings
+
+- The catalog has no Hebrew or English editions for Ta'anit, Mo'ed Katan, or
+  Me'ilah. These need an alternate source or an explicit scope decision before
+  the full 37-masechta build can be complete.
+- The build report contains language-mismatch warnings for the French editions
+  selected for Rashi on Berakhot and Tosafot on Berakhot. Verify the source
+  selection before treating the pilot as final.
 
 ### OQ-1: Sefaria amud index structure
 

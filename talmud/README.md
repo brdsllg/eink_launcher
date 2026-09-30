@@ -6,8 +6,13 @@ and shares the same reader contract. Read `tanach/docs/tanach-epub.md` and
 `tanach/outputs/reader-compatibility.md` first; the Talmud product follows those
 conventions wherever this document is silent.
 
-Current status: **pilot pipeline ready — no data fetched yet.**
-Run `python work/sync.py catalog` to begin.
+Current status: **pilot build complete; device and reader integration remain.**
+Six pilot tractates have been fetched, normalized, generated, and validated.
+The generated artifacts are local and ignored by git; see `outputs/` for the
+EPUBs, reports, and sample ZIP.
+
+The six generated pilot EPUBs are Berakhot, Shabbat, Bava Metzia, Bava Batra,
+Sanhedrin, and Tamid. All six pass EPUBCheck and structural validation.
 
 ## What this produces
 
@@ -16,7 +21,8 @@ Hebrew/Aramaic + William Davidson English translation, with Rashi, Tosafot, and
 Steinsaltz notes as the pilot commentary set.
 
 Final scope: the traditional 37 masechtos of Talmud Bavli with Gemara. The pilot
-covers six representative amudim; see `docs/talmud-epub-plan.md` for the list.
+covers six representative tractates; see `docs/talmud-epub-plan.md` for the
+pilot amudim used for coverage testing.
 
 ## Layout
 
@@ -40,7 +46,7 @@ covers six representative amudim; see `docs/talmud-epub-plan.md` for the list.
 All commands run from the repository root with `python talmud/work/<script>.py`.
 
 ```powershell
-# 1. Download the Sefaria catalog (table of contents + book list)
+# 1. Download the Sefaria catalog (table of contents + book list), if needed
 python talmud/work/sync.py catalog
 
 # 2. Build a source-selection manifest with per-tractate coverage
@@ -64,6 +70,19 @@ python talmud/work/package_samples.py
 python talmud/work/build.py
 python talmud/work/validate.py
 ```
+
+## Remaining work
+
+- Build and validate the remaining 31 of the 37 Bavli masechtos.
+- Resolve the catalog gaps for Ta'anit, Mo'ed Katan, and Me'ilah.
+- Investigate the French-edition warnings for Rashi and Tosafot on Berakhot.
+- Measure first-open time and page-turn behavior on the Bigme, then decide
+  whether the largest tractates need to be split.
+- Expand commentary coverage using the measured device budget.
+- Integrate Talmud with the Flutter reader's shared study-text contract.
+
+The reader integration has not started yet; there are currently no Talmud
+references under `lib/`.
 
 Single-masechta rebuild (after the first full build):
 ```powershell
