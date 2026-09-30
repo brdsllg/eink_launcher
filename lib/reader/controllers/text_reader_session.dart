@@ -631,6 +631,7 @@ class TextReaderSession extends ReaderSession {
     final studyProjectionChanged =
         mustReparse ||
         settings.commentaryLanguage != previousSettings.commentaryLanguage ||
+        settings.verseLanguage != previousSettings.verseLanguage ||
         settings.studyTranslation != previousSettings.studyTranslation ||
         settings.showParshaAliyot != previousSettings.showParshaAliyot ||
         previousSources.length != nextSources.length ||

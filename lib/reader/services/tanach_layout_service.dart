@@ -230,6 +230,17 @@ class TanachLayoutService {
     for (final document in documents.values) {
       _applyHeadingMode(document, showParshaAliyot: settings.showParshaAliyot);
     }
+    // A chosen verse language drops the other side of every verse, in every
+    // chapter, whether or not the chapter needed a note or heading change.
+    if (settings.verseLanguage == 'he' || settings.verseLanguage == 'en') {
+      for (final document in documents.values) {
+        for (final verse in document.querySelectorAll(
+          'section.verse[data-ref]',
+        )) {
+          _applyVerseLanguage(verse, settings.verseLanguage);
+        }
+      }
+    }
     final spine = book.spine.map((item) {
       if (item.isLoaded &&
           !changedPaths.contains(item.href) &&
@@ -334,11 +345,49 @@ class TanachLayoutService {
   }
 
 
+  /// Keeps only the requested side of one verse: Hebrew, English, or both.
+  ///
+  /// The bilingual verse heading is a label rather than verse text, so it is
+  /// never touched. A verse that carries only one language keeps it, which
+  /// mirrors the commentary rule that a missing language retains the text that
+  /// exists.
+  static void _applyVerseLanguage(Element verse, String language) {
+    if (language != 'he' && language != 'en') return;
+    final hebrew = verse.children.where(_isHebrewVerseBody).toList();
+    final english = verse.children.where(_isEnglishVerseBody).toList();
+    if (language == 'he') {
+      if (hebrew.isEmpty) return;
+      for (final element in english) {
+        element.remove();
+      }
+      return;
+    }
+    if (english.isEmpty) return;
+    for (final element in hebrew) {
+      element.remove();
+    }
+  }
+
+  /// The Hebrew verse run: `.hebrew` in the generated books, plus the plain
+  /// right-to-left paragraph some editions use instead.
+  static bool _isHebrewVerseBody(Element element) =>
+      element.localName == 'p' &&
+      (element.classes.contains('hebrew') ||
+          element.attributes['dir'] == 'rtl' ||
+          element.attributes['lang'] == 'he' ||
+          element.attributes['xml:lang'] == 'he');
+
+  /// The English verse run, which the builder and the alternate-translation
+  /// swap both mark as `.translation`.
+  static bool _isEnglishVerseBody(Element element) =>
+      element.localName == 'div' && element.classes.contains('translation');
+
   static String _projectionKey(ReaderSettings settings) {
     final sources = [...settings.commentarySources]..sort();
     return [
       sources.join('\u001f'),
       settings.commentaryLanguage,
+      settings.verseLanguage,
       settings.studyTranslation,
       settings.honorPublisherCss,
       settings.showParshaAliyot,

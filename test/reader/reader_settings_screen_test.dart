@@ -191,4 +191,47 @@ void main() {
       expect(saved?.overlapGuideEnabled, format != DocFormat.pdf);
     });
   }
+
+  testWidgets('verse language dropdown changes and saves verse language', (
+    tester,
+  ) async {
+    ReaderSettings? saved;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              saved = await Navigator.of(context).push<ReaderSettings>(
+                MaterialPageRoute(
+                  builder: (_) => const ReaderSettingsScreen(
+                    initialSettings: ReaderSettings(),
+                    format: DocFormat.epub,
+                    studySources: ['Rashi'],
+                  ),
+                ),
+              );
+            },
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Verse language'), findsOneWidget);
+    final dropdown = find.byKey(const Key('reader-settings-verse-language'));
+    expect(dropdown, findsOneWidget);
+
+    await tester.tap(dropdown);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Hebrew').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('reader-settings-save')));
+    await tester.pumpAndSettle();
+
+    expect(saved?.verseLanguage, 'he');
+  });
 }

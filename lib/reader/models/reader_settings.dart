@@ -25,6 +25,11 @@ class ReaderSettings {
   final List<String> commentarySources;
   final String commentaryLanguage;
 
+  /// Which side of every verse a structured Tanach EPUB shows: Hebrew only
+  /// ('he'), English only ('en'), or both ('both'). A verse that carries just
+  /// one language keeps it, so nothing ever disappears entirely.
+  final String verseLanguage;
+
   /// Empty means the exported per-verse default.
   final String studyTranslation;
 
@@ -50,6 +55,7 @@ class ReaderSettings {
   const ReaderSettings({
     this.commentarySources = const [],
     this.commentaryLanguage = 'both',
+    this.verseLanguage = 'both',
     this.studyTranslation = '',
     this.latinFontFamily = 'Literata',
     this.hebrewFontFamily = 'Frank Ruhl Libre',
@@ -91,6 +97,7 @@ class ReaderSettings {
   ReaderSettings copyWith({
     List<String>? commentarySources,
     String? commentaryLanguage,
+    String? verseLanguage,
     String? studyTranslation,
     String? latinFontFamily,
     String? hebrewFontFamily,
@@ -116,6 +123,7 @@ class ReaderSettings {
     return ReaderSettings(
       commentarySources: commentarySources ?? this.commentarySources,
       commentaryLanguage: commentaryLanguage ?? this.commentaryLanguage,
+      verseLanguage: verseLanguage ?? this.verseLanguage,
       studyTranslation: studyTranslation ?? this.studyTranslation,
       latinFontFamily: latinFontFamily ?? this.latinFontFamily,
       hebrewFontFamily: hebrewFontFamily ?? this.hebrewFontFamily,
@@ -145,6 +153,7 @@ class ReaderSettings {
   Map<String, dynamic> toJson() => {
     'commentarySources': commentarySources,
     'commentaryLanguage': commentaryLanguage,
+    'verseLanguage': verseLanguage,
     'studyTranslation': studyTranslation,
     'latinFontFamily': latinFontFamily,
     'hebrewFontFamily': hebrewFontFamily,
@@ -180,6 +189,7 @@ class ReaderSettings {
         json['commentarySources'] as List? ?? const [],
       ),
       commentaryLanguage: json['commentaryLanguage'] as String? ?? 'both',
+      verseLanguage: json['verseLanguage'] as String? ?? 'both',
       studyTranslation: json['studyTranslation'] as String? ?? '',
       latinFontFamily: json['latinFontFamily'] as String? ?? 'Literata',
       hebrewFontFamily:

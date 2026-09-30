@@ -89,11 +89,15 @@ void main() {
     expect(saveText.height, lessThan(save.height));
 
     final selectors = find.byType(DropdownButtonFormField<String>);
-    expect(selectors, findsNWidgets(2));
+    expect(selectors, findsNWidgets(3));
+    final verseLabel = tester.getRect(find.text('Verse language'));
     final languageLabel = tester.getRect(find.text('Commentary language'));
     final translationLabel = tester.getRect(find.text('Main translation'));
-    final languageField = tester.getRect(selectors.at(0));
-    final translationField = tester.getRect(selectors.at(1));
+    final verseField = tester.getRect(selectors.at(0));
+    final languageField = tester.getRect(selectors.at(1));
+    final translationField = tester.getRect(selectors.at(2));
+    expect(verseLabel.bottom, lessThan(verseField.top));
+    expect(verseField.bottom, lessThan(languageLabel.top));
     expect(languageLabel.bottom, lessThan(languageField.top));
     expect(languageField.bottom, lessThan(translationLabel.top));
     expect(translationLabel.bottom, lessThan(translationField.top));

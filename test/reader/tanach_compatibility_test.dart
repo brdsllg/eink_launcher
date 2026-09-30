@@ -187,6 +187,51 @@ void main() {
     expect(text, isNot(contains('Rashi 1:1')));
   });
 
+  test('verse language selection allows Hebrew, English, or both', () {
+    final original = EpubParserService.parseBytesSync(fixture());
+
+    // Hebrew only: hides English verse translation, retains Hebrew verse
+    final hebrewOnly = TanachLayoutService.layout(
+      original,
+      const ReaderSettings(verseLanguage: 'he'),
+    );
+    final hebrewText = hebrewOnly.spine.first.blocks
+        .map((b) => b.plainText)
+        .join('\n');
+    expect(hebrewText, contains('בְּרֵאשִׁית [כתיב]'));
+    expect(hebrewText, contains('שֵׁנִי'));
+    expect(hebrewText, isNot(contains('First verse')));
+    expect(hebrewText, isNot(contains('Second verse')));
+    expect(hebrewText, contains('Verse 1 פסוק א׳'));
+
+    // English only: hides Hebrew verse text, retains English verse translation
+    final englishOnly = TanachLayoutService.layout(
+      original,
+      const ReaderSettings(verseLanguage: 'en'),
+    );
+    final englishText = englishOnly.spine.first.blocks
+        .map((b) => b.plainText)
+        .join('\n');
+    expect(englishText, contains('First verse'));
+    expect(englishText, contains('Second verse'));
+    expect(englishText, isNot(contains('בְּרֵאשִׁית [כתיב]')));
+    expect(englishText, isNot(contains('שֵׁנִי')));
+    expect(englishText, contains('Verse 1 פסוק א׳'));
+
+    // Both (default): retains both
+    final both = TanachLayoutService.layout(
+      original,
+      const ReaderSettings(verseLanguage: 'both'),
+    );
+    final bothText = both.spine.first.blocks
+        .map((b) => b.plainText)
+        .join('\n');
+    expect(bothText, contains('בְּרֵאשִׁית [כתיב]'));
+    expect(bothText, contains('שֵׁנִי'));
+    expect(bothText, contains('First verse'));
+    expect(bothText, contains('Second verse'));
+  });
+
   test('unresolved index remains accessible', () {
     final book = EpubParserService.parseBytesSync(fixture(broken: true));
     expect(

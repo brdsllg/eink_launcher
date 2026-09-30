@@ -107,9 +107,15 @@ void main() {
           ),
         ),
       );
+      // The new verse-language selector pushes this tile past the
+      // ListView's lazy-build cache extent on a narrow reader, so it must
+      // be scrolled into view before it exists in the tree at all.
+      await tester.scrollUntilVisible(find.text('Commentary sources'), 200);
+      await tester.pumpAndSettle();
       expect(find.text('Commentary sources'), findsOneWidget);
       await tester.tap(find.text('Commentary sources'));
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('Rashi on Genesis'), 200);
       await Scrollable.ensureVisible(
         tester.element(find.text('Rashi on Genesis')),
         alignment: 0.5,

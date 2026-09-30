@@ -68,6 +68,36 @@ void main() {
           session.settings.copyWith(commentarySources: []),
         );
         expect((session.position as TextReadingPosition).blockId, 'v-two');
+        await session.applySettings(
+          session.settings.copyWith(verseLanguage: 'he'),
+        );
+        expect(
+          session.book!.spine.first.blocks.any(
+            (b) => b.plainText.contains('בְּרֵאשִׁית [כתיב]'),
+          ),
+          isTrue,
+        );
+        expect(
+          session.book!.spine.first.blocks.any(
+            (b) => b.plainText.contains('First verse'),
+          ),
+          isFalse,
+        );
+        await session.applySettings(
+          session.settings.copyWith(verseLanguage: 'en'),
+        );
+        expect(
+          session.book!.spine.first.blocks.any(
+            (b) => b.plainText.contains('First verse'),
+          ),
+          isTrue,
+        );
+        expect(
+          session.book!.spine.first.blocks.any(
+            (b) => b.plainText.contains('בְּרֵאשִׁית [כתיב]'),
+          ),
+          isFalse,
+        );
         session.suspend();
         session.dispose();
         session = create();

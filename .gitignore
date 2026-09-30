@@ -75,3 +75,12 @@ secrets.dart
 /tanach/outputs/*
 !/tanach/outputs/*.md
 !/tanach/outputs/source-selection.json
+
+# Talmud content pipeline segment (mirrors tanach/ layout)
+# Versioned: pipeline scripts and the selection manifest. Local-only: raw cache,
+# the normalized database, validation artefacts, generated EPUBs/ZIPs/reports.
+/talmud/work/*
+!/talmud/work/*.py
+/talmud/outputs/*
+!/talmud/outputs/*.md
+!/talmud/outputs/source-selection.json

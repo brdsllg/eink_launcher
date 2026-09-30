@@ -87,6 +87,23 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
         'Selected commentary appears after each verse. If a language or translation is missing, the available text is kept.',
       ),
       _StudySelector(
+        label: 'Verse language',
+        child: DropdownButtonFormField<String>(
+          key: const Key('reader-settings-verse-language'),
+          isExpanded: true,
+          initialValue: _settings.verseLanguage,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+          items: const [
+            DropdownMenuItem(value: 'both', child: Text('Hebrew and English')),
+            DropdownMenuItem(value: 'he', child: Text('Hebrew')),
+            DropdownMenuItem(value: 'en', child: Text('English')),
+          ],
+          onChanged: (value) => setState(
+            () => _settings = _settings.copyWith(verseLanguage: value),
+          ),
+        ),
+      ),
+      _StudySelector(
         label: 'Commentary language',
         child: DropdownButtonFormField<String>(
           isExpanded: true,
