@@ -390,7 +390,7 @@ def generate(conn, editions, masechtos=None):
                 )
 
                 # Hebrew/Aramaic text
-                he_text = seg['hebrew'] or ''
+                he_text = clean(seg['hebrew'] or '')
                 he_block = (
                     f'<p class="hebrew" dir="rtl" lang="he" xml:lang="he">'
                     f'{he_text}</p>'
@@ -488,8 +488,8 @@ def generate(conn, editions, masechtos=None):
                     + '</p>'
                 )
 
-                he_content = n['he'] or ''
-                en_content = n['en'] or ''
+                he_content = clean(n['he'] or '')
+                en_content = clean(n['en'] or '')
                 he_div = (
                     f'<div class="note-he" dir="rtl" lang="he" xml:lang="he">'
                     f'{he_content}</div>'
@@ -607,7 +607,11 @@ def generate(conn, editions, masechtos=None):
 
         spine_refs = '\n'.join(
             f'<itemref idref="{e(_iref(fname))}"/>'
-            for fname in (['title.xhtml'] + [_amud_filename(a) for a in amudim] + ['credits.xhtml'])
+            for fname in (
+                ['title.xhtml', 'nav.xhtml']
+                + [_amud_filename(a) for a in amudim]
+                + ['credits.xhtml']
+            )
         )
 
         opf = (
@@ -660,7 +664,7 @@ def generate(conn, editions, masechtos=None):
             epub_bytes=epub_path.stat().st_size,
         ))
         print(
-            f'{masechta}: {len(amudim)} amudim, {note_count} notes → {epub_path.name}',
+            f'{masechta}: {len(amudim)} amudim, {note_count} notes -> {epub_path.name}',
             flush=True,
         )
 

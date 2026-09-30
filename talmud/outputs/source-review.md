@@ -25,43 +25,43 @@ Berakhot, Bava Metzia, Bava Batra, Sanhedrin, Tamid, Shabbat
 
 | Masechta | Hebrew eds | English eds | William Davidson? |
 |---|---|---|---|
-| Berakhot | 0 | 0 | **missing** |
-| Shabbat | 0 | 0 | **missing** |
-| Eruvin | 0 | 0 | **missing** |
-| Pesachim | 0 | 0 | **missing** |
-| Rosh Hashanah | 0 | 0 | **missing** |
-| Yoma | 0 | 0 | **missing** |
-| Sukkah | 0 | 0 | **missing** |
-| Beitzah | 0 | 0 | **missing** |
+| Berakhot | 3 | 9 | yes |
+| Shabbat | 3 | 10 | yes |
+| Eruvin | 3 | 8 | yes |
+| Pesachim | 3 | 5 | yes |
+| Rosh Hashanah | 4 | 4 | yes |
+| Yoma | 3 | 8 | yes |
+| Sukkah | 3 | 4 | yes |
+| Beitzah | 3 | 3 | yes |
 | Ta'anit | 0 | 0 | **missing** |
-| Megillah | 0 | 0 | **missing** |
+| Megillah | 3 | 5 | yes |
 | Mo'ed Katan | 0 | 0 | **missing** |
-| Chagigah | 0 | 0 | **missing** |
-| Yevamot | 0 | 0 | **missing** |
-| Ketubot | 0 | 0 | **missing** |
-| Nedarim | 0 | 0 | **missing** |
-| Nazir | 0 | 0 | **missing** |
-| Sotah | 0 | 0 | **missing** |
-| Gittin | 0 | 0 | **missing** |
-| Kiddushin | 0 | 0 | **missing** |
-| Bava Kamma | 0 | 0 | **missing** |
-| Bava Metzia | 0 | 0 | **missing** |
-| Bava Batra | 0 | 0 | **missing** |
-| Sanhedrin | 0 | 0 | **missing** |
-| Makkot | 0 | 0 | **missing** |
-| Shevuot | 0 | 0 | **missing** |
-| Avodah Zarah | 0 | 0 | **missing** |
-| Horayot | 0 | 0 | **missing** |
-| Zevachim | 0 | 0 | **missing** |
-| Menachot | 0 | 0 | **missing** |
-| Chullin | 0 | 0 | **missing** |
-| Bekhorot | 0 | 0 | **missing** |
-| Arakhin | 0 | 0 | **missing** |
-| Temurah | 0 | 0 | **missing** |
-| Keritot | 0 | 0 | **missing** |
+| Chagigah | 3 | 6 | yes |
+| Yevamot | 4 | 6 | yes |
+| Ketubot | 3 | 5 | yes |
+| Nedarim | 3 | 3 | yes |
+| Nazir | 3 | 4 | yes |
+| Sotah | 3 | 5 | yes |
+| Gittin | 3 | 6 | yes |
+| Kiddushin | 4 | 7 | yes |
+| Bava Kamma | 4 | 6 | yes |
+| Bava Metzia | 3 | 8 | yes |
+| Bava Batra | 3 | 5 | yes |
+| Sanhedrin | 3 | 10 | yes |
+| Makkot | 3 | 6 | yes |
+| Shevuot | 3 | 4 | yes |
+| Avodah Zarah | 3 | 6 | yes |
+| Horayot | 3 | 4 | yes |
+| Zevachim | 3 | 5 | yes |
+| Menachot | 3 | 4 | yes |
+| Chullin | 3 | 5 | yes |
+| Bekhorot | 3 | 3 | yes |
+| Arakhin | 3 | 4 | yes |
+| Temurah | 3 | 4 | yes |
+| Keritot | 3 | 5 | yes |
 | Me'ilah | 0 | 0 | **missing** |
-| Tamid | 0 | 0 | **missing** |
-| Niddah | 0 | 0 | **missing** |
+| Tamid | 3 | 4 | yes |
+| Niddah | 3 | 7 | yes |
 
 ## Pilot commentary sources
 
@@ -173,7 +173,7 @@ Included: 101 | Pending review: 13
 
 ## Download plan
 
-196 edition files to fetch (base texts + pilot commentaries).
+264 edition files to fetch (base texts + pilot commentaries).
 
 ## Remaining steps
 

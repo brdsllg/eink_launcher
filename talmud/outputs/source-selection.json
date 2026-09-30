@@ -129,6 +129,14 @@
       "sha256": "f53238a8727e8455b3eedd6b21349486a46648393c1550562692ccd97b559782",
       "bytes": 356
     },
+    "download-plan.json": {
+      "sha256": "5f6b4f22cea49549c06ad452884c37f5c4386bf0d320dee88777ec89bfe6e1a0",
+      "bytes": 79840
+    },
+    "schemas-failures.json": {
+      "sha256": "8eefd4ddc13a9f8ae5550a5e41358547b22d3ff1c8fdae6e8a1a96e14d5d5672",
+      "bytes": 742
+    },
     "table_of_contents.json": {
       "sha256": "d2886a9a37e58e15e4238fed64ddb388db5c073600988a001d14f9e2f8b2311a",
       "bytes": 10820059
@@ -136,6 +144,10 @@
     "table_of_contents.json.meta.json": {
       "sha256": "c0b96cef73bf0549fd5616450502fb18a855c7b4d01357a9a9a48cf5e351c9e0",
       "bytes": 345
+    },
+    "texts-failures.json": {
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2
     }
   },
   "sources": [
@@ -7808,9 +7820,9 @@
   ],
   "masechta_coverage": {
     "Berakhot": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 9,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Berakhot",
         "Steinsaltz on Berakhot",
@@ -7818,9 +7830,9 @@
       ]
     },
     "Shabbat": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 10,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Shabbat",
         "Steinsaltz on Shabbat",
@@ -7828,9 +7840,9 @@
       ]
     },
     "Eruvin": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 8,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Eruvin",
         "Steinsaltz on Eruvin",
@@ -7838,9 +7850,9 @@
       ]
     },
     "Pesachim": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 5,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Pesachim",
         "Steinsaltz on Pesachim",
@@ -7848,9 +7860,9 @@
       ]
     },
     "Rosh Hashanah": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 4,
+      "en_editions": 4,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Rosh Hashanah",
         "Steinsaltz on Rosh Hashanah",
@@ -7858,9 +7870,9 @@
       ]
     },
     "Yoma": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 8,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Yoma",
         "Steinsaltz on Yoma",
@@ -7868,9 +7880,9 @@
       ]
     },
     "Sukkah": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 4,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Sukkah",
         "Steinsaltz on Sukkah",
@@ -7878,9 +7890,9 @@
       ]
     },
     "Beitzah": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 3,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Beitzah",
         "Steinsaltz on Beitzah",
@@ -7894,9 +7906,9 @@
       "commentary_sources": []
     },
     "Megillah": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 5,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Megillah",
         "Steinsaltz on Megillah",
@@ -7910,9 +7922,9 @@
       "commentary_sources": []
     },
     "Chagigah": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 6,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Chagigah",
         "Steinsaltz on Chagigah",
@@ -7920,9 +7932,9 @@
       ]
     },
     "Yevamot": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 4,
+      "en_editions": 6,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Yevamot",
         "Steinsaltz on Yevamot",
@@ -7930,9 +7942,9 @@
       ]
     },
     "Ketubot": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 5,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Ketubot",
         "Steinsaltz on Ketubot",
@@ -7940,9 +7952,9 @@
       ]
     },
     "Nedarim": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 3,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Nedarim",
         "Steinsaltz on Nedarim",
@@ -7950,9 +7962,9 @@
       ]
     },
     "Nazir": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 4,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Nazir",
         "Steinsaltz on Nazir",
@@ -7960,9 +7972,9 @@
       ]
     },
     "Sotah": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 5,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Sotah",
         "Steinsaltz on Sotah",
@@ -7970,9 +7982,9 @@
       ]
     },
     "Gittin": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 6,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Gittin",
         "Steinsaltz on Gittin",
@@ -7980,9 +7992,9 @@
       ]
     },
     "Kiddushin": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 4,
+      "en_editions": 7,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Kiddushin",
         "Steinsaltz on Kiddushin",
@@ -7990,9 +8002,9 @@
       ]
     },
     "Bava Kamma": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 4,
+      "en_editions": 6,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Bava Kamma",
         "Steinsaltz on Bava Kamma",
@@ -8000,9 +8012,9 @@
       ]
     },
     "Bava Metzia": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 8,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Bava Metzia",
         "Steinsaltz on Bava Metzia",
@@ -8010,9 +8022,9 @@
       ]
     },
     "Bava Batra": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 5,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashbam on Bava Batra",
         "Rashi on Bava Batra",
@@ -8021,9 +8033,9 @@
       ]
     },
     "Sanhedrin": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 10,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Sanhedrin",
         "Steinsaltz on Sanhedrin",
@@ -8031,9 +8043,9 @@
       ]
     },
     "Makkot": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 6,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Makkot",
         "Steinsaltz on Makkot",
@@ -8041,9 +8053,9 @@
       ]
     },
     "Shevuot": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 4,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Shevuot",
         "Steinsaltz on Shevuot",
@@ -8051,9 +8063,9 @@
       ]
     },
     "Avodah Zarah": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 6,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Avodah Zarah",
         "Steinsaltz on Avodah Zarah",
@@ -8061,9 +8073,9 @@
       ]
     },
     "Horayot": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 4,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Horayot",
         "Steinsaltz on Horayot",
@@ -8071,9 +8083,9 @@
       ]
     },
     "Zevachim": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 5,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Zevachim",
         "Steinsaltz on Zevachim",
@@ -8081,9 +8093,9 @@
       ]
     },
     "Menachot": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 4,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Menachot",
         "Steinsaltz on Menachot",
@@ -8091,9 +8103,9 @@
       ]
     },
     "Chullin": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 5,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Chullin",
         "Steinsaltz on Chullin",
@@ -8101,9 +8113,9 @@
       ]
     },
     "Bekhorot": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 3,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Bekhorot",
         "Steinsaltz on Bekhorot",
@@ -8111,9 +8123,9 @@
       ]
     },
     "Arakhin": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 4,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Arakhin",
         "Steinsaltz on Arakhin",
@@ -8121,9 +8133,9 @@
       ]
     },
     "Temurah": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 4,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Temurah",
         "Steinsaltz on Temurah",
@@ -8131,9 +8143,9 @@
       ]
     },
     "Keritot": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 5,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Keritot",
         "Steinsaltz on Keritot",
@@ -8147,17 +8159,17 @@
       "commentary_sources": []
     },
     "Tamid": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 4,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Steinsaltz on Tamid"
       ]
     },
     "Niddah": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
+      "he_editions": 3,
+      "en_editions": 7,
+      "has_william_davidson_english": true,
       "commentary_sources": [
         "Rashi on Niddah",
         "Steinsaltz on Niddah",

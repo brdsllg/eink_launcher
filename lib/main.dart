@@ -6,9 +6,12 @@ import 'package:flutter/services.dart';
 
 import 'constants.dart';
 import 'reader/controllers/reader_session_registry.dart';
+import 'reader/screens/reader_screen.dart';
 import 'reader/services/book_store_service.dart';
+import 'reader/services/doc_identity_service.dart';
 import 'reader/widgets/reading_state_warning.dart';
 import 'screens/file_browser_screen.dart';
+import 'services/file_intent_service.dart';
 import 'services/launcher_error_service.dart';
 
 Color? _buttonForeground(Set<WidgetState> states) {
@@ -29,7 +32,7 @@ const _squareButtonShape = WidgetStatePropertyAll<OutlinedBorder>(
   RoundedRectangleBorder(borderRadius: BorderRadius.zero),
 );
 
-void main() {
+void main() async {
   // Required before any SystemChrome/plugin calls in main().
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isAndroid) LauncherErrorService.install();
@@ -43,7 +46,12 @@ void main() {
   // The LaunchTheme/NormalTheme in styles.xml hide them from the moment the
   // process starts, and this keeps them hidden once Flutter takes over.
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  runApp(const MyApp());
+  
+  // Initialize file intent service for opening files from file manager
+  final fileIntentService = FileIntentService();
+  await fileIntentService.initialize();
+  
+  runApp(MyApp(fileIntentService: fileIntentService));
 }
 
 /// Forwards Android's `onTrimMemory`/`onLowMemory` signal (surfaced by
@@ -74,8 +82,64 @@ class ReaderMemoryPressureObserver with WidgetsBindingObserver {
   }
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  final FileIntentService fileIntentService;
+
+  MyApp({FileIntentService? fileIntentService, super.key})
+    : fileIntentService = fileIntentService ?? FileIntentService();
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Set up callback for when files are opened with the app.
+    widget.fileIntentService.onFileOpened = _handleFileIntent;
+    unawaited(widget.fileIntentService.initialize());
+  }
+
+  @override
+  void dispose() {
+    widget.fileIntentService.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleFileIntent(String filePath) async {
+    if (!mounted) return;
+
+    final trimmedPath = filePath.trim();
+    if (trimmedPath.isEmpty) return;
+
+    final file = File(trimmedPath);
+    if (!file.existsSync()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('File no longer exists: $trimmedPath')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final doc = await DocIdentityService.createDocRef(trimmedPath);
+      if (!mounted) return;
+
+      await Navigator.of(context, rootNavigator: true).push(
+        noTransitionRoute(
+          ReaderScreen(doc: doc, registry: ReaderSessionRegistry.instance),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open file: $error')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

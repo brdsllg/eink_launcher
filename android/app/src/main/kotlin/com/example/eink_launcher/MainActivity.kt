@@ -31,6 +31,7 @@ class MainActivity : FlutterActivity() {
         InstalledAppsHandler(this, flutterEngine.dartExecutor.binaryMessenger)
         PdfMemoryHandler(this, flutterEngine.dartExecutor.binaryMessenger)
         StartupHealthHandler.register(this, flutterEngine.dartExecutor.binaryMessenger)
+        FileIntentHandler(this, flutterEngine.dartExecutor.binaryMessenger)
 
         EventChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -152,6 +153,21 @@ class MainActivity : FlutterActivity() {
             val activity = candidate.activityInfo
             activity.packageName == resolvedActivity.packageName &&
                 activity.name == resolvedActivity.name
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Notify Dart about the new file intent
+        if (intent.action == Intent.ACTION_VIEW) {
+            val uri = intent.data
+            if (uri != null) {
+                val path = FileIntentHandler.getPathFromUri(this, uri)
+                if (path != null) {
+                    FileIntentHandler.sendFilePathToDart(path)
+                }
+            }
         }
     }
 

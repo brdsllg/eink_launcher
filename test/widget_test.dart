@@ -24,7 +24,7 @@ void main() {
       messenger.setMockMethodCallHandler(permissions, null);
       messenger.setMockMethodCallHandler(battery, null);
     });
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp());
     await tester.pumpAndSettle();
 
     // The app always renders the Home (top-left) icon — present whether or not

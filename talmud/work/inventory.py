@@ -194,7 +194,7 @@ def main():
         """Return the highest-priority Hebrew text edition for a masechta."""
         candidates = [
             b for b in editions_by_title.get(title, [])
-            if b.get('language') == 'he' and b.get('versionTitle', '') != 'merged'
+            if b.get('language', '').upper() == 'HEBREW' and b.get('versionTitle', '') != 'merged'
             and b.get('json_url')
         ]
         # Prefer 'William Davidson Edition - Aramaic' or 'Wikisource Talmud Bavli'
@@ -208,7 +208,7 @@ def main():
         """Return the William Davidson English edition, if available."""
         candidates = [
             b for b in editions_by_title.get(title, [])
-            if b.get('language') == 'en'
+            if b.get('language', '').upper() == 'ENGLISH'
             and 'William Davidson' in b.get('versionTitle', '')
             and b.get('versionTitle', '') != 'merged'
             and b.get('json_url')
@@ -263,16 +263,16 @@ def main():
     for masechta in MASECHTA_ORDER:
         he_count = sum(
             1 for b in editions_by_title.get(masechta, [])
-            if b.get('language') == 'he' and b.get('versionTitle') != 'merged'
+            if b.get('language', '').upper() == 'HEBREW' and b.get('versionTitle') != 'merged'
         )
         en_count = sum(
             1 for b in editions_by_title.get(masechta, [])
-            if b.get('language') == 'en' and b.get('versionTitle') != 'merged'
+            if b.get('language', '').upper() == 'ENGLISH' and b.get('versionTitle') != 'merged'
         )
         has_davidson = any(
             'William Davidson' in b.get('versionTitle', '')
             for b in editions_by_title.get(masechta, [])
-            if b.get('language') == 'en'
+            if b.get('language', '').upper() == 'ENGLISH'
         )
         coverage[masechta] = dict(
             he_editions=he_count,

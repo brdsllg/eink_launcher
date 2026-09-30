@@ -131,7 +131,7 @@ def main():
 
     (OUT / 'sample-guide.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
-    print(f'Packaged {len(sample_epubs)} pilot EPUBs → {zip_path}')
+    print(f'Packaged {len(sample_epubs)} pilot EPUBs -> {zip_path}')
     print(json.dumps(checksums, indent=2))
 
 
