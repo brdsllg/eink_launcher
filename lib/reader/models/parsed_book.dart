@@ -41,6 +41,12 @@ class ParsedBook {
   final String? primaryStudyTranslationId;
   final String? studyProjectionKey;
   final String contentFingerprint;
+
+  /// The unit a recognized study book is divided into: `'verse'` for the Tanach
+  /// `section.verse` dialect, `'segment'` for the Talmud `section.segment`
+  /// dialect. Null for books that are not study text. Used only to label the
+  /// reader's study controls, so it never affects layout.
+  final String? studyUnit;
   final bool rightToLeft;
   final String title;
   final String? author;
@@ -68,6 +74,7 @@ class ParsedBook {
     this.primaryStudyTranslationId,
     this.studyProjectionKey,
     this.contentFingerprint = '',
+    this.studyUnit,
     this.rightToLeft = false,
     required this.title,
     this.author,

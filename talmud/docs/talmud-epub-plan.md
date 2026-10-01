@@ -1,6 +1,7 @@
 # Talmud EPUB plan (handoff)
 
-Status: **pilot build complete - device validation and reader integration remain.**
+Status: **pilot build complete - reader study-text integration landed; device
+validation remains.**
 As of 2026-09-30, six pilot tractates have been fetched, normalized, generated,
 and validated: Berakhot, Shabbat, Bava Metzia, Bava Batra, Sanhedrin, and Tamid.
 All six EPUBs pass EPUBCheck and structural validation. The generated data is
@@ -129,14 +130,20 @@ Follow the Tanach stages and reuse scripts and validators wherever possible:
 
 ## Reader work (after the pipeline)
 
-- Shared study-text import contract for Tanach and Talmud.
-- Nikud-strip display setting.
+- Shared study-text import contract for Tanach and Talmud. ✅ The reader's
+  recognizer and projection now accept `section.segment[data-ref]`, the
+  `note-index` index shape, `data-category="commentary"`, and the `p.translation`
+  English body. The books therefore open in study mode: commentary sources,
+  commentary language, and verse language apply, and they use the bounded-memory
+  SQLite cache like Tanach. Covered by `test/reader/talmud_compatibility_test.dart`.
+- Nikud-strip display setting. ⏳
 - Paragraph vs continuous-by-amud setting, with the `Berakhot 2a:1` heading in
-  paragraph mode.
-- Commentary picker ordering: Rashi, Tosafot, rest.
+  paragraph mode. ⏳
+- Commentary picker ordering: Rashi, Tosafot, rest. ⏳ (currently alphabetical)
 
-No Talmud reader integration has landed yet; `lib/` currently contains no
-Talmud-specific references.
+The Parshah/Aliyot toggle correctly stays hidden for Talmud, which carries no
+Parshah table of contents. Recorded Bigme device issues, their diagnoses, and
+suggested fixes are in [docs/reader-device-findings.md](reader-device-findings.md).
 
 ## Future scope
 

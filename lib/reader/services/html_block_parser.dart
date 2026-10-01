@@ -496,6 +496,7 @@ class _HtmlWalker {
       inTanach =
           inTanach ||
           current.classes.contains('verse') ||
+          current.classes.contains('segment') ||
           current.classes.contains('commentary-note');
       inHebrewNote = inHebrewNote || current.classes.contains('note-he');
       inEnglishNote = inEnglishNote || current.classes.contains('note-en');

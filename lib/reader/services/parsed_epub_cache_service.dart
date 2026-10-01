@@ -17,7 +17,11 @@ import 'tanach_sqlite_cache_service.dart';
 /// Disposable, versioned parse cache. Images are included so a hit never needs
 /// to reopen the ZIP. Source metadata and CSS mode invalidate stale blocks.
 class ParsedEpubCacheService {
-  static const version = 6;
+  // Bumped to 7 when the study recognizer began accepting the Talmud
+  // `section.segment` dialect, so books first cached as plain EPUBs re-parse
+  // into study text instead of returning a stale non-study parse. Bumped to 8
+  // when ParsedBook gained `studyUnit`, so the settings labels pick it up.
+  static const version = 8;
   static const maxBytes = 64 * 1024 * 1024;
   final Directory? cacheDirectory;
   const ParsedEpubCacheService({this.cacheDirectory});
@@ -156,6 +160,7 @@ class ParsedEpubCacheService {
     ],
     'primaryStudyTranslationId': book.primaryStudyTranslationId,
     'studyProjectionKey': book.studyProjectionKey,
+    'studyUnit': book.studyUnit,
     'contentFingerprint': book.contentFingerprint,
     'rightToLeft': book.rightToLeft,
     'title': book.title,
@@ -235,6 +240,7 @@ class ParsedEpubCacheService {
     ],
     primaryStudyTranslationId: json['primaryStudyTranslationId'] as String?,
     studyProjectionKey: json['studyProjectionKey'] as String?,
+    studyUnit: json['studyUnit'] as String?,
     contentFingerprint: json['contentFingerprint'] as String? ?? '',
     rightToLeft: json['rightToLeft'] as bool? ?? false,
     title: json['title'] as String,

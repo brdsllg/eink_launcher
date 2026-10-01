@@ -130,6 +130,13 @@ class EpubParserService {
           entry.key,
     };
     final hasStudy = studyPaths.isNotEmpty;
+    final studyUnit = !hasStudy
+        ? null
+        : studyPaths.any(
+                (path) => TanachLayoutService.usesSegments(xhtmlDocuments[path]!),
+              )
+        ? 'segment'
+        : 'verse';
     final spine = <ParsedSpineItem>[];
     for (final idref in spineRefs) {
       final item = manifest[idref];
@@ -232,6 +239,7 @@ class EpubParserService {
     final parsed = ParsedBook(
       studyDocuments: hasStudy ? xhtmlDocuments : const {},
       contentFingerprint: sha256.convert(bytes).toString(),
+      studyUnit: studyUnit,
       rightToLeft:
           _attribute(spineElement, 'page-progression-direction') == 'rtl',
       title: _metadataText(package, 'title') ?? 'Untitled',

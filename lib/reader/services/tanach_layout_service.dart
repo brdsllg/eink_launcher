@@ -10,9 +10,21 @@ import 'html_block_parser.dart';
 /// Projects recognized verse/index/footnote relationships into reading order.
 /// The original XHTML stays in the parsed book, so filters never delete notes.
 class TanachLayoutService {
+  /// The projected study sections. Tanach books mark verses with
+  /// `section.verse`; the Talmud dialect marks them with `section.segment`.
+  /// Both carry `data-ref`, so one selector recognizes either product.
+  static const String _studySectionSelector =
+      'section.verse[data-ref], section.segment[data-ref]';
+
   static bool recognizes(String source) =>
       source.contains('data-ref') &&
-      html.parse(source).querySelector('section.verse[data-ref]') != null;
+      html.parse(source).querySelector(_studySectionSelector) != null;
+
+  /// True when a recognized study book uses the Talmud `section.segment`
+  /// dialect rather than the Tanach `section.verse` dialect. The reader uses
+  /// this only to label its study controls ("Talmud language", "each segment").
+  static bool usesSegments(String source) =>
+      html.parse(source).querySelector('section.segment[data-ref]') != null;
 
   static bool _hasType(Element element, String token) {
     for (final entry in element.attributes.entries) {
@@ -32,6 +44,16 @@ class TanachLayoutService {
       }
     }
     return false;
+  }
+
+  /// True for the verse/segment index that opens the source chooser. Tanach
+  /// marks it `data-category="index"`; the Talmud dialect uses
+  /// `class="note-index"` with an `idx-` id instead.
+  static bool _isIndex(Element? element) {
+    if (element == null) return false;
+    if (element.attributes['data-category'] == 'index') return true;
+    if (element.classes.contains('note-index')) return true;
+    return element.id.startsWith('idx-');
   }
 
   static ParsedBook layout(ParsedBook book, ReaderSettings settings) {
@@ -89,20 +111,22 @@ class TanachLayoutService {
     final extracted = <Element>{};
     final changedPaths = <String>{};
     for (final entry in documents.entries) {
-      for (final verse in entry.value.querySelectorAll(
-        'section.verse[data-ref]',
-      )) {
+      for (final verse in entry.value.querySelectorAll(_studySectionSelector)) {
         if (verse.id.isEmpty) continue;
         final links = verse
             .querySelectorAll('a')
-            .where((a) => _hasType(a, 'noteref'))
+            .where(
+              (a) =>
+                  _hasType(a, 'noteref') ||
+                  _isIndex(
+                    targets[resolve(entry.key, a.attributes['href'] ?? '')],
+                  ),
+            )
             .toList();
         for (final link in links) {
           final indexKey = resolve(entry.key, link.attributes['href'] ?? '');
           final index = targets[indexKey];
-          if (index == null ||
-              !_hasType(index, 'footnote') ||
-              index.attributes['data-category'] != 'index') {
+          if (index == null || !_isIndex(index)) {
             continue;
           }
           final linked = <String, Element>{};
@@ -234,9 +258,7 @@ class TanachLayoutService {
     // chapter, whether or not the chapter needed a note or heading change.
     if (settings.verseLanguage == 'he' || settings.verseLanguage == 'en') {
       for (final document in documents.values) {
-        for (final verse in document.querySelectorAll(
-          'section.verse[data-ref]',
-        )) {
+        for (final verse in document.querySelectorAll(_studySectionSelector)) {
           _applyVerseLanguage(verse, settings.verseLanguage);
         }
       }
@@ -313,13 +335,20 @@ class TanachLayoutService {
       ),
       primaryStudyTranslationId: primaryTranslationId,
       studyProjectionKey: projectionKey,
+      studyUnit: book.studyUnit,
       contentFingerprint: book.contentFingerprint,
       rightToLeft: book.rightToLeft,
       tanachDatabasePath: book.tanachDatabasePath,
     );
   }
 
-  static const _commentaryCategories = {'rishon', 'acharon', 'modern'};
+  static const _commentaryCategories = {
+    'rishon',
+    'acharon',
+    'modern',
+    // The Talmud dialect tags every commentary aside simply "commentary".
+    'commentary',
+  };
 
   /// Keeps only one heading family in a dual-structure Torah chapter.
   ///
@@ -378,9 +407,10 @@ class TanachLayoutService {
           element.attributes['xml:lang'] == 'he');
 
   /// The English verse run, which the builder and the alternate-translation
-  /// swap both mark as `.translation`.
+  /// swap both mark as `.translation`. Tanach uses a `div`; the Talmud
+  /// dialect uses a `p`, so the class alone decides.
   static bool _isEnglishVerseBody(Element element) =>
-      element.localName == 'div' && element.classes.contains('translation');
+      element.classes.contains('translation');
 
   static String _projectionKey(ReaderSettings settings) {
     final sources = [...settings.commentarySources]..sort();

@@ -528,7 +528,7 @@ class TextReaderSession extends ReaderSession {
   }
 
   Future<bool> openLink(String href) async {
-    final book = _book;
+    var book = _book;
     if (book == null || !_isReady) return false;
     final target = href.startsWith('#')
         ? '${book.spine[_position.spineIndex].href}$href'
@@ -536,6 +536,15 @@ class TextReaderSession extends ReaderSession {
     final path = target.split('#').first;
     final spineIndex = book.spine.indexWhere((item) => item.href == path);
     if (spineIndex < 0) return false;
+    // A lazy study chapter exposes no anchors until its blocks load, so a link
+    // into one (for example the book's own Contents page) must load it first.
+    if (!book.spine[spineIndex].isLoaded) {
+      await _ensureChapterLoaded(spineIndex);
+      book = _book;
+      if (book == null || !_isReady || spineIndex >= book.spine.length) {
+        return false;
+      }
+    }
     final anchor = target.contains('#')
         ? Uri.decodeComponent(target.substring(target.indexOf('#') + 1))
         : null;
@@ -1131,6 +1140,7 @@ class TextReaderSession extends ReaderSession {
         studyTranslations: book.studyTranslations,
         primaryStudyTranslationId: book.primaryStudyTranslationId,
         studyProjectionKey: book.studyProjectionKey,
+        studyUnit: book.studyUnit,
         spine: List.unmodifiable(spine),
         resources: book.resources,
         tableOfContents: book.tableOfContents,

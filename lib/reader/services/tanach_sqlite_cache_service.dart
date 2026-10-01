@@ -22,7 +22,9 @@ import 'tanach_layout_service.dart';
 /// only when requested, while normalized text selects substring search candidates.
 /// User state deliberately remains outside this database.
 class TanachSqliteCacheService {
-  static const schemaVersion = 4;
+  // Bumped to 5 when the skeleton began recording `study_unit`, so an older
+  // cache re-imports and the study controls keep the right labels.
+  static const schemaVersion = 5;
   static const maxCacheBytes = 768 * 1024 * 1024;
 
   static final Map<String, int> _pins = {};
@@ -222,6 +224,7 @@ class TanachSqliteCacheService {
         studySources: book.studySources,
         studyTranslations: book.studyTranslations,
         primaryStudyTranslationId: book.primaryStudyTranslationId,
+        studyUnit: book.studyUnit,
         spine: book.spine,
         resources: book.resources,
         tableOfContents: book.tableOfContents,
@@ -290,6 +293,7 @@ class TanachSqliteCacheService {
         ),
         studyTranslations: translations,
         primaryStudyTranslationId: _nullable(meta['primary_translation_id']),
+        studyUnit: _nullable(meta['study_unit']),
         spine: List.unmodifiable(spine),
         resources: Map.unmodifiable(resources),
         tableOfContents: [
@@ -365,6 +369,8 @@ class TanachSqliteCacheService {
               'rishon',
               'acharon',
               'modern',
+              // The Talmud dialect tags every commentary aside "commentary".
+              'commentary',
             }.contains(note.attributes['data-category'])) {
               sources.add(note.attributes['data-source']!);
             }
@@ -455,6 +461,7 @@ class TanachSqliteCacheService {
               {'id': option.id, 'label': option.label},
           ]),
           'primary_translation_id': primary ?? '',
+          'study_unit': book.studyUnit ?? '',
           'toc': jsonEncode(
             book.tableOfContents.map((entry) => entry.toJson()).toList(),
           ),

@@ -332,6 +332,9 @@ class _ReaderScreenState extends State<ReaderScreen>
           primaryStudyTranslationId: session is TextReaderSession
               ? session.book?.primaryStudyTranslationId
               : null,
+          studyUnit: session is TextReaderSession
+              ? session.book?.studyUnit
+              : null,
           hasParshaToc: session is TextReaderSession
               ? session.book?.hasParshaToc ?? false
               : false,
@@ -544,6 +547,9 @@ class _ReaderScreenState extends State<ReaderScreen>
           ? null
           : () => _turnFromButton(session, forward: true),
       child: Scaffold(
+        // Keep the reading layout fixed while a dialog (page/percent jump) opens
+        // its keyboard, so pagination and page numbers do not shift underneath.
+        resizeToAvoidBottomInset: false,
         body: Stack(
           fit: StackFit.expand,
           children: [
