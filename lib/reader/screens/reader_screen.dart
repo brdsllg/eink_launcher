@@ -332,9 +332,6 @@ class _ReaderScreenState extends State<ReaderScreen>
           primaryStudyTranslationId: session is TextReaderSession
               ? session.book?.primaryStudyTranslationId
               : null,
-          studyUnit: session is TextReaderSession
-              ? session.book?.studyUnit
-              : null,
           hasParshaToc: session is TextReaderSession
               ? session.book?.hasParshaToc ?? false
               : false,
