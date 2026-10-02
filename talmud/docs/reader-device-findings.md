@@ -322,3 +322,4 @@ SQLite file directly, and the reader would open it without the import step.
 - Bigme B751C RAM and free storage.
 - Any commentaries to blacklist from the start (duplicates, wrong-language
   editions, works with little text)?
+- user here, i have a question: would it be a practical possibility to do the memory and cpu intensive work on first open on a laptop and save the data when importing to the device? 
