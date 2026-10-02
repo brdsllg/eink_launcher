@@ -26,7 +26,7 @@ for s in c['sources']:
         chosen.append(s)
 plan=[]
 for b in catalog:
-    if b['title'] in target and b['versionTitle']=='Tanach with Nikkud':
+    if b['title'] in target and b['versionTitle']==c['preferences']['hebrew']['edition']:
         plan.append(dict(b,role='hebrew'))
 for t in c['translations']:
     if t['status']=='include':

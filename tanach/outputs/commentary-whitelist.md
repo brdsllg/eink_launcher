@@ -130,7 +130,6 @@ This records the choices from your whitelist. Your selections are checked below.
 - [ ] **C119 — Steinsaltz commentary** — not in current samples; export availability must be checked
 - [ ] **C120 — Ta'alumot Chokhmah** — not in current samples; export availability must be checked
 - [ ] **C121 — Tevat Gome** — 2 notes in samples
-- [ ] **C122 — The Kehot Chumash; A Chasidic Commentary** — not in current samples; export availability must be checked
 - [ ] **C123 — Tiferet Yehonatan** — 33 notes in samples
 - [ ] **C124 — Tikvat Enosh** — 19 notes in samples
 - [ ] **C125 — Toledot Yitzchak** — 42 notes in samples

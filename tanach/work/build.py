@@ -46,6 +46,18 @@ def plaintext(s):return html.unescape(re.sub('<[^>]+>','',s)).strip()
 
 def hebrew(s,ref):
     s=strip_trop(s)
+    # MAM encodes qere/ketiv in HTML spans instead of Sefaria's plain-text
+    # ketiv [qere] convention. Normalize both forms to the same input before
+    # applying the renderer's qere/ketiv handling below.
+    s=re.sub(
+        r'<span class="mam-kq"><span class="mam-kq-k">\((.*?)\)</span>\s*'
+        r'<span class="mam-kq-q">\[(.*?)\]</span></span>',
+        lambda m:f'{m.group(1)} [{m.group(2)}]',s)
+    s=re.sub(
+        r'<span class="mam-kq"><span class="mam-kq-k">\((.*?)\)</span></span>',
+        lambda m:m.group(1),s)
+    # MAM can also emit an unpaired ketiv span (for example Ruth 3:12).
+    s=re.sub(r'<span class="mam-kq-k">\((.*?)\)</span>',lambda m:m.group(1),s)
     # The export has unpointed ketiv before one or more [pointed qere] groups.
     # A maqaf can join either side, and multiword qere is sometimes split over
     # adjacent bracket groups (for example, אשדת [אֵשׁ] [דָּת]).
@@ -174,7 +186,7 @@ def main():
         choices=list(conn.execute('SELECT edition FROM translations WHERE book=? AND chapter=? AND verse=?',(b,c,v)))
         preferred=[]
         for preference in CONFIG['preferences']['primary_translation']:
-            preferred=[x[0] for x in choices if (preference=='Metsudah' and 'Metsudah' in edition_info[x[0]]['version_title']) or edition_info[x[0]]['version_title']==preference]
+            preferred=[x[0] for x in choices if (preference=='Metsudah' and 'Metsudah' in edition_info[x[0]]['version_title'] and 'with Onkelos translation' not in edition_info[x[0]]['version_title']) or edition_info[x[0]]['version_title']==preference]
             if preferred:break
         if not preferred:
             WARN.append(dict(kind='missing_approved_translation',book=b,chapter=c,verse=v))
@@ -525,6 +537,7 @@ def hebrew_number(number):
     return letters+'׳' if len(letters)==1 else letters[:-1]+'״'+letters[-1]
 
 def translation_label(name):
+    if 'with Onkelos translation' in name:return 'Bold Onkelos'
     if 'Metsudah' in name:return 'Metsudah'
     if name=='The Koren Jerusalem Bible':return 'Koren'
     if 'Silverstein' in name:return 'R. Shraga Silverstein'

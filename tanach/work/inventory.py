@@ -29,6 +29,8 @@ for b in books:
 def modern_status(title, cats):
     if title == "The Torah; A Women's Commentary":
         return 'exclude', 'Sefaria identifies Women of Reform Judaism / CCAR publication.'
+    if title == 'The Kehot Chumash; A Chasidic Commentary':
+        return 'exclude', 'User removed it because the current Sefaria export has no downloadable edition.'
     if any(x in cats for x in ('Jonathan Sacks', 'Avraham Remer', 'Redeeming Relevance', 'Steinsaltz')) or title.startswith('David Zvi Hoffmann on ') or title in {
         'Birkat Asher on Torah', 'Chibbah Yeteirah on Torah', 'Depths of Yonah',
         'From David to Destruction', 'Megillat Ruth; From Chaos to Kingship',
@@ -59,13 +61,23 @@ for title in base:
     for v in versions[title]:
         if v['language'] == 'English' and v['versionTitle'] != 'merged':
             translations[v['versionTitle']].append(v)
+# Sefaria indexes the English Bold Onkelos edition under separate Targum
+# titles. Map those exports back to their corresponding Torah books so the
+# reader can offer them alongside other English translations.
+for b in books:
+    if b['title'].startswith('Onkelos ') and b['versionTitle'].endswith('[with Onkelos translation]'):
+        base_title=b['title'].removeprefix('Onkelos ')
+        if base_title in base:
+            translations[b['versionTitle']].append(dict(b,title=base_title))
 trans = []
 for title, entries in sorted(translations.items()):
     if re.search(r'\[(?:fr|es|de|it|pt|pl|fa|ca|lad|eo|ru|fi|ro|tr)\]', title, re.I) or title in {'Alfredo cerhy español ', 'Bibel - Schlachter 2000', 'Biblical Aramaic into Hebrew, Rabbi Dan Be\'eri, 2004', 'Italian II Chronicles Chapter 135', 'Portuguese II Chronicles Chapter 135', 'Spanish II Chronicles Chapter 135', 'Spanish - Reina Valera 1960', 'Rosario-IT', 'שְׁלַח־לְךָ֣ אֲנָשִׁ֗ים'}:
         status, reason = 'exclude_language', 'Explicit non-English language tag.'
     elif 'with Onkelos translation' in title:
-        status, reason = 'exclude', 'User excluded Targum; use standalone Metsudah edition.'
-    elif any(x in title for x in ('Metsudah', 'The Rashi chumash', 'The Rashi Ketuvim', 'The Koren Jerusalem Bible', 'Rabbi Mike Feuer', 'Rabbi Chaim Jachter', 'The Depths of Yonah', 'Torah Yesharah', 'Isaac Levy')):
+        status, reason = 'include', 'User selected the available Bold Onkelos Metsudah edition as a translation.'
+    elif title.startswith('Torah Yesharah, translated and edited by Chas. Kahane.'):
+        status, reason = 'exclude', 'User explicitly removed this translation.'
+    elif any(x in title for x in ('Metsudah', 'The Rashi chumash', 'The Rashi Ketuvim', 'The Koren Jerusalem Bible', 'Rabbi Mike Feuer', 'Rabbi Chaim Jachter', 'The Depths of Yonah', 'Isaac Levy')):
         status, reason = 'include', 'Recognizable Orthodox edition or translator; verify actual edition metadata and content.'
     elif any(x in title for x in ('KING JAMES', 'CCAR Press', 'Gender-Sensitive', 'The Contemporary Torah', 'Emoji Megillah')):
         status, reason = 'exclude', 'Outside requested Orthodox translation scope.'

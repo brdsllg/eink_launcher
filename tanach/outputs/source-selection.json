@@ -51,6 +51,7 @@
     ],
     "commentary_extent": "full direct comments; no broad cross-citations or essay expansion",
     "hebrew": {
+      "edition": "Miqra according to the Masorah",
       "vowels": true,
       "cantillation": false,
       "qere": "square_brackets_as_supplied_by_sefaria",
@@ -958,7 +959,7 @@
       "title": "Onkelos Genesis",
       "category": "Targum",
       "status": "exclude",
-      "reason": "Outside user commentary whitelist",
+      "reason": "Selected as the Bold Onkelos English translation option, not as commentary.",
       "description": "",
       "sort_order": 9,
       "available_versions": [
@@ -1130,14 +1131,14 @@
       ],
       "export_available": true,
       "selected_versions": [],
-      "license_status": "Read individual JSON license fields before build",
+      "license_status": "Selected edition is managed under translations.",
       "edition_decisions": {}
     },
     {
       "title": "Onkelos Exodus",
       "category": "Targum",
       "status": "exclude",
-      "reason": "Outside user commentary whitelist",
+      "reason": "Selected as the Bold Onkelos English translation option, not as commentary.",
       "description": "",
       "sort_order": 10,
       "available_versions": [
@@ -1249,14 +1250,14 @@
       ],
       "export_available": true,
       "selected_versions": [],
-      "license_status": "Read individual JSON license fields before build",
+      "license_status": "Selected edition is managed under translations.",
       "edition_decisions": {}
     },
     {
       "title": "Onkelos Leviticus",
       "category": "Targum",
       "status": "exclude",
-      "reason": "Outside user commentary whitelist",
+      "reason": "Selected as the Bold Onkelos English translation option, not as commentary.",
       "description": "",
       "sort_order": 11,
       "available_versions": [
@@ -1398,14 +1399,14 @@
       ],
       "export_available": true,
       "selected_versions": [],
-      "license_status": "Read individual JSON license fields before build",
+      "license_status": "Selected edition is managed under translations.",
       "edition_decisions": {}
     },
     {
       "title": "Onkelos Numbers",
       "category": "Targum",
       "status": "exclude",
-      "reason": "Outside user commentary whitelist",
+      "reason": "Selected as the Bold Onkelos English translation option, not as commentary.",
       "description": "",
       "sort_order": 12,
       "available_versions": [
@@ -1517,14 +1518,14 @@
       ],
       "export_available": true,
       "selected_versions": [],
-      "license_status": "Read individual JSON license fields before build",
+      "license_status": "Selected edition is managed under translations.",
       "edition_decisions": {}
     },
     {
       "title": "Onkelos Deuteronomy",
       "category": "Targum",
       "status": "exclude",
-      "reason": "Outside user commentary whitelist",
+      "reason": "Selected as the Bold Onkelos English translation option, not as commentary.",
       "description": "",
       "sort_order": 13,
       "available_versions": [
@@ -1636,7 +1637,7 @@
       ],
       "export_available": true,
       "selected_versions": [],
-      "license_status": "Read individual JSON license fields before build",
+      "license_status": "Selected edition is managed under translations.",
       "edition_decisions": {}
     },
     {
@@ -58906,7 +58907,7 @@
       "title": "The Kehot Chumash; A Chasidic Commentary",
       "category": "Modern Commentary on Tanakh",
       "status": "exclude",
-      "reason": "Outside user commentary whitelist",
+      "reason": "Removed at user request; no downloadable edition is available in the current export catalog.",
       "description": "21st-century commentary from Chabad House Publications\n",
       "sort_order": 628,
       "available_versions": [],
@@ -62635,89 +62636,6 @@
           "sha256": "b71cf58e22086e0b4005af38fb3b01704d261243d258dfc4da675c494cb91ca4"
         }
       ]
-    },
-    {
-      "version_title": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
-      "status": "exclude",
-      "reason": "User excluded Targum; use standalone Metsudah edition.",
-      "books": [
-        "Genesis",
-        "Exodus",
-        "Leviticus",
-        "Numbers",
-        "Deuteronomy"
-      ],
-      "catalog_book_count": 5,
-      "coverage_note": "Catalog presence does not guarantee complete verse coverage.",
-      "editions": [
-        {
-          "title": "Genesis",
-          "language": "English",
-          "versionTitle": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
-          "categories": [
-            "Tanakh",
-            "Torah"
-          ],
-          "json_url": "https://storage.googleapis.com/sefaria-export/json/Tanakh/Torah/Genesis/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
-          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Tanakh/Torah/Genesis/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.txt",
-          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Tanakh/Torah/Genesis/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
-          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Tanakh/Torah/Genesis/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json"
-        },
-        {
-          "title": "Exodus",
-          "language": "English",
-          "versionTitle": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
-          "categories": [
-            "Tanakh",
-            "Torah"
-          ],
-          "json_url": "https://storage.googleapis.com/sefaria-export/json/Tanakh/Torah/Exodus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
-          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Tanakh/Torah/Exodus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.txt",
-          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Tanakh/Torah/Exodus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
-          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Tanakh/Torah/Exodus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json"
-        },
-        {
-          "title": "Leviticus",
-          "language": "English",
-          "versionTitle": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
-          "categories": [
-            "Tanakh",
-            "Torah"
-          ],
-          "json_url": "https://storage.googleapis.com/sefaria-export/json/Tanakh/Torah/Leviticus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
-          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Tanakh/Torah/Leviticus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.txt",
-          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Tanakh/Torah/Leviticus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
-          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Tanakh/Torah/Leviticus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json"
-        },
-        {
-          "title": "Numbers",
-          "language": "English",
-          "versionTitle": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
-          "categories": [
-            "Tanakh",
-            "Torah"
-          ],
-          "json_url": "https://storage.googleapis.com/sefaria-export/json/Tanakh/Torah/Numbers/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
-          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Tanakh/Torah/Numbers/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.txt",
-          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Tanakh/Torah/Numbers/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
-          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Tanakh/Torah/Numbers/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json"
-        },
-        {
-          "title": "Deuteronomy",
-          "language": "English",
-          "versionTitle": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
-          "categories": [
-            "Tanakh",
-            "Torah"
-          ],
-          "json_url": "https://storage.googleapis.com/sefaria-export/json/Tanakh/Torah/Deuteronomy/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
-          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Tanakh/Torah/Deuteronomy/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.txt",
-          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Tanakh/Torah/Deuteronomy/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
-          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Tanakh/Torah/Deuteronomy/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json"
-        }
-      ],
-      "license_status": "Not yet fetched",
-      "cached_edition_metadata": []
     },
     {
       "version_title": "Modernized Tanakh - Based on JPS 1917, Edited by Adam Cohn",
@@ -68181,8 +68099,8 @@
     },
     {
       "version_title": "Torah Yesharah, translated and edited by Chas. Kahane. New York, 1963",
-      "status": "include",
-      "reason": "Recognizable Orthodox edition or translator; verify actual edition metadata and content.",
+      "status": "exclude",
+      "reason": "User explicitly removed this translation.",
       "books": [
         "Genesis",
         "Exodus",
@@ -68609,6 +68527,98 @@
       ],
       "license_status": "Not yet fetched",
       "cached_edition_metadata": []
+    },
+    {
+      "version_title": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
+      "status": "include",
+      "reason": "User selected the available Bold Onkelos Metsudah edition as a translation.",
+      "books": [
+        "Genesis",
+        "Exodus",
+        "Leviticus",
+        "Numbers",
+        "Deuteronomy"
+      ],
+      "catalog_book_count": 5,
+      "coverage_note": "English Onkelos translation; complete Torah coverage in the selected Sefaria exports.",
+      "editions": [
+        {
+          "title": "Genesis",
+          "language": "English",
+          "versionTitle": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
+          "categories": [
+            "Tanakh",
+            "Targum",
+            "Onkelos",
+            "Torah"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Tanakh/Targum/Onkelos/Torah/Onkelos%20Genesis/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Tanakh/Targum/Onkelos/Torah/Onkelos%20Genesis/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Tanakh/Targum/Onkelos/Torah/Onkelos%20Genesis/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Tanakh/Targum/Onkelos/Torah/Onkelos%20Genesis/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json"
+        },
+        {
+          "title": "Exodus",
+          "language": "English",
+          "versionTitle": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
+          "categories": [
+            "Tanakh",
+            "Targum",
+            "Onkelos",
+            "Torah"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Tanakh/Targum/Onkelos/Torah/Onkelos%20Exodus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Tanakh/Targum/Onkelos/Torah/Onkelos%20Exodus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Tanakh/Targum/Onkelos/Torah/Onkelos%20Exodus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Tanakh/Targum/Onkelos/Torah/Onkelos%20Exodus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json"
+        },
+        {
+          "title": "Leviticus",
+          "language": "English",
+          "versionTitle": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
+          "categories": [
+            "Tanakh",
+            "Targum",
+            "Onkelos",
+            "Torah"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Tanakh/Targum/Onkelos/Torah/Onkelos%20Leviticus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Tanakh/Targum/Onkelos/Torah/Onkelos%20Leviticus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Tanakh/Targum/Onkelos/Torah/Onkelos%20Leviticus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Tanakh/Targum/Onkelos/Torah/Onkelos%20Leviticus/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json"
+        },
+        {
+          "title": "Numbers",
+          "language": "English",
+          "versionTitle": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
+          "categories": [
+            "Tanakh",
+            "Targum",
+            "Onkelos",
+            "Torah"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Tanakh/Targum/Onkelos/Torah/Onkelos%20Numbers/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Tanakh/Targum/Onkelos/Torah/Onkelos%20Numbers/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Tanakh/Targum/Onkelos/Torah/Onkelos%20Numbers/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Tanakh/Targum/Onkelos/Torah/Onkelos%20Numbers/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json"
+        },
+        {
+          "title": "Deuteronomy",
+          "language": "English",
+          "versionTitle": "Metsudah Chumash, Metsudah Publications, 2009 [with Onkelos translation]",
+          "categories": [
+            "Tanakh",
+            "Targum",
+            "Onkelos",
+            "Torah"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Tanakh/Targum/Onkelos/Torah/Onkelos%20Deuteronomy/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Tanakh/Targum/Onkelos/Torah/Onkelos%20Deuteronomy/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Tanakh/Targum/Onkelos/Torah/Onkelos%20Deuteronomy/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Tanakh/Targum/Onkelos/Torah/Onkelos%20Deuteronomy/English/Metsudah%20Chumash%2C%20Metsudah%20Publications%2C%202009%20%5Bwith%20Onkelos%20translation%5D.json"
+        }
+      ],
+      "license_status": "CC-BY-NC in Sefaria export metadata"
     }
   ]
 }
