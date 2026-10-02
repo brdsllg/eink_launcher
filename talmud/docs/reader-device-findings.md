@@ -7,7 +7,7 @@ after the reader gained shared Tanach/Talmud "study text" support.
 Each item records: **Symptom**, **Evidence**, **Cause**, **Suggested fix**, and
 **Owner** (Builder = regenerate the EPUBs; Reader = Dart code in `lib/reader`).
 
-Summary:
+Summary: 
 
 | # | Item | Owner |
 |---|---|---|
@@ -181,3 +181,144 @@ Summary:
 Regenerating the EPUBs (items 1, 2, 3, 5, 9) changes their bytes, so the reader's
 parsed cache and SQLite cache re-import automatically; no manual cache clearing
 is needed.
+
+---
+
+## Commentary scale-up: analysis and suggestions (2026-10-02)
+
+Question asked: can the EPUBs and the reader handle **every** commentary instead
+of the Rashi/Tosafot (+Steinsaltz) pilot set, and would SQL or a SQLite-based
+format help?
+
+### Decisions from Levi
+
+- Include everything Sefaria labels as a **commentary** on the Bavli, across all
+  37 masechtos, not just items that are merely linked/related. This is the
+  blacklist approach already preferred in `talmud-epub-plan.md`; the starting
+  blacklist is empty.
+- The Talmud files only need to work in the custom reader. Leaving the standard
+  EPUB format for Talmud is acceptable.
+
+### What was and was not checked
+
+- Read: `work/build.py`, `work/inventory.py`, `lib/reader/services/
+  tanach_sqlite_cache_service.dart`, `tanach_layout_service.dart`,
+  `tanach_sqlite_search_service.dart`, and `tanach/outputs/reader-compatibility.md`.
+- **Not measured.** The generated EPUBs, `talmud.sqlite`, the Sefaria cache and
+  `build-report.json` are gitignored and were not on the machine used for this
+  analysis. Every performance statement below is reasoning from the code and the
+  Tanach figures (Genesis 1 = 3,006,495 bytes of XHTML with only a whitelist of
+  commentaries), not a Talmud measurement.
+- Unknown: the Bigme's RAM and free storage.
+
+### Conclusion
+
+The pilot EPUBs are fine for Rashi + Tosafot but are not yet built to carry
+everything. The reader architecture already helps: one gzipped document per
+amud, lazy chapter loading, only the *selected* sources become render blocks
+(`settings.commentarySources`), and a 768 MB cache cap. The weak points are the
+EPUB packaging, first-open import, search, and the build script, and most can be
+fixed in the builder.
+
+### Findings
+
+**A. Per-comment packaging (Owner: Builder).** `build.py` emits one `aside` per
+Sefaria comment (own id, four `data-*` attributes, title, back-links) plus a
+per-segment index aside with one `noteref` link per comment. Tanach revision 5
+already groups one aside per source per verse; Talmud does not (this is findings
+3 and 5). With many sources the wrapper markup could rival the commentary text.
+
+**B. Amud open cost scales with installed, not selected, commentary (Owner:
+Reader/format).** `TanachLayoutService.layout` runs `html.parse` over the whole
+amud document, every aside included, before filtering to the chosen sources.
+
+**C. First-open import (Owner: Reader).** `TanachSqliteCacheService.import`
+receives every amud's XHTML in memory (`studyDocuments`), parses each with
+`html.parse`, gzips it, and builds `search_text`, before anything can be shown.
+This is the main risk for the largest tractates (Shabbat, Bava Batra, Bava
+Metzia, Zevachim, Chullin) with full commentary. Not measured; must be tested on
+the device.
+
+**D. Search (Owner: Reader).** `instr(search_text, ...)` scans every amud's text
+including unselected commentary, then fully projects (parse + layout) every
+candidate amud. A common Hebrew word matches nearly every amud, so search time
+grows with the amount of commentary installed.
+
+**E. Build script scaling (Owner: Builder).**
+- In the link-CSV attachment loop, each link row iterates over every comment of
+  that source (`resolver[nr].items()` filtered by `in_range`), which is roughly
+  links x comments and will be very slow at full scale.
+- `raw` and `notes` hold every comment in Python memory at once.
+- `inventory.py` downloads *all* non-merged editions of each included source
+  (including other-language ones, such as the French Rashi/Tosafot warnings on
+  Berakhot), while only one edition per language ends up in the output.
+
+**F. Source discovery looks incomplete (Owner: Builder). Unverified.** The
+manifest lists only 13 non-pilot titles ("Pending review: 13"), far fewer than
+the Bavli commentaries that exist. `inventory.py` skips any TOC node whose
+categories contain both `Talmud` and `Bavli` as "base text"; if Sefaria files
+commentaries under those categories they are dropped silently. Needs
+`books.json` / `table_of_contents.json` to confirm. The rule to implement is
+"labeled a commentary by Sefaria's category", not "linked to the Bavli".
+
+**G. Suspected daf offset (Owner: Builder). Unverified, check before any full
+build.** `_amud_sequence` in `normalize()` assumes array index 0 is 2a, and
+`_amud_from_idx` assumes the same for commentary. If Sefaria's Bavli arrays begin
+at 1a (two empty leading entries), every amud is labeled one daf late. That fits
+finding 9 (first amud is 3a, 125 amudim, which is Berakhot's real 2a-64a count).
+Commentary would shift identically, so EPUBCheck and the anchor audits would not
+catch it. Check: look at the first two entries of `d['text']` in the cached
+Berakhot Hebrew JSON, and confirm the segment labeled 3a does not actually begin
+with the opening of 2a (מאימתי קורין את שמע). Relates to OQ-1, OQ-2, A1, A2.
+
+### Suggested order of work
+
+1. **Verify G and F** on the machine that has the Sefaria cache. Fix the amud
+   mapping before anything else, since it affects every output.
+2. **Builder, cheap and high value:** group commentary per source per segment
+   (findings 3 and 5); with grouping the index needs one link per source instead
+   of per comment; consider dropping the back-links the reader strips anyway;
+   fix the doubled note titles; one Hebrew and one English edition per source.
+3. **Builder scaling:** pre-index comments per source (sorted list or dict by
+   address) instead of rescanning; process one masechta at a time; avoid holding
+   all sources in memory.
+4. **Measure** one big tractate (for example Shabbat or Bava Batra) built with 2
+   sources, then about 5, then everything. Record EPUB size, largest amud XHTML
+   size, first-open import time, peak memory, page-turn speed, and a search for a
+   common word. Add the numbers to this file.
+5. **Decision gate:** if import time or memory is unacceptable at "everything",
+   change the Talmud format (next section) rather than trimming sources.
+6. **Reader, independent of the format:** restrict search candidates to the
+   selected sources; default the picker to Rashi and Tosafot only; with dozens of
+   sources the picker needs grouping or a search box; finish the picker ordering
+   (Rashi, Tosafot, rest).
+7. **Plan doc:** record the blacklist decision and the measured budget in
+   `talmud-epub-plan.md` once step 4 is done.
+
+### Option if EPUB packaging is not enough: Talmud as a SQLite file
+
+Since Talmud only needs to open in this reader, the Python pipeline could write a
+SQLite file directly, and the reader would open it without the import step.
+
+- Rough shape: `segments(masechta, amud, seg, he, en)`; `commentary(source,
+  amud, seg, position, he, en)`; `sources`; `toc`; plus a search index.
+- Benefits: no first-open import; per amud the reader queries only the selected
+  sources, so open and page-turn cost follow what is selected, not what is
+  installed; search can be limited to selected sources with a real index.
+- Costs: a second loading path in the reader (Tanach can stay on the EPUB path or
+  both can later share the study-text contract); the files no longer open in
+  other apps such as KOReader. Keeping the EPUB export from the same database
+  would cover that.
+- Before relying on a full-text index, confirm the bundled `sqlite3` package in
+  the Flutter app includes FTS5. Not verified.
+- A cheaper middle option: stay on EPUB but put each source's commentary in its
+  own XHTML file inside the book (also noted in `reader-compatibility.md`
+  section 9), so an amud load parses only what is needed.
+
+### Open questions
+
+- Where do the generated EPUBs, `talmud.sqlite` and the Sefaria cache live, and
+  what are their sizes?
+- Bigme B751C RAM and free storage.
+- Any commentaries to blacklist from the start (duplicates, wrong-language
+  editions, works with little text)?
