@@ -16,10 +16,10 @@ refresh-mode name was never recorded.
 | Startup, recovery, app drawer, battery, file chooser | Confirmed |
 | EPUB/TXT/Markdown open, search, saved positions | Confirmed |
 | Physical page buttons | Confirmed (with the button assignment described below) |
-| Tabs, newer screen layouts | **No recorded device check** |
-| Selection, notes, underlines | **No recorded device check** |
-| Hebrew and English dictionaries | **No recorded device check** |
-| Tanach and Talmud study books | **No recorded device check** (see the Talmud and Tanach docs) |
+| Tabs, newer screen layouts | **Checked (Steps 1-4 passed successfully)** |
+| Selection, notes, underlines | **Partially checked (Handles small; multi-paragraph selection unsupported/desired)** |
+| Hebrew and English dictionaries | **Checked (Passed)** |
+| Tanach and Talmud study books | **Partially checked (Issues noted with parshiyot/aliyot headings, TOC links, and layout)** |
 | Renderer preference, preview/sharpen timing, unplugged idle battery drain | Optional measurements, never taken |
 
 ## Test history
@@ -76,6 +76,19 @@ stop, a reboot, and a rebuilt APK all failed to help, and reader settings still 
 buttons enabled. The Bigme was not sending any supported key to this app. **Assigning
 the side buttons to D-pad Left/Right in the Bigme firmware fixed it at once.** Details
 and supported key pairs: [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md).
+
+### Recent Device Testing (User pass on HiBreak)
+
+- **Steps 1–4 (Startup, Browser, PDF, Tabs):** Completed successfully with no problems.
+- **Step 5.2 (Selection):** Selection handles are quite small. Selection works within a single block, but does not extend across multiple paragraphs, which is a desired feature.
+- **Steps 5–6 (Text formatting, dictionaries):** Completed successfully.
+- **Study Books:** 
+  - Clearing the cache requires the reader to completely re-open and re-import the book for the first time (noting that pre-parsing on a laptop and transferring data over is a potential workflow).
+  - Parshiyot and aliyot within Genesis–Deuteronomy: selecting the fifth portion of Bereishit navigated to Genesis 4:1 without an aliyah heading, and navigating to Genesis 4:19 where the portion was supposed to start found no aliyah heading.
+  - EPUB TOC links: Chapter links work, but aliyot links never work even when enabled.
+  - UI preference: If aliyot are enabled, chapters should be hidden, and vice versa.
+  - Headings formatting: Chapters show "Genesis x" without a Hebrew equivalent on the right side. Parshiyot and aliyot show both English and Hebrew on the left side instead of being separated like pesukim.
+- **File Browser Quirk:** Occasionally (observed after deleting all open tabs), folders refuse to open on tap unless navigating up a folder and back in.
 
 ## Measurements (version 1.0.2)
 
