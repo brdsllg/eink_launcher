@@ -1,10 +1,11 @@
-import '../../constants.dart';
+import '../../reader_display_constants.dart';
+import '../services/tanach_layout_service.dart';
 
 enum PdfFitMode { fitHeight, fitWidth, zoom }
 
 enum ParagraphMode { blankLine, firstLineIndent }
 
-class ReaderSettings {
+class ReaderSettings implements StudyProjectionSettings {
   // Text formats typography
   final String latinFontFamily;
   final String hebrewFontFamily;
@@ -14,23 +15,29 @@ class ReaderSettings {
   final bool justify;
   final bool hyphenate;
   final ParagraphMode paragraphMode;
+  @override
   final bool honorPublisherCss;
 
   /// Torah only: show the Parshah/Aliyah headings and table of contents
   /// instead of the chapter ones.
+  @override
   final bool showParshaAliyot;
 
   /// Empty means no sources are selected, so no commentary is shown.
   /// Exact EPUB source names are preserved.
+  @override
   final List<String> commentarySources;
+  @override
   final String commentaryLanguage;
 
   /// Which side of every verse a structured Tanach EPUB shows: Hebrew only
   /// ('he'), English only ('en'), or both ('both'). A verse that carries just
   /// one language keeps it, so nothing ever disappears entirely.
+  @override
   final String verseLanguage;
 
   /// Empty means the exported per-verse default.
+  @override
   final String studyTranslation;
 
   // PDF display

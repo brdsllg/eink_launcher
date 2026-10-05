@@ -58,6 +58,14 @@ class ParsedEpubCacheService {
         fingerprint: fingerprint,
       );
       if (indexed != null) return indexed;
+      // A laptop-built sidecar (`<book>.study.sqlite` next to the EPUB)
+      // skips the whole first-open import; stale or corrupt sidecars fall
+      // through to the normal paths below.
+      final adopted = await tanachCache.adoptSidecar(
+        doc,
+        fingerprint: fingerprint,
+      );
+      if (adopted != null) return adopted;
       cachePath = '${directory.path}/$key.json';
       final path = cachePath;
       final cached = await Isolate.run(() => _read(path));

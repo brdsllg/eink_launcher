@@ -23,12 +23,16 @@ OUT.mkdir(exist_ok=True)
 # ─── Canonical masechta order ────────────────────────────────────────────────
 # Traditional Bavli, 37 masechtos with Gemara, in seder order.
 # Mishnah-only tractates are excluded per the plan.
+# NOTE (Oct 2026): Sefaria spells three titles without apostrophes
+# (Taanit, Moed Katan, Meilah). We use Sefaria's spelling here so catalog
+# lookups, schema URLs, and link matching work. Traditional spellings
+# Ta'anit / Mo'ed Katan / Me'ilah are display aliases only.
 MASECHTA_ORDER = [
     # Seder Zeraim
     'Berakhot',
     # Seder Moed
     'Shabbat', 'Eruvin', 'Pesachim', 'Rosh Hashanah', 'Yoma', 'Sukkah',
-    'Beitzah', "Ta'anit", 'Megillah', "Mo'ed Katan", 'Chagigah',
+    'Beitzah', 'Taanit', 'Megillah', 'Moed Katan', 'Chagigah',
     # Seder Nashim
     'Yevamot', 'Ketubot', 'Nedarim', 'Nazir', 'Sotah', 'Gittin', 'Kiddushin',
     # Seder Nezikin
@@ -36,7 +40,7 @@ MASECHTA_ORDER = [
     'Shevuot', 'Avodah Zarah', 'Horayot',
     # Seder Kodashim
     'Zevachim', 'Menachot', 'Chullin', 'Bekhorot', 'Arakhin', 'Temurah',
-    'Keritot', "Me'ilah", 'Tamid',
+    'Keritot', 'Meilah', 'Tamid',
     # Seder Tohorot
     'Niddah',
 ]
@@ -61,8 +65,9 @@ PILOT_COMMENTARY_ORDER = ['Rashi', 'Tosafot', 'Steinsaltz']
 RASHI_SLOT_ALIASES = {
     # From Bava Batra 29a onward, Rashbam replaces Rashi.
     'Bava Batra': 'Rashbam on Bava Batra',
-    # Tamid has an anonymous commentator; Sefaria lists it as "Pseudo-Rashi on Tamid".
-    'Tamid': 'Pseudo-Rashi on Tamid',
+    # Tamid has an anonymous commentator printed in Vilna in place of Rashi.
+    # Sefaria titles it "Mefaresh on Tamid" (confirmed Oct 2026).
+    'Tamid': 'Mefaresh on Tamid',
 }
 
 
@@ -247,10 +252,21 @@ def main():
                 continue
             if not edition.get('json_url'):
                 continue
+            # Owner decision Oct 2026: English + Hebrew only. Skip French,
+            # German, and other languages at inventory time so they are never
+            # downloaded or built (this was the cause of the Berakhot [fr]
+            # language-mismatch warnings). Note: Sefaria mislabels the French
+            # editions as language=English, so also match versionTitle.
+            if edition.get('language', '').upper() not in ('HEBREW', 'ENGLISH'):
+                continue
+            _vt = edition.get('versionTitle', '')
+            if '[fr]' in _vt or '[de]' in _vt or 'german' in _vt.lower():
+                continue
             download_plan.append(dict(
                 title=src['title'],
                 role='commentary',
-                language=edition.get('language', 'he'),
+                # Normalize to he/en; inventory already drops non-HE/EN editions.
+                language='he' if edition.get('language', '').upper() == 'HEBREW' else 'en',
                 versionTitle=edition.get('versionTitle', ''),
                 json_url=edition['json_url'],
                 source_category='commentary',

@@ -113,29 +113,40 @@ search to selected sources. Details and device findings are in
 
 ## Open questions
 
-- **Missing tractates:** the catalog has no Hebrew or English edition for Ta'anit,
-  Mo'ed Katan, or Me'ilah. Needs an alternate source or an explicit scope decision.
-- **French editions:** the build selected French editions for Rashi and Tosafot on
-  Berakhot (two language-mismatch warnings). Verify before treating the pilot as
-  final.
+- **Resolved Oct 2026 — the three "missing" tractates are present.** Sefaria
+  spells them without apostrophes (Taanit, Moed Katan, Meilah). The earlier
+  "missing" report was a spelling mismatch in our inventory, not a Sefaria gap:
+  all three have Hebrew (Wikisource + William Davidson Aramaic) and William
+  Davidson English. The inventory now uses Sefaria's spelling; the traditional
+  Ta'anit / Mo'ed Katan / Me'ilah remain display aliases only.
+- **Resolved Oct 2026 — English + Hebrew only.** French (Berakhot Rashi/Tosafot
+  `[fr]`), German, and all other non-HE/EN editions are now skipped at inventory
+  time and never downloaded or built. The old language-mismatch warnings should
+  not recur.
 - **Commentary addressing:** the build assumes commentary uses the same amud and
-  segment numbering as the base text. Link audits pass and spot checks show notes
-  attaching to the right segments; a direct schema inspection is not recorded.
-- **Tamid:** the manifest lists only Steinsaltz for Tamid (no Rashi or Tosafot
-  titles). The planned "Pseudo-Rashi on Tamid" slot is unconfirmed; check Sefaria's
-  titles and `RASHI_SLOT_ALIASES` in `inventory.py` and `build.py`.
-- **Bava Batra:** the Rashi slot currently shows Rashbam for the whole tractate. For
-  the full build, either show both Rashi (to 28b) and Rashbam (29a on), displaying
-  whichever exists for each amud, or split the tractate at 29a. The pilot is
-  unaffected.
-- **Large tractates:** measure Shabbat first (Tanach's largest EPUB is about 11 MB;
-  Shabbat with full commentary may be much larger). Then either raise the reader's
-  limit or split into parts at a natural chapter boundary.
-- **Commentary budget:** after the pilot measurements, add sources in batches
-  (cheapest and most useful first), re-measuring each time. Coverage varies by
-  tractate (Berakhot also has Meiri, Rashash, and Milchemet Hashem linked, for
-  example), so the policy applies per tractate. `inventory_report.py` lists every
-  commentary Sefaria links to the Bavli.
+  segment numbering as the base text. In plain words: when Rashi says something
+  about "Berakhot 2a, line 1", we trust that Sefaria numbers Rashi's comments
+  the same way it numbers the main text, so the note lands on the right
+  paragraph. Link audits pass and spot checks look right, but nobody has opened
+  Sefaria's layout files and confirmed this numbering rule directly. Still open.
+- **Resolved Oct 2026 — Tamid Rashi slot is "Mefaresh on Tamid".** Levi confirmed
+  the anonymous Vilna commentary; `RASHI_SLOT_ALIASES` now maps Tamid to
+  `Mefaresh on Tamid` (Hebrew, Vilna Edition).
+- **Bava Batra Rashi slot:** in plain words — the first half of Bava Batra was
+  explained by Rashi, the second half (from page 29a) by his grandson Rashbam.
+  Both exist in Sefaria. For the full build we either show whichever one exists
+  on each page, or split the book at 29a. The pilot is unaffected. Still open.
+- **Large tractates:** in plain words — some books (Shabbat, Bava Batra, Bava
+  Metzia, and other long ones) may become very large files once every commentary
+  is included. Tanach's biggest book is about 11 MB; Shabbat with full
+  commentary could be much bigger. We measure Shabbat first, then either raise
+  the reader's size limit or split the book into parts at a natural chapter
+  break. Still open (needs the device measurement).
+- **Commentary budget:** in plain words — after the pilot measurements, we add
+  extra commentators in small batches (cheapest and most useful first) and
+  re-measure each time, because some tractates have many more commentaries than
+  others. `inventory_report.py` lists every commentary Sefaria links to the Bavli.
+  Still open (needs the measurements).
 
 ## Resolved
 

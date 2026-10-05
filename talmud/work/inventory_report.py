@@ -51,7 +51,7 @@ def main():
                 all_short_names.append(sn)
 
     # Pilot sources first in display order.
-    pilot_order = ['Rashi', 'Rashbam', 'Pseudo-Rashi', 'Tosafot', 'Steinsaltz']
+    pilot_order = ['Rashi', 'Rashbam', 'Mefaresh', 'Tosafot', 'Steinsaltz']
     ordered_names = [n for n in pilot_order if n in seen]
     ordered_names += [n for n in all_short_names if n not in set(ordered_names)]
 
@@ -111,7 +111,7 @@ def main():
         '## Notes',
         '',
         '- Rashi is replaced by Rashbam in Bava Batra from 29a.',
-        '- Tamid uses Pseudo-Rashi (anonymous commentator).',
+        '- Tamid uses Mefaresh (anonymous Vilna commentary in the Rashi slot).',
         '- Coverage of non-pilot commentaries varies significantly by masechta.',
         '- Run inventory.py then sync.py texts to download editions.',
     ]

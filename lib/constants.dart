@@ -1,5 +1,16 @@
 import 'package:flutter/material.dart';
 
+// Pure-Dart reader display constants live in reader_display_constants.dart so
+// laptop-side tooling can use them without Flutter; re-exported for app code.
+export 'reader_display_constants.dart'
+    show
+        kPdfDefaultSplitOverlap,
+        kReaderFontSizeSteps,
+        kReaderMarginSteps,
+        kPdfMinZoomScale,
+        kPdfMinZoomScaleBeyondFit,
+        kPdfZoomOutPageSpan;
+
 // Shared storage root — present on every Android device. Used as the
 // universal fallback home folder and as the "whole device" search scope.
 const String kStorageRoot = '/storage/emulated/0';
@@ -55,29 +66,12 @@ const Set<String> kReadableExtensions = {'.pdf', '.epub', '.txt', '.md'};
 const double kTapZoneEdgeWidthRatio = 1 / 3;
 const double kTapZoneCenterWidthRatio = 1 / 3;
 
-/// Default vertical sub-screen overlap for fit-width page turns. Zoom / Scroll
-/// never uses it: that mode moves by the currently visible viewport height.
-const double kPdfDefaultSplitOverlap = 0.06;
-
 /// Maximum pixel dimension on the long edge when rendering whole PDF pages
 /// for the tap-driven fit-height and fit-width modes.
 const double kPdfMaxRenderDimension = 2048.0;
 
 /// Zoom / Scroll pinch ceiling.
 const double kPdfMaxZoomScale = 5.0;
-
-/// Zoom / Scroll pinch floor when zooming out past the page is disabled.
-/// 1.0 means "page exactly fills the screen width".
-const double kPdfMinZoomScale = 1.0;
-
-/// How many pages tall the viewport becomes when Zoom / Scroll is pinched all
-/// the way out. The actual floor is derived per document from the real page
-/// height, since a squarer page needs less zoom-out to show two of them.
-const double kPdfZoomOutPageSpan = 2.0;
-
-/// Absolute hard floor for the Zoom / Scroll pinch, regardless of what
-/// [kPdfZoomOutPageSpan] works out to.
-const double kPdfMinZoomScaleBeyondFit = 0.2;
 
 /// Discrete zoom rungs at which Zoom / Scroll re-rasterises pages through
 /// PDFium. Without this, zooming would only magnify an existing bitmap and
@@ -132,17 +126,3 @@ const double kPdfMinFlingVelocity = 60.0;
 /// Auto-crop threshold: pixel luminance below this value is considered ink/content.
 const int kPdfInkLuminanceThreshold = 245;
 
-/// Font size steps mapping (step 0..7) to logical font points.
-const List<double> kReaderFontSizeSteps = [
-  12.0,
-  14.0,
-  16.0,
-  18.0,
-  20.0,
-  22.0,
-  26.0,
-  30.0,
-];
-
-/// Margin steps mapping (step 0..3: tight, normal, wide, extra).
-const List<double> kReaderMarginSteps = [8.0, 16.0, 24.0, 36.0];

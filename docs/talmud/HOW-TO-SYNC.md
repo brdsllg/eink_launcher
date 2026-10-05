@@ -53,9 +53,9 @@ python talmud/work/sync.py links
   `sync.py`.
 
 Files already cached are skipped. Failures are written to `*-failures.json` in the
-cache folder. (The last full sync, on 5 Oct 2026, fetched 264 of 264 texts and 17 of
-17 link files; the only misses were the known Ta'anit, Mo'ed Katan, and Me'ilah
-schemas.)
+cache folder. (Oct 2026: 282 texts, 148 schemas, 0 failures. The three formerly
+"missing" tractates use Sefaria's spelling — Taanit, Moed Katan, Meilah — and
+fetch normally. Commentary downloads are English + Hebrew only.)
 
 **4. Build**
 
@@ -77,6 +77,17 @@ Runs EPUBCheck, checks internal links, confirms no cantillation marks remain, an
 checks structure. Results go to `talmud/work/validation/` and
 `talmud/outputs/full-validation-results.json`. Also run
 `python talmud/work/audit_links.py --pilot`.
+
+**6. Prebuild the on-device index (recommended)**
+
+```powershell
+dart run tool/build_study_index.dart talmud/outputs/books
+```
+
+Writes one `<tractate>.study.sqlite` file next to each EPUB (the same index the
+reader would otherwise build on first open, so opening on the Bigme is instant).
+Copy each `.epub` together with its `.study.sqlite` onto the device. Rebuild the
+sidecars whenever the EPUBs change; a stale sidecar is ignored automatically.
 
 ## Rebuilding one tractate
 

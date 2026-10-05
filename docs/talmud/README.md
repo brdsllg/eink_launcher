@@ -72,10 +72,11 @@ python talmud/work/regenerate.py --masechta Berakhot  # rebuild one tractate fro
    write a SQLite file directly.
 5. Build and validate the remaining 31 tractates.
 
-Also open: Ta'anit, Mo'ed Katan, and Me'ilah have no Hebrew or English editions in
-Sefaria's catalog and need an alternate source or a scope decision; the French-edition
-warnings for Rashi and Tosafot on Berakhot need checking; commentary-source discovery
-may be incomplete (see the findings doc).
+Also open: the French-edition warnings for Rashi and Tosafot on Berakhot are now
+fixed by the English+Hebrew-only rule (Oct 2026); commentary-source discovery
+may be incomplete (see the findings doc). The three formerly "missing" tractates
+(Taanit, Moed Katan, Meilah — Sefaria's spelling) are present with Hebrew and
+William Davidson English; the old gap was a spelling mismatch, now fixed.
 
 ## Reader integration
 

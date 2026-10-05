@@ -37,6 +37,10 @@ cause is known.
 ## Bigme checklist for the pilot books
 
 1. **Copy the pilot EPUBs** from `talmud/outputs/` onto the device.
+2. **Copy each `.study.sqlite` next to its EPUB** (built with
+   `dart run tool/build_study_index.dart talmud/outputs/books`). First opens
+   should be instant with no import wait; if a sidecar is stale the reader
+   falls back to importing on the device.
 2. **Berakhot start and headings:** open Berakhot. It should begin at **Daf 2a**
    (מאימתי קורין את שמע), and headings should be English-only with no duplicated Hebrew.
 3. **Commentary:** tap a segment with Rashi. Notes should be grouped per source per
@@ -103,8 +107,11 @@ can be fixed in the builder.
    change the Talmud format (below) rather than trimming sources.
 5. **Reader, independent of format:** limit search to selected sources; default the
    picker to Rashi and Tosafot; with dozens of sources the picker needs grouping or a
-   search box; finish picker ordering.
+   search box; finish picker ordering. Owner decision Oct 2026: commentary
+   downloads and builds are English + Hebrew only (French, German, and other
+   languages are skipped at inventory time).
 6. Log the blacklist decision and measured budget in `talmud-epub-plan.md`.
+   Device for sizing: Bigme HiBreak, 4 GB RAM (owner, Oct 2026).
 
 ### Option: Talmud as a SQLite file
 
@@ -129,9 +136,32 @@ answer to Levi's question below: the heavy work would happen on the computer, on
 
 ## Open questions
 
-- **Levi's question:** could the memory- and processor-heavy first-open work be done
-  on a laptop and the result saved when importing to the device? *Unanswered in the
-  notes. The SQLite option above is the practical form of this idea.*
+- **Levi's question (answered Oct 2026): can the laptop do the heavy first-open
+  work? Yes — and SQLite is the best answer, but not the only one.** In plain
+  words: today the phone/computer-book arrives as an EPUB and the device itself
+  has to unpack, read, and index it on first open, which is the slow step. The
+  laptop can do that work once and hand the device a ready-made index file.
+  Options, best first:
+  1. **Ready-made SQLite index (best).** The pipeline on the laptop builds a
+     small database per book (chapters + commentary + search index) and you copy
+     it next to the EPUB; the reader opens it instantly with no import step.
+     This is exactly how Tanach already works on the device
+     (`tanach_sqlite_cache_service.dart`, `instr`-based search, no FTS5 needed),
+     so Talmud would reuse a proven path. Cost: the reader gains a second
+     loading path, and the index files stop opening in other apps (keep an EPUB
+     export from the same database for KOReader).
+  2. **Split-commentary EPUB (cheaper middle option).** Stay on EPUB but put
+     each commentary in its own file inside the book, so opening a page reads
+     only what you asked for. Less code, still parses on the device.
+  3. **Bigger EPUB + bigger reader limit (simplest, weakest).** Just raise the
+     size cap and hope 4 GB RAM absorbs it. No new code, but first opens stay
+     slow and large tractates may still choke.
+  With 4 GB RAM the current pilot sizes (largest pilot EPUB Shabbat 3.4 MB,
+  `talmud.sqlite` 83 MB for pilot content) are comfortable; the risk is only the
+  full-commentary build, which is why we measure Shabbat with 2, ~5, then all
+  sources before deciding.
+- How large are the full-commentary EPUBs and `talmud.sqlite`? (The Sefaria cache
+  was re-synced on 5 Oct, so sizes can now be measured. Device: 4 GB RAM.)
 - How large are the full-commentary EPUBs and `talmud.sqlite`, and what are the
   Bigme's RAM and free storage? (The Sefaria cache was re-synced on 5 Oct, so sizes
   can now be measured.)

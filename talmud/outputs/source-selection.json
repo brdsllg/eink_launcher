@@ -14,9 +14,9 @@
       "Yoma",
       "Sukkah",
       "Beitzah",
-      "Ta'anit",
+      "Taanit",
       "Megillah",
-      "Mo'ed Katan",
+      "Moed Katan",
       "Chagigah",
       "Yevamot",
       "Ketubot",
@@ -40,7 +40,7 @@
       "Arakhin",
       "Temurah",
       "Keritot",
-      "Me'ilah",
+      "Meilah",
       "Tamid",
       "Niddah"
     ],
@@ -106,7 +106,7 @@
       ],
       "rashi_slot_aliases": {
         "Bava Batra": "Rashbam on Bava Batra",
-        "Tamid": "Pseudo-Rashi on Tamid"
+        "Tamid": "Mefaresh on Tamid"
       },
       "picker_order": [
         "Rashi/Rashi-slot",
@@ -136,15 +136,100 @@
     "table_of_contents.json.meta.json": {
       "sha256": "6b731f95d3bc00dc50fc209d54648f7d73202cdd384f1405df11298fc8050acd",
       "bytes": 338
+    },
+    "download-plan.json": {
+      "sha256": "f21be014505bb7b7d6636e8e150383e37931dded899a98041f1421d73e8184ff",
+      "bytes": 108975
+    },
+    "schemas-failures.json": {
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2
+    },
+    "texts-failures.json": {
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2
+    },
+    "link-list.json": {
+      "sha256": "9f460e8e2e0be517a96fc13f990fe975e4b44167c73c9b64358a8c29e7b0e961",
+      "bytes": 2188
+    },
+    "link-list.json.meta.json": {
+      "sha256": "4a6a2006d5eae682cf69487829ef0a234fa7d49efe443569763acb16766ce804",
+      "bytes": 330
+    },
+    "inspect-failures.json": {
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2
+    },
+    "links-failures.json": {
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2
+    },
+    "java-release.json": {
+      "sha256": "80e4b1d3dc9f59d18f52e4e29a39ed66e22f496f03825ef43e2ae05fb0670ad7",
+      "bytes": 538355
+    },
+    "java-release.json.meta.json": {
+      "sha256": "9e38ac10c880c4baefd6c1d5f33ee168c953afe92b0eaf302159fe7001e59df1",
+      "bytes": 374
+    },
+    "epubcheck-release.json": {
+      "sha256": "4e480353bceaeae55dba37a666bb6c94b7117a5a58115bfa8f0bf2d1a94e6d3b",
+      "bytes": 10486
+    },
+    "epubcheck-release.json.meta.json": {
+      "sha256": "c23495407674110c804d78a8a3ba573d8d02f4868723ee55192c531cf25780dd",
+      "bytes": 359
     }
   },
   "sources": [
     {
+      "title": "Mefaresh on Tamid",
+      "status": "include",
+      "reason": "Rashi-slot substitute for this masechta (pilot set).",
+      "description": "Anonymous commentary on tractate Tamid printed in the Vilna edition in place of Rashi.",
+      "sort_order": 0,
+      "available_versions": [
+        {
+          "title": "Mefaresh on Tamid",
+          "language": "Hebrew",
+          "versionTitle": "Vilna Edition",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Mefaresh%20on%20Tamid/Hebrew/Vilna%20Edition.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Mefaresh%20on%20Tamid/Hebrew/Vilna%20Edition.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Mefaresh%20on%20Tamid/Hebrew/Vilna%20Edition.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Mefaresh%20on%20Tamid/Hebrew/Vilna%20Edition.json"
+        },
+        {
+          "title": "Mefaresh on Tamid",
+          "language": "Hebrew",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Mefaresh%20on%20Tamid/Hebrew/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Mefaresh%20on%20Tamid/Hebrew/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Mefaresh%20on%20Tamid/Hebrew/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Mefaresh%20on%20Tamid/Hebrew/merged.json"
+        }
+      ],
+      "export_available": true,
+      "selected_versions": [],
+      "license_status": "Read individual JSON license fields before build",
+      "edition_decisions": {}
+    },
+    {
       "title": "Ohr LaYesharim on Jerusalem Talmud Beitzah",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 0,
+      "sort_order": 1,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Beitzah",
@@ -185,9 +270,9 @@
     {
       "title": "Ohr LaYesharim on Jerusalem Talmud Berakhot",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 1,
+      "sort_order": 2,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Berakhot",
@@ -228,9 +313,9 @@
     {
       "title": "Ohr LaYesharim on Jerusalem Talmud Chagigah",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 2,
+      "sort_order": 3,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Chagigah",
@@ -271,9 +356,9 @@
     {
       "title": "Ohr LaYesharim on Jerusalem Talmud Megillah",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 3,
+      "sort_order": 4,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Megillah",
@@ -314,9 +399,9 @@
     {
       "title": "Ohr LaYesharim on Jerusalem Talmud Moed Katan",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 4,
+      "sort_order": 5,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Moed Katan",
@@ -357,9 +442,9 @@
     {
       "title": "Ohr LaYesharim on Jerusalem Talmud Peah",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 5,
+      "sort_order": 6,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Peah",
@@ -400,9 +485,9 @@
     {
       "title": "Ohr LaYesharim on Jerusalem Talmud Rosh Hashanah",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 6,
+      "sort_order": 7,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Rosh Hashanah",
@@ -443,9 +528,9 @@
     {
       "title": "Ohr LaYesharim on Jerusalem Talmud Sanhedrin",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 7,
+      "sort_order": 8,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Sanhedrin",
@@ -486,9 +571,9 @@
     {
       "title": "Ohr LaYesharim on Jerusalem Talmud Shekalim",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 8,
+      "sort_order": 9,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Shekalim",
@@ -529,9 +614,9 @@
     {
       "title": "Ohr LaYesharim on Jerusalem Talmud Sukkah",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 9,
+      "sort_order": 10,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Sukkah",
@@ -572,9 +657,9 @@
     {
       "title": "Ohr LaYesharim on Jerusalem Talmud Taanit",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 10,
+      "sort_order": 11,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Taanit",
@@ -615,9 +700,9 @@
     {
       "title": "Ohr LaYesharim on Jerusalem Talmud Yoma",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 11,
+      "sort_order": 12,
       "available_versions": [
         {
           "title": "Ohr LaYesharim on Jerusalem Talmud Yoma",
@@ -660,7 +745,7 @@
       "status": "include",
       "reason": "Rashi-slot substitute for this masechta (pilot set).",
       "description": "",
-      "sort_order": 12,
+      "sort_order": 13,
       "available_versions": [
         {
           "title": "Rashbam on Bava Batra",
@@ -737,7 +822,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 13,
+      "sort_order": 14,
       "available_versions": [
         {
           "title": "Rashi on Arakhin",
@@ -814,7 +899,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 14,
+      "sort_order": 15,
       "available_versions": [
         {
           "title": "Rashi on Avodah Zarah",
@@ -891,7 +976,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 15,
+      "sort_order": 16,
       "available_versions": [
         {
           "title": "Rashi on Bava Batra",
@@ -968,7 +1053,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 16,
+      "sort_order": 17,
       "available_versions": [
         {
           "title": "Rashi on Bava Kamma",
@@ -1045,7 +1130,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 17,
+      "sort_order": 18,
       "available_versions": [
         {
           "title": "Rashi on Bava Metzia",
@@ -1122,7 +1207,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 18,
+      "sort_order": 19,
       "available_versions": [
         {
           "title": "Rashi on Beitzah",
@@ -1199,7 +1284,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 19,
+      "sort_order": 20,
       "available_versions": [
         {
           "title": "Rashi on Bekhorot",
@@ -1276,7 +1361,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 20,
+      "sort_order": 21,
       "available_versions": [
         {
           "title": "Rashi on Berakhot",
@@ -1385,7 +1470,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 21,
+      "sort_order": 22,
       "available_versions": [
         {
           "title": "Rashi on Chagigah",
@@ -1462,7 +1547,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 22,
+      "sort_order": 23,
       "available_versions": [
         {
           "title": "Rashi on Chullin",
@@ -1555,7 +1640,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 23,
+      "sort_order": 24,
       "available_versions": [
         {
           "title": "Rashi on Eruvin",
@@ -1632,7 +1717,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 24,
+      "sort_order": 25,
       "available_versions": [
         {
           "title": "Rashi on Gittin",
@@ -1709,7 +1794,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 25,
+      "sort_order": 26,
       "available_versions": [
         {
           "title": "Rashi on Horayot",
@@ -1786,7 +1871,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 26,
+      "sort_order": 27,
       "available_versions": [
         {
           "title": "Rashi on Keritot",
@@ -1863,7 +1948,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 27,
+      "sort_order": 28,
       "available_versions": [
         {
           "title": "Rashi on Ketubot",
@@ -1940,7 +2025,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 28,
+      "sort_order": 29,
       "available_versions": [
         {
           "title": "Rashi on Kiddushin",
@@ -2017,7 +2102,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 29,
+      "sort_order": 30,
       "available_versions": [
         {
           "title": "Rashi on Makkot",
@@ -2126,7 +2211,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 30,
+      "sort_order": 31,
       "available_versions": [
         {
           "title": "Rashi on Megillah",
@@ -2199,11 +2284,56 @@
       "edition_decisions": {}
     },
     {
+      "title": "Rashi on Meilah",
+      "status": "include",
+      "reason": "Pilot commentary set.",
+      "description": "",
+      "sort_order": 32,
+      "available_versions": [
+        {
+          "title": "Rashi on Meilah",
+          "language": "Hebrew",
+          "versionTitle": "Vilna Edition",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Rashi",
+            "Seder Kodashim"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Kodashim/Rashi%20on%20Meilah/Hebrew/Vilna%20Edition.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Kodashim/Rashi%20on%20Meilah/Hebrew/Vilna%20Edition.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Kodashim/Rashi%20on%20Meilah/Hebrew/Vilna%20Edition.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Kodashim/Rashi%20on%20Meilah/Hebrew/Vilna%20Edition.json"
+        },
+        {
+          "title": "Rashi on Meilah",
+          "language": "Hebrew",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Rashi",
+            "Seder Kodashim"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Kodashim/Rashi%20on%20Meilah/Hebrew/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Kodashim/Rashi%20on%20Meilah/Hebrew/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Kodashim/Rashi%20on%20Meilah/Hebrew/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Kodashim/Rashi%20on%20Meilah/Hebrew/merged.json"
+        }
+      ],
+      "export_available": true,
+      "selected_versions": [],
+      "license_status": "Read individual JSON license fields before build",
+      "edition_decisions": {}
+    },
+    {
       "title": "Rashi on Menachot",
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 31,
+      "sort_order": 33,
       "available_versions": [
         {
           "title": "Rashi on Menachot",
@@ -2276,11 +2406,56 @@
       "edition_decisions": {}
     },
     {
+      "title": "Rashi on Moed Katan",
+      "status": "include",
+      "reason": "Pilot commentary set.",
+      "description": "",
+      "sort_order": 34,
+      "available_versions": [
+        {
+          "title": "Rashi on Moed Katan",
+          "language": "Hebrew",
+          "versionTitle": "Vilna Edition",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Rashi",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Moed%20Katan/Hebrew/Vilna%20Edition.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Moed%20Katan/Hebrew/Vilna%20Edition.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Moed%20Katan/Hebrew/Vilna%20Edition.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Moed%20Katan/Hebrew/Vilna%20Edition.json"
+        },
+        {
+          "title": "Rashi on Moed Katan",
+          "language": "Hebrew",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Rashi",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Moed%20Katan/Hebrew/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Moed%20Katan/Hebrew/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Moed%20Katan/Hebrew/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Moed%20Katan/Hebrew/merged.json"
+        }
+      ],
+      "export_available": true,
+      "selected_versions": [],
+      "license_status": "Read individual JSON license fields before build",
+      "edition_decisions": {}
+    },
+    {
       "title": "Rashi on Nazir",
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 32,
+      "sort_order": 35,
       "available_versions": [
         {
           "title": "Rashi on Nazir",
@@ -2357,7 +2532,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 33,
+      "sort_order": 36,
       "available_versions": [
         {
           "title": "Rashi on Nedarim",
@@ -2434,7 +2609,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 34,
+      "sort_order": 37,
       "available_versions": [
         {
           "title": "Rashi on Niddah",
@@ -2511,7 +2686,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 35,
+      "sort_order": 38,
       "available_versions": [
         {
           "title": "Rashi on Pesachim",
@@ -2604,7 +2779,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 36,
+      "sort_order": 39,
       "available_versions": [
         {
           "title": "Rashi on Rosh Hashanah",
@@ -2697,7 +2872,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 37,
+      "sort_order": 40,
       "available_versions": [
         {
           "title": "Rashi on Sanhedrin",
@@ -2806,7 +2981,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 38,
+      "sort_order": 41,
       "available_versions": [
         {
           "title": "Rashi on Shabbat",
@@ -2899,7 +3074,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 39,
+      "sort_order": 42,
       "available_versions": [
         {
           "title": "Rashi on Shevuot",
@@ -2976,7 +3151,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 40,
+      "sort_order": 43,
       "available_versions": [
         {
           "title": "Rashi on Sotah",
@@ -3069,7 +3244,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 41,
+      "sort_order": 44,
       "available_versions": [
         {
           "title": "Rashi on Sukkah",
@@ -3142,11 +3317,88 @@
       "edition_decisions": {}
     },
     {
+      "title": "Rashi on Taanit",
+      "status": "include",
+      "reason": "Pilot commentary set.",
+      "description": "",
+      "sort_order": 45,
+      "available_versions": [
+        {
+          "title": "Rashi on Taanit",
+          "language": "English",
+          "versionTitle": "Sefaria Community Translation",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Rashi",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/English/Sefaria%20Community%20Translation.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/English/Sefaria%20Community%20Translation.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/English/Sefaria%20Community%20Translation.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/English/Sefaria%20Community%20Translation.json"
+        },
+        {
+          "title": "Rashi on Taanit",
+          "language": "English",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Rashi",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/English/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/English/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/English/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/English/merged.json"
+        },
+        {
+          "title": "Rashi on Taanit",
+          "language": "Hebrew",
+          "versionTitle": "Vilna Edition",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Rashi",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/Hebrew/Vilna%20Edition.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/Hebrew/Vilna%20Edition.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/Hebrew/Vilna%20Edition.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/Hebrew/Vilna%20Edition.json"
+        },
+        {
+          "title": "Rashi on Taanit",
+          "language": "Hebrew",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Rashi",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/Hebrew/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/Hebrew/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/Hebrew/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Rashi/Seder%20Moed/Rashi%20on%20Taanit/Hebrew/merged.json"
+        }
+      ],
+      "export_available": true,
+      "selected_versions": [],
+      "license_status": "Read individual JSON license fields before build",
+      "edition_decisions": {}
+    },
+    {
       "title": "Rashi on Temurah",
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 42,
+      "sort_order": 46,
       "available_versions": [
         {
           "title": "Rashi on Temurah",
@@ -3191,7 +3443,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 43,
+      "sort_order": 47,
       "available_versions": [
         {
           "title": "Rashi on Yevamot",
@@ -3268,7 +3520,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 44,
+      "sort_order": 48,
       "available_versions": [
         {
           "title": "Rashi on Yoma",
@@ -3345,7 +3597,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 45,
+      "sort_order": 49,
       "available_versions": [
         {
           "title": "Rashi on Zevachim",
@@ -3422,7 +3674,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 46,
+      "sort_order": 50,
       "available_versions": [
         {
           "title": "Steinsaltz on Arakhin",
@@ -3467,7 +3719,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 47,
+      "sort_order": 51,
       "available_versions": [
         {
           "title": "Steinsaltz on Avodah Zarah",
@@ -3512,7 +3764,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 48,
+      "sort_order": 52,
       "available_versions": [
         {
           "title": "Steinsaltz on Bava Batra",
@@ -3557,7 +3809,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 49,
+      "sort_order": 53,
       "available_versions": [
         {
           "title": "Steinsaltz on Bava Kamma",
@@ -3602,7 +3854,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 50,
+      "sort_order": 54,
       "available_versions": [
         {
           "title": "Steinsaltz on Bava Metzia",
@@ -3679,7 +3931,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 51,
+      "sort_order": 55,
       "available_versions": [
         {
           "title": "Steinsaltz on Beitzah",
@@ -3724,7 +3976,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 52,
+      "sort_order": 56,
       "available_versions": [
         {
           "title": "Steinsaltz on Bekhorot",
@@ -3769,7 +4021,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 53,
+      "sort_order": 57,
       "available_versions": [
         {
           "title": "Steinsaltz on Berakhot",
@@ -3846,7 +4098,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 54,
+      "sort_order": 58,
       "available_versions": [
         {
           "title": "Steinsaltz on Chagigah",
@@ -3891,7 +4143,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 55,
+      "sort_order": 59,
       "available_versions": [
         {
           "title": "Steinsaltz on Chullin",
@@ -3936,7 +4188,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 56,
+      "sort_order": 60,
       "available_versions": [
         {
           "title": "Steinsaltz on Eruvin",
@@ -3981,7 +4233,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 57,
+      "sort_order": 61,
       "available_versions": [
         {
           "title": "Steinsaltz on Gittin",
@@ -4026,7 +4278,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 58,
+      "sort_order": 62,
       "available_versions": [
         {
           "title": "Steinsaltz on Horayot",
@@ -4069,9 +4321,9 @@
     {
       "title": "Steinsaltz on Jerusalem Talmud Shekalim",
       "status": "review",
-      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud-epub-plan.md commentary-policy section.",
+      "reason": "Not in pilot set. Include after measuring pilot EPUB sizes and load times. See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.",
       "description": "",
-      "sort_order": 59,
+      "sort_order": 63,
       "available_versions": [
         {
           "title": "Steinsaltz on Jerusalem Talmud Shekalim",
@@ -4116,7 +4368,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 60,
+      "sort_order": 64,
       "available_versions": [
         {
           "title": "Steinsaltz on Keritot",
@@ -4161,7 +4413,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 61,
+      "sort_order": 65,
       "available_versions": [
         {
           "title": "Steinsaltz on Ketubot",
@@ -4206,7 +4458,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 62,
+      "sort_order": 66,
       "available_versions": [
         {
           "title": "Steinsaltz on Kiddushin",
@@ -4251,7 +4503,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 63,
+      "sort_order": 67,
       "available_versions": [
         {
           "title": "Steinsaltz on Makkot",
@@ -4296,7 +4548,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 64,
+      "sort_order": 68,
       "available_versions": [
         {
           "title": "Steinsaltz on Megillah",
@@ -4337,11 +4589,56 @@
       "edition_decisions": {}
     },
     {
+      "title": "Steinsaltz on Meilah",
+      "status": "include",
+      "reason": "Pilot commentary set.",
+      "description": "",
+      "sort_order": 69,
+      "available_versions": [
+        {
+          "title": "Steinsaltz on Meilah",
+          "language": "Hebrew",
+          "versionTitle": "William Davidson Edition - Hebrew",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Modern Commentary on Talmud",
+            "Steinsaltz",
+            "Seder Kodashim"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Kodashim/Steinsaltz%20on%20Meilah/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Kodashim/Steinsaltz%20on%20Meilah/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Kodashim/Steinsaltz%20on%20Meilah/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Kodashim/Steinsaltz%20on%20Meilah/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.json"
+        },
+        {
+          "title": "Steinsaltz on Meilah",
+          "language": "Hebrew",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Modern Commentary on Talmud",
+            "Steinsaltz",
+            "Seder Kodashim"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Kodashim/Steinsaltz%20on%20Meilah/Hebrew/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Kodashim/Steinsaltz%20on%20Meilah/Hebrew/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Kodashim/Steinsaltz%20on%20Meilah/Hebrew/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Kodashim/Steinsaltz%20on%20Meilah/Hebrew/merged.json"
+        }
+      ],
+      "export_available": true,
+      "selected_versions": [],
+      "license_status": "Read individual JSON license fields before build",
+      "edition_decisions": {}
+    },
+    {
       "title": "Steinsaltz on Menachot",
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 65,
+      "sort_order": 70,
       "available_versions": [
         {
           "title": "Steinsaltz on Menachot",
@@ -4382,11 +4679,56 @@
       "edition_decisions": {}
     },
     {
+      "title": "Steinsaltz on Moed Katan",
+      "status": "include",
+      "reason": "Pilot commentary set.",
+      "description": "",
+      "sort_order": 71,
+      "available_versions": [
+        {
+          "title": "Steinsaltz on Moed Katan",
+          "language": "Hebrew",
+          "versionTitle": "William Davidson Edition - Hebrew",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Modern Commentary on Talmud",
+            "Steinsaltz",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Moed%20Katan/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Moed%20Katan/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Moed%20Katan/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Moed%20Katan/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.json"
+        },
+        {
+          "title": "Steinsaltz on Moed Katan",
+          "language": "Hebrew",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Modern Commentary on Talmud",
+            "Steinsaltz",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Moed%20Katan/Hebrew/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Moed%20Katan/Hebrew/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Moed%20Katan/Hebrew/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Moed%20Katan/Hebrew/merged.json"
+        }
+      ],
+      "export_available": true,
+      "selected_versions": [],
+      "license_status": "Read individual JSON license fields before build",
+      "edition_decisions": {}
+    },
+    {
       "title": "Steinsaltz on Nazir",
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 66,
+      "sort_order": 72,
       "available_versions": [
         {
           "title": "Steinsaltz on Nazir",
@@ -4431,7 +4773,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 67,
+      "sort_order": 73,
       "available_versions": [
         {
           "title": "Steinsaltz on Nedarim",
@@ -4476,7 +4818,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 68,
+      "sort_order": 74,
       "available_versions": [
         {
           "title": "Steinsaltz on Niddah",
@@ -4521,7 +4863,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 69,
+      "sort_order": 75,
       "available_versions": [
         {
           "title": "Steinsaltz on Pesachim",
@@ -4566,7 +4908,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 70,
+      "sort_order": 76,
       "available_versions": [
         {
           "title": "Steinsaltz on Rosh Hashanah",
@@ -4611,7 +4953,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 71,
+      "sort_order": 77,
       "available_versions": [
         {
           "title": "Steinsaltz on Sanhedrin",
@@ -4704,7 +5046,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 72,
+      "sort_order": 78,
       "available_versions": [
         {
           "title": "Steinsaltz on Shabbat",
@@ -4765,7 +5107,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 73,
+      "sort_order": 79,
       "available_versions": [
         {
           "title": "Steinsaltz on Shevuot",
@@ -4810,7 +5152,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 74,
+      "sort_order": 80,
       "available_versions": [
         {
           "title": "Steinsaltz on Sotah",
@@ -4855,7 +5197,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 75,
+      "sort_order": 81,
       "available_versions": [
         {
           "title": "Steinsaltz on Sukkah",
@@ -4896,11 +5238,56 @@
       "edition_decisions": {}
     },
     {
+      "title": "Steinsaltz on Taanit",
+      "status": "include",
+      "reason": "Pilot commentary set.",
+      "description": "",
+      "sort_order": 82,
+      "available_versions": [
+        {
+          "title": "Steinsaltz on Taanit",
+          "language": "Hebrew",
+          "versionTitle": "William Davidson Edition - Hebrew",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Modern Commentary on Talmud",
+            "Steinsaltz",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Taanit/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Taanit/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Taanit/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Taanit/Hebrew/William%20Davidson%20Edition%20-%20Hebrew.json"
+        },
+        {
+          "title": "Steinsaltz on Taanit",
+          "language": "Hebrew",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Modern Commentary on Talmud",
+            "Steinsaltz",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Taanit/Hebrew/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Taanit/Hebrew/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Taanit/Hebrew/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Modern%20Commentary%20on%20Talmud/Steinsaltz/Seder%20Moed/Steinsaltz%20on%20Taanit/Hebrew/merged.json"
+        }
+      ],
+      "export_available": true,
+      "selected_versions": [],
+      "license_status": "Read individual JSON license fields before build",
+      "edition_decisions": {}
+    },
+    {
       "title": "Steinsaltz on Tamid",
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 76,
+      "sort_order": 83,
       "available_versions": [
         {
           "title": "Steinsaltz on Tamid",
@@ -4945,7 +5332,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 77,
+      "sort_order": 84,
       "available_versions": [
         {
           "title": "Steinsaltz on Temurah",
@@ -4990,7 +5377,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 78,
+      "sort_order": 85,
       "available_versions": [
         {
           "title": "Steinsaltz on Yevamot",
@@ -5035,7 +5422,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 79,
+      "sort_order": 86,
       "available_versions": [
         {
           "title": "Steinsaltz on Yoma",
@@ -5080,7 +5467,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 80,
+      "sort_order": 87,
       "available_versions": [
         {
           "title": "Steinsaltz on Zevachim",
@@ -5125,7 +5512,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 81,
+      "sort_order": 88,
       "available_versions": [
         {
           "title": "Tosafot on Arakhin",
@@ -5202,7 +5589,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 82,
+      "sort_order": 89,
       "available_versions": [
         {
           "title": "Tosafot on Avodah Zarah",
@@ -5295,7 +5682,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 83,
+      "sort_order": 90,
       "available_versions": [
         {
           "title": "Tosafot on Bava Batra",
@@ -5388,7 +5775,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 84,
+      "sort_order": 91,
       "available_versions": [
         {
           "title": "Tosafot on Bava Kamma",
@@ -5481,7 +5868,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 85,
+      "sort_order": 92,
       "available_versions": [
         {
           "title": "Tosafot on Bava Metzia",
@@ -5574,7 +5961,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 86,
+      "sort_order": 93,
       "available_versions": [
         {
           "title": "Tosafot on Beitzah",
@@ -5651,7 +6038,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 87,
+      "sort_order": 94,
       "available_versions": [
         {
           "title": "Tosafot on Bekhorot",
@@ -5728,7 +6115,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 88,
+      "sort_order": 95,
       "available_versions": [
         {
           "title": "Tosafot on Berakhot",
@@ -5837,7 +6224,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 89,
+      "sort_order": 96,
       "available_versions": [
         {
           "title": "Tosafot on Chagigah",
@@ -5914,7 +6301,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 90,
+      "sort_order": 97,
       "available_versions": [
         {
           "title": "Tosafot on Chullin",
@@ -5991,7 +6378,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 91,
+      "sort_order": 98,
       "available_versions": [
         {
           "title": "Tosafot on Eruvin",
@@ -6068,7 +6455,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 92,
+      "sort_order": 99,
       "available_versions": [
         {
           "title": "Tosafot on Gittin",
@@ -6161,7 +6548,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 93,
+      "sort_order": 100,
       "available_versions": [
         {
           "title": "Tosafot on Horayot",
@@ -6206,7 +6593,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 94,
+      "sort_order": 101,
       "available_versions": [
         {
           "title": "Tosafot on Keritot",
@@ -6251,7 +6638,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 95,
+      "sort_order": 102,
       "available_versions": [
         {
           "title": "Tosafot on Ketubot",
@@ -6360,7 +6747,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 96,
+      "sort_order": 103,
       "available_versions": [
         {
           "title": "Tosafot on Kiddushin",
@@ -6437,7 +6824,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 97,
+      "sort_order": 104,
       "available_versions": [
         {
           "title": "Tosafot on Makkot",
@@ -6530,7 +6917,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 98,
+      "sort_order": 105,
       "available_versions": [
         {
           "title": "Tosafot on Megillah",
@@ -6619,11 +7006,56 @@
       "edition_decisions": {}
     },
     {
+      "title": "Tosafot on Meilah",
+      "status": "include",
+      "reason": "Pilot commentary set.",
+      "description": "",
+      "sort_order": 106,
+      "available_versions": [
+        {
+          "title": "Tosafot on Meilah",
+          "language": "Hebrew",
+          "versionTitle": "Vilna Edition",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Kodashim"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Kodashim/Tosafot%20on%20Meilah/Hebrew/Vilna%20Edition.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Kodashim/Tosafot%20on%20Meilah/Hebrew/Vilna%20Edition.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Kodashim/Tosafot%20on%20Meilah/Hebrew/Vilna%20Edition.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Kodashim/Tosafot%20on%20Meilah/Hebrew/Vilna%20Edition.json"
+        },
+        {
+          "title": "Tosafot on Meilah",
+          "language": "Hebrew",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Kodashim"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Kodashim/Tosafot%20on%20Meilah/Hebrew/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Kodashim/Tosafot%20on%20Meilah/Hebrew/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Kodashim/Tosafot%20on%20Meilah/Hebrew/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Kodashim/Tosafot%20on%20Meilah/Hebrew/merged.json"
+        }
+      ],
+      "export_available": true,
+      "selected_versions": [],
+      "license_status": "Read individual JSON license fields before build",
+      "edition_decisions": {}
+    },
+    {
       "title": "Tosafot on Menachot",
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 99,
+      "sort_order": 107,
       "available_versions": [
         {
           "title": "Tosafot on Menachot",
@@ -6696,11 +7128,120 @@
       "edition_decisions": {}
     },
     {
+      "title": "Tosafot on Moed Katan",
+      "status": "include",
+      "reason": "Pilot commentary set.",
+      "description": "",
+      "sort_order": 108,
+      "available_versions": [
+        {
+          "title": "Tosafot on Moed Katan",
+          "language": "English",
+          "versionTitle": "",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/.json"
+        },
+        {
+          "title": "Tosafot on Moed Katan",
+          "language": "English",
+          "versionTitle": "R' Mordechai Kornfeld ",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/R%27%20Mordechai%20Kornfeld%20.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/R%27%20Mordechai%20Kornfeld%20.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/R%27%20Mordechai%20Kornfeld%20.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/R%27%20Mordechai%20Kornfeld%20.json"
+        },
+        {
+          "title": "Tosafot on Moed Katan",
+          "language": "English",
+          "versionTitle": "Vilna Edition",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/Vilna%20Edition.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/Vilna%20Edition.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/Vilna%20Edition.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/Vilna%20Edition.json"
+        },
+        {
+          "title": "Tosafot on Moed Katan",
+          "language": "English",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/English/merged.json"
+        },
+        {
+          "title": "Tosafot on Moed Katan",
+          "language": "Hebrew",
+          "versionTitle": "Vilna Edition",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/Hebrew/Vilna%20Edition.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/Hebrew/Vilna%20Edition.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/Hebrew/Vilna%20Edition.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/Hebrew/Vilna%20Edition.json"
+        },
+        {
+          "title": "Tosafot on Moed Katan",
+          "language": "Hebrew",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/Hebrew/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/Hebrew/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/Hebrew/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Moed%20Katan/Hebrew/merged.json"
+        }
+      ],
+      "export_available": true,
+      "selected_versions": [],
+      "license_status": "Read individual JSON license fields before build",
+      "edition_decisions": {}
+    },
+    {
       "title": "Tosafot on Nazir",
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 100,
+      "sort_order": 109,
       "available_versions": [
         {
           "title": "Tosafot on Nazir",
@@ -6777,7 +7318,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 101,
+      "sort_order": 110,
       "available_versions": [
         {
           "title": "Tosafot on Nedarim",
@@ -6854,7 +7395,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 102,
+      "sort_order": 111,
       "available_versions": [
         {
           "title": "Tosafot on Niddah",
@@ -6963,7 +7504,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 103,
+      "sort_order": 112,
       "available_versions": [
         {
           "title": "Tosafot on Pesachim",
@@ -7056,7 +7597,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 104,
+      "sort_order": 113,
       "available_versions": [
         {
           "title": "Tosafot on Rosh Hashanah",
@@ -7133,7 +7674,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 105,
+      "sort_order": 114,
       "available_versions": [
         {
           "title": "Tosafot on Sanhedrin",
@@ -7210,7 +7751,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 106,
+      "sort_order": 115,
       "available_versions": [
         {
           "title": "Tosafot on Shabbat",
@@ -7319,7 +7860,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 107,
+      "sort_order": 116,
       "available_versions": [
         {
           "title": "Tosafot on Shevuot",
@@ -7364,7 +7905,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 108,
+      "sort_order": 117,
       "available_versions": [
         {
           "title": "Tosafot on Sotah",
@@ -7441,7 +7982,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 109,
+      "sort_order": 118,
       "available_versions": [
         {
           "title": "Tosafot on Sukkah",
@@ -7514,11 +8055,88 @@
       "edition_decisions": {}
     },
     {
+      "title": "Tosafot on Taanit",
+      "status": "include",
+      "reason": "Pilot commentary set.",
+      "description": "",
+      "sort_order": 119,
+      "available_versions": [
+        {
+          "title": "Tosafot on Taanit",
+          "language": "English",
+          "versionTitle": "Sefaria Community Translation",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/English/Sefaria%20Community%20Translation.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/English/Sefaria%20Community%20Translation.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/English/Sefaria%20Community%20Translation.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/English/Sefaria%20Community%20Translation.json"
+        },
+        {
+          "title": "Tosafot on Taanit",
+          "language": "English",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/English/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/English/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/English/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/English/merged.json"
+        },
+        {
+          "title": "Tosafot on Taanit",
+          "language": "Hebrew",
+          "versionTitle": "Vilna Edition",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/Hebrew/Vilna%20Edition.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/Hebrew/Vilna%20Edition.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/Hebrew/Vilna%20Edition.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/Hebrew/Vilna%20Edition.json"
+        },
+        {
+          "title": "Tosafot on Taanit",
+          "language": "Hebrew",
+          "versionTitle": "merged",
+          "categories": [
+            "Talmud",
+            "Bavli",
+            "Rishonim on Talmud",
+            "Tosafot",
+            "Seder Moed"
+          ],
+          "json_url": "https://storage.googleapis.com/sefaria-export/json/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/Hebrew/merged.json",
+          "txt_url": "https://storage.googleapis.com/sefaria-export/txt/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/Hebrew/merged.txt",
+          "cltk_full_url": "https://storage.googleapis.com/sefaria-export/cltk-full/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/Hebrew/merged.json",
+          "cltk_flat_url": "https://storage.googleapis.com/sefaria-export/cltk-flat/Talmud/Bavli/Rishonim%20on%20Talmud/Tosafot/Seder%20Moed/Tosafot%20on%20Taanit/Hebrew/merged.json"
+        }
+      ],
+      "export_available": true,
+      "selected_versions": [],
+      "license_status": "Read individual JSON license fields before build",
+      "edition_decisions": {}
+    },
+    {
       "title": "Tosafot on Temurah",
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 110,
+      "sort_order": 120,
       "available_versions": [
         {
           "title": "Tosafot on Temurah",
@@ -7563,7 +8181,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 111,
+      "sort_order": 121,
       "available_versions": [
         {
           "title": "Tosafot on Yevamot",
@@ -7656,7 +8274,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 112,
+      "sort_order": 122,
       "available_versions": [
         {
           "title": "Tosafot on Yoma",
@@ -7733,7 +8351,7 @@
       "status": "include",
       "reason": "Pilot commentary set.",
       "description": "",
-      "sort_order": 113,
+      "sort_order": 123,
       "available_versions": [
         {
           "title": "Tosafot on Zevachim",
@@ -7887,11 +8505,15 @@
         "Tosafot on Beitzah"
       ]
     },
-    "Ta'anit": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
-      "commentary_sources": []
+    "Taanit": {
+      "he_editions": 3,
+      "en_editions": 7,
+      "has_william_davidson_english": true,
+      "commentary_sources": [
+        "Rashi on Taanit",
+        "Steinsaltz on Taanit",
+        "Tosafot on Taanit"
+      ]
     },
     "Megillah": {
       "he_editions": 3,
@@ -7903,11 +8525,15 @@
         "Tosafot on Megillah"
       ]
     },
-    "Mo'ed Katan": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
-      "commentary_sources": []
+    "Moed Katan": {
+      "he_editions": 3,
+      "en_editions": 6,
+      "has_william_davidson_english": true,
+      "commentary_sources": [
+        "Rashi on Moed Katan",
+        "Steinsaltz on Moed Katan",
+        "Tosafot on Moed Katan"
+      ]
     },
     "Chagigah": {
       "he_editions": 3,
@@ -8140,17 +8766,22 @@
         "Tosafot on Keritot"
       ]
     },
-    "Me'ilah": {
-      "he_editions": 0,
-      "en_editions": 0,
-      "has_william_davidson_english": false,
-      "commentary_sources": []
+    "Meilah": {
+      "he_editions": 3,
+      "en_editions": 3,
+      "has_william_davidson_english": true,
+      "commentary_sources": [
+        "Rashi on Meilah",
+        "Steinsaltz on Meilah",
+        "Tosafot on Meilah"
+      ]
     },
     "Tamid": {
       "he_editions": 3,
       "en_editions": 4,
       "has_william_davidson_english": true,
       "commentary_sources": [
+        "Mefaresh on Tamid",
         "Steinsaltz on Tamid"
       ]
     },
@@ -8165,9 +8796,5 @@
       ]
     }
   },
-  "missing_from_catalog": [
-    "Ta'anit",
-    "Mo'ed Katan",
-    "Me'ilah"
-  ]
+  "missing_from_catalog": []
 }

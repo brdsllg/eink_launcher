@@ -33,9 +33,9 @@ Berakhot, Bava Metzia, Bava Batra, Sanhedrin, Tamid, Shabbat
 | Yoma | 3 | 8 | yes |
 | Sukkah | 3 | 4 | yes |
 | Beitzah | 3 | 3 | yes |
-| Ta'anit | 0 | 0 | **missing** |
+| Taanit | 3 | 7 | yes |
 | Megillah | 3 | 5 | yes |
-| Mo'ed Katan | 0 | 0 | **missing** |
+| Moed Katan | 3 | 6 | yes |
 | Chagigah | 3 | 6 | yes |
 | Yevamot | 4 | 6 | yes |
 | Ketubot | 3 | 5 | yes |
@@ -59,16 +59,17 @@ Berakhot, Bava Metzia, Bava Batra, Sanhedrin, Tamid, Shabbat
 | Arakhin | 3 | 4 | yes |
 | Temurah | 3 | 4 | yes |
 | Keritot | 3 | 5 | yes |
-| Me'ilah | 0 | 0 | **missing** |
+| Meilah | 3 | 3 | yes |
 | Tamid | 3 | 4 | yes |
 | Niddah | 3 | 7 | yes |
 
 ## Pilot commentary sources
 
-Included: 101 | Pending review: 13
+Included: 111 | Pending review: 13
 
 | Title | Status |
 |---|---|
+| Mefaresh on Tamid | include |
 | Rashbam on Bava Batra | include |
 | Rashi on Arakhin | include |
 | Rashi on Avodah Zarah | include |
@@ -88,7 +89,9 @@ Included: 101 | Pending review: 13
 | Rashi on Kiddushin | include |
 | Rashi on Makkot | include |
 | Rashi on Megillah | include |
+| Rashi on Meilah | include |
 | Rashi on Menachot | include |
+| Rashi on Moed Katan | include |
 | Rashi on Nazir | include |
 | Rashi on Nedarim | include |
 | Rashi on Niddah | include |
@@ -99,6 +102,7 @@ Included: 101 | Pending review: 13
 | Rashi on Shevuot | include |
 | Rashi on Sotah | include |
 | Rashi on Sukkah | include |
+| Rashi on Taanit | include |
 | Rashi on Temurah | include |
 | Rashi on Yevamot | include |
 | Rashi on Yoma | include |
@@ -121,7 +125,9 @@ Included: 101 | Pending review: 13
 | Steinsaltz on Kiddushin | include |
 | Steinsaltz on Makkot | include |
 | Steinsaltz on Megillah | include |
+| Steinsaltz on Meilah | include |
 | Steinsaltz on Menachot | include |
+| Steinsaltz on Moed Katan | include |
 | Steinsaltz on Nazir | include |
 | Steinsaltz on Nedarim | include |
 | Steinsaltz on Niddah | include |
@@ -132,6 +138,7 @@ Included: 101 | Pending review: 13
 | Steinsaltz on Shevuot | include |
 | Steinsaltz on Sotah | include |
 | Steinsaltz on Sukkah | include |
+| Steinsaltz on Taanit | include |
 | Steinsaltz on Tamid | include |
 | Steinsaltz on Temurah | include |
 | Steinsaltz on Yevamot | include |
@@ -155,7 +162,9 @@ Included: 101 | Pending review: 13
 | Tosafot on Kiddushin | include |
 | Tosafot on Makkot | include |
 | Tosafot on Megillah | include |
+| Tosafot on Meilah | include |
 | Tosafot on Menachot | include |
+| Tosafot on Moed Katan | include |
 | Tosafot on Nazir | include |
 | Tosafot on Nedarim | include |
 | Tosafot on Niddah | include |
@@ -166,6 +175,7 @@ Included: 101 | Pending review: 13
 | Tosafot on Shevuot | include |
 | Tosafot on Sotah | include |
 | Tosafot on Sukkah | include |
+| Tosafot on Taanit | include |
 | Tosafot on Temurah | include |
 | Tosafot on Yevamot | include |
 | Tosafot on Yoma | include |
@@ -173,7 +183,7 @@ Included: 101 | Pending review: 13
 
 ## Download plan
 
-264 edition files to fetch (base texts + pilot commentaries).
+282 edition files to fetch (base texts + pilot commentaries).
 
 ## Remaining steps
 
@@ -183,4 +193,4 @@ Included: 101 | Pending review: 13
 4. python talmud/work/build.py --pilot
 5. python talmud/work/validate.py --pilot
 6. Measure EPUB sizes and first-open times on the Bigme.
-7. Expand commentary per the blacklist policy in docs/talmud-epub-plan.md.
+7. Expand commentary per the blacklist policy in docs/talmud/docs/talmud-epub-plan.md.

@@ -6,7 +6,6 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html;
-import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../models/content_block.dart';
@@ -14,6 +13,7 @@ import '../models/doc_ref.dart';
 import '../models/parsed_book.dart';
 import '../models/reader_settings.dart';
 import '../models/toc_entry.dart';
+import 'app_cache_directory.dart';
 import 'tanach_layout_service.dart';
 
 /// A disposable, per-book SQLite cache for the large structured Tanach EPUBs.
@@ -55,7 +55,7 @@ class TanachSqliteCacheService {
 
   Future<Directory> _directory() async =>
       cacheDirectory ??
-      Directory('${(await getApplicationCacheDirectory()).path}/tanach_sqlite');
+      Directory('${(await getAppCacheDirectory()).path}/tanach_sqlite');
 
   Future<File> databaseFile(DocRef doc) async {
     final key = sha256.convert(utf8.encode(doc.id)).toString();
@@ -80,6 +80,51 @@ class TanachSqliteCacheService {
           await file.delete();
         } catch (_) {}
       }
+      return null;
+    }
+  }
+
+  /// Sidecar path for a laptop-built index: `<base>.study.sqlite` next to the
+  /// EPUB (e.g. `berakhot.epub` → `berakhot.study.sqlite`). The laptop
+  /// pipeline (tool/build_study_index.dart) writes this name; copy the pair
+  /// onto the device together.
+  static String sidecarPathForEpub(String epubPath) =>
+      '${epubPath.replaceAll(RegExp(r'\.epub$', caseSensitive: false), '')}.study.sqlite';
+
+  /// Adopts a laptop-built sidecar index sitting next to the EPUB.
+  ///
+  /// Returns null (and falls through to the normal import) when the sidecar
+  /// is missing, stale (EPUB fingerprint mismatch), or corrupt. On success the
+  /// sidecar is copied into the internal cache location so later opens and
+  /// cache trimming work exactly as if the device had imported it.
+  Future<ParsedBook?> adoptSidecar(
+    DocRef doc, {
+    required String fingerprint,
+  }) async {
+    final sidecar = File(sidecarPathForEpub(doc.path));
+    if (!await sidecar.exists()) return null;
+    ParsedBook? skeleton;
+    try {
+      skeleton = await Isolate.run(
+        () => _readSkeleton(sidecar.path, fingerprint: fingerprint),
+      );
+    } catch (_) {
+      return null;
+    }
+    if (skeleton == null) return null;
+    final file = await databaseFile(doc);
+    try {
+      await file.parent.create(recursive: true);
+      await sidecar.copy(file.path);
+      await _trim(file.parent, keepPath: file.path);
+    } catch (_) {
+      return null;
+    }
+    try {
+      return await Isolate.run(
+        () => _readSkeleton(file.path, fingerprint: fingerprint),
+      );
+    } catch (_) {
       return null;
     }
   }
@@ -313,6 +358,26 @@ class TanachSqliteCacheService {
 
   static String? _nullable(String? value) =>
       value == null || value.isEmpty ? null : value;
+
+  // ── Laptop-side export ──────────────────────────────────────────────────
+  // The study-index pipeline (tool/build_study_index.dart) runs this exact
+  // writer on the laptop so the sidecar .study.sqlite is byte-identical in
+  // schema and encoding to a device-built cache. The reader's normal
+  // fingerprint check then accepts it with zero import work.
+  static Future<void> writeDatabaseForExport(
+    String path,
+    ParsedBook book,
+    String fingerprint,
+  ) async {
+    _writeDatabase(path, book, fingerprint);
+  }
+
+  static Future<ParsedBook?> readSkeletonForExport(
+    String path, {
+    required String fingerprint,
+  }) async {
+    return _readSkeleton(path, fingerprint: fingerprint);
+  }
 
   static void _writeDatabase(String path, ParsedBook book, String fingerprint) {
     final file = File(path);

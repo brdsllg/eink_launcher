@@ -2,10 +2,21 @@ import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html;
 
 import '../models/parsed_book.dart';
-import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
 import '../models/toc_entry.dart';
 import 'html_block_parser.dart';
+
+/// Minimal projection inputs for study layout, so laptop-side tooling can reuse
+/// this service without importing the Flutter-dependent ReaderSettings model.
+/// ReaderSettings implements this interface; behavior is unchanged.
+abstract class StudyProjectionSettings {
+  List<String> get commentarySources;
+  String get commentaryLanguage;
+  String get verseLanguage;
+  String get studyTranslation;
+  bool get honorPublisherCss;
+  bool get showParshaAliyot;
+}
 
 /// Projects recognized verse/index/footnote relationships into reading order.
 /// The original XHTML stays in the parsed book, so filters never delete notes.
@@ -56,7 +67,7 @@ class TanachLayoutService {
     return element.id.startsWith('idx-');
   }
 
-  static ParsedBook layout(ParsedBook book, ReaderSettings settings) {
+  static ParsedBook layout(ParsedBook book, StudyProjectionSettings settings) {
     if (book.studyDocuments.isEmpty) return book;
     final projectionKey = _projectionKey(settings);
     if (book.studyProjectionKey == projectionKey) return book;
@@ -412,7 +423,7 @@ class TanachLayoutService {
   static bool _isEnglishVerseBody(Element element) =>
       element.classes.contains('translation');
 
-  static String _projectionKey(ReaderSettings settings) {
+  static String _projectionKey(StudyProjectionSettings settings) {
     final sources = [...settings.commentarySources]..sort();
     return [
       sources.join('\u001f'),

@@ -19,26 +19,29 @@ use; Bigme.
 ## Edition coverage
 
 Every tractate has Hebrew editions (3 or 4 each) and a William Davidson English
-edition (3 to 10 English editions in all), **except Ta'anit, Mo'ed Katan, and
-Me'ilah, which have none** and need an alternate source or a scope decision.
+edition (3 to 10 English editions in all), **including Taanit, Moed Katan, and
+Meilah** (Sefaria's spelling — the earlier "missing" report was a spelling
+mismatch, fixed Oct 2026).
 
-## Commentary titles included in the pilot manifest (101)
+## Commentary titles included in the pilot manifest (111)
 
 | Commentary | Tractates covered |
 |---|---|
-| Rashi | 33 (every tractate except Ta'anit, Mo'ed Katan, Me'ilah, Tamid) |
+| Rashi | 36 (every tractate except Tamid, where Mefaresh fills the Rashi slot) |
 | Rashbam | Bava Batra (the Rashi slot there) |
-| Tosafot | The same 33 as Rashi |
-| Steinsaltz | 34 (those 33 plus Tamid) |
+| Mefaresh | Tamid (anonymous Vilna commentary in the Rashi slot, confirmed Oct 2026) |
+| Tosafot | 36 (every tractate except Tamid, which has no Tosafot) |
+| Steinsaltz | 37 (all tractates including Tamid) |
 
-Tamid has no Rashi or Tosafot title in the manifest; its Rashi-slot substitute is
-still to be confirmed. A further 13 titles are "pending review". The full list of
-titles is in `source-selection.json`.
+Commentary downloads and builds are English + Hebrew only (Oct 2026). A further
+13 titles are "pending review". The full list of titles is in
+`source-selection.json`.
 
 ## Download plan
 
-264 edition files (base texts plus pilot commentaries). The 5 Oct 2026 sync fetched all
-264.
+282 edition files (base texts plus pilot commentaries, English + Hebrew only).
+Oct 2026 sync fetched all 282 with 0 failures; all 148 schemas fetch with 0
+failures.
 
 ## Next steps
 
