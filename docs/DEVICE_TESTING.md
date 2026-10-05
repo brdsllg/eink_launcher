@@ -138,7 +138,8 @@ deleted; copies, generators, and raw timings are kept locally in
 2. Layouts: browser, Apps, settings, dialogs, search, recovery.
 3. Text selection: copy, dictionary (English, Hebrew, Aramaic), note, underline;
    restart and confirm underlines and notes remain; repeat in a text-layer PDF.
-4. Study books: see `tanach/docs/tanach-epub.md` and `talmud/docs/reader-device-findings.md`.
+4. Study books: see `docs/tanach/docs/tanach-epub.md` and
+   `docs/talmud/docs/reader-device-findings.md`.
 
 **PDF regression (after future PDF changes).** Use one text/vector PDF and one scanned
 PDF, with the same renderer and refresh mode:

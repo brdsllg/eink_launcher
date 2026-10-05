@@ -5,8 +5,9 @@ Shabbat, Bava Metzia, Bava Batra, Sanhedrin, Tamid). The reader's study-book sup
 covers Talmud. Device checking, the other 31 tractates, and scale-up remain. Generated
 data is local under `work/` and `outputs/` and ignored by git.
 
-Read `tanach/docs/tanach-epub.md` and `tanach/outputs/reader-compatibility.md` first:
-Talmud should behave like Tanach wherever this document is silent.
+Read `docs/tanach/docs/tanach-epub.md` first, plus
+`tanach/outputs/reader-compatibility.md` (the pipeline's own copy, since the pipeline
+rewrites it): Talmud should behave like Tanach wherever this document is silent.
 
 ## Goal
 

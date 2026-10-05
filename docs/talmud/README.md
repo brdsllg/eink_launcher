@@ -2,8 +2,10 @@
 
 This segment of the repository produces Talmud Bavli EPUBs for personal use on the
 Bigme e-ink device. It mirrors `tanach/` in layout and tooling and follows the same
-reader contract; where this folder is silent, `tanach/docs/tanach-epub.md` and
-`tanach/outputs/reader-compatibility.md` apply.
+reader contract; where this folder is silent, `docs/tanach/docs/tanach-epub.md` and
+`tanach/outputs/reader-compatibility.md` apply. That second file stays in the `tanach/`
+segment because the pipeline rewrites it; its readable summary is in
+`docs/tanach/outputs/reader-compatibility.md`.
 
 **Status (5 Oct 2026):** the six-tractate pilot is built and passes EPUBCheck and
 link checks. Problems found on the device were fixed and re-verified on the computer.

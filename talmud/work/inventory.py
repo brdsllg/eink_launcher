@@ -164,7 +164,7 @@ def main():
                 return 'include', 'Rashi-slot substitute for this masechta (pilot set).'
         return 'review', (
             'Not in pilot set. Include after measuring pilot EPUB sizes and load times. '
-            'See docs/talmud-epub-plan.md commentary-policy section.'
+            'See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.'
         )
 
     sources = []
@@ -402,7 +402,7 @@ def main():
         '4. python talmud/work/build.py --pilot',
         '5. python talmud/work/validate.py --pilot',
         '6. Measure EPUB sizes and first-open times on the Bigme.',
-        '7. Expand commentary per the blacklist policy in docs/talmud-epub-plan.md.',
+        '7. Expand commentary per the blacklist policy in docs/talmud/docs/talmud-epub-plan.md.',
     ]
     (OUT / 'source-review.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 

@@ -140,11 +140,12 @@ until the app has its own `FileProvider`; the file chooser relies on it.
 | [annotation_plan.md](annotation_plan.md) | Selection and annotation design, and the remaining device check |
 | [ANDROID_HARDENING_PLAN.md](ANDROID_HARDENING_PLAN.md) | Startup, recovery, and Android reliability work |
 | [DEVICE_TESTING.md](DEVICE_TESTING.md) | Everything tested on the device, measurements, and what is still unchecked |
-| `tanach/README.md`, `talmud/README.md` | The two EPUB-building segments |
+| `docs/tanach/README.md`, `docs/talmud/README.md` | The two EPUB-building segments |
+| [`archived/README.md`](archived/README.md) | The earlier versions of every document above, kept for history only |
 
 ## Next
 
 1. Run a device pass on the HiBreak (or B751C) covering tabs, layouts, annotations,
    and the dictionaries. The checklist is in [DEVICE_TESTING.md](DEVICE_TESTING.md).
 2. Test the largest Tanach books on the device: first-open time, memory, search.
-3. Finish Talmud device checks and scale-up work (see `talmud/README.md`).
+3. Finish Talmud device checks and scale-up work (see `docs/talmud/README.md`).

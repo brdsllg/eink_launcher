@@ -13,16 +13,20 @@ normalized database, and the offline source cache.
 
 | Path | Purpose |
 |---|---|
-| `docs/tanach-epub.md` | **Read first.** Current brief: settled requirements, reader status, source limits, verification facts |
-| `docs/REBUILD-EPUBS.md` | Plain-language guide to rebuilding the books |
-| `docs/archive/PROJECT-CONTEXT-2026-09-16.md` | Superseded 16 Sept brief, kept for history only |
+| `docs/tanach/docs/tanach-epub.md` | **Read first.** Current brief: settled requirements, reader status, source limits, verification facts |
+| `docs/tanach/docs/REBUILD-EPUBS.md` | Plain-language guide to rebuilding the books |
+| `docs/tanach/work/legacy/README.md` | What the historical one-off scripts did, and why not to rerun them |
+| `docs/archived/` | The earlier versions of these documents, kept for history only |
 | `work/` | Pipeline scripts, normalized database (`tanach.sqlite`), raw Sefaria cache, validation tools, browser preview |
-| `work/legacy/` | One-off past migrations. Not part of the build; do not rerun (see its README) |
+| `work/legacy/` | One-off past migrations. Not part of the build; do not rerun (see `docs/tanach/work/legacy/README.md`) |
 | `outputs/books/` | The 39 complete-book EPUBs, presentation revision 5 (canonical output) |
 | `outputs/samples/` | Nine chapter samples for reader and presentation checks |
 | `outputs/tanach-39-epubs.zip` (+ `.sha256`) | Distributable full collection |
 | `outputs/tanach-samples.zip` | Distributable sample set |
 | `outputs/tanach-pipeline.zip` | Portable scripts and configuration (no cache, database, or tools) |
+
+The human-readable documents live in `docs/tanach/`; this folder keeps only the
+scripts, the generated books, and the markdown the pipeline rewrites itself.
 
 Documents and reports that the packaging scripts rewrite live next to the data in
 `outputs/`: `reader-compatibility.md`, `commentary-whitelist.md`, `sample-guide.md`,
@@ -44,7 +48,8 @@ python -X utf8 work/package_samples.py             # guides + sample and pipelin
 python -X utf8 work/audit_chapter_compression.py --level 6   # measure chapter compression
 ```
 
-For a plain-language walk-through, see [docs/REBUILD-EPUBS.md](docs/REBUILD-EPUBS.md).
+For a plain-language walk-through, see
+[docs/REBUILD-EPUBS.md](docs/REBUILD-EPUBS.md).
 
 Other tools:
 
@@ -97,10 +102,11 @@ cmd /c "cd /d C:\Users\levi\eink_launcher && flutter test test\reader\tanach_ful
 ## Syncing across machines
 
 **Pipeline sources and settings: normal git.** Tracked (see the root `.gitignore`):
-`work/*.py`, `work/*.cjs`, `work/legacy/**`, `docs/**`, `README.md`, the `outputs/*.md`
-guides, and `outputs/source-selection.json`. A `git clone` or `git pull` gives a
-working pipeline; the other machine needs Python 3.11+ for offline steps and can fetch
-Java and EPUBCheck with `work/get_validation_tools.py`.
+`work/*.py`, `work/*.cjs`, `work/legacy/**`, the `tanach/README.md` pointer, the
+`outputs/*.md` guides, and `outputs/source-selection.json`. The written documents live
+in `docs/tanach/` (also tracked, outside this folder). A `git clone` or `git pull`
+gives a working pipeline; the other machine needs Python 3.11+ for offline steps and
+can fetch Java and EPUBCheck with `work/get_validation_tools.py`.
 
 **Raw data and generated files: never git** (about 2 GB, ignored): `work/cache/`
 (about 1.1 GB), `work/tanach.sqlite` (323 MB), `work/tools/`, `work/preview/`,

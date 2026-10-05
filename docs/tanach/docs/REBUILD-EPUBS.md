@@ -135,5 +135,6 @@ again.
   offline.
 - **`work/tanach.sqlite`:** the tidy database the generator draws from.
 
-Technical detail: `tanach-epub.md` and the README. The Talmud books have their own
-guide: `talmud/HOW-TO-SYNC.md`.
+Technical detail: `docs/tanach/docs/tanach-epub.md` and
+[`docs/tanach/README.md`](../README.md). The Talmud books have their own
+guide: `docs/talmud/HOW-TO-SYNC.md`.

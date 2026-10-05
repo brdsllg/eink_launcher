@@ -162,7 +162,8 @@ Open reader-side checks for study books:
 - Is commentary-source choice remembered per book or per chapter?
 - Does a search match inside commentary open the right commentary block?
 
-Talmud-specific reader work is tracked in `talmud/docs/reader-device-findings.md`.
+Talmud-specific reader work is tracked in
+`docs/talmud/docs/reader-device-findings.md`.
 
 ## Settings shown per mode
 
@@ -215,4 +216,4 @@ internal paths, and stack traces are never shown.
 5. **Tanach build tooling:** `tanach/work/build.py` is one large script with no
    incremental rebuild beyond a single book. Possible improvements: split it into
    smaller parts, verify rebuilt EPUBs against expected checksums automatically, and
-   detect Sefaria source changes. Tracked in `tanach/docs/tanach-epub.md`.
+   detect Sefaria source changes. Tracked in `docs/tanach/docs/tanach-epub.md`.
