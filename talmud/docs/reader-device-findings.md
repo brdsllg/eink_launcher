@@ -23,6 +23,31 @@ Summary:
 
 ---
 
+## Practical Bigme Testing Checklist
+
+Since you are ready to test on your Bigme device, follow these simple steps to verify the recent fixes for the pilot Talmud books:
+
+1. **Transfer the Pilot EPUBs:** Ensure the freshly built pilot EPUBs (Berakhot, Shabbat, Bava Metzia, Bava Batra, Sanhedrin, Tamid from `talmud/outputs/`) are copied onto your Bigme device storage.
+2. **Test Berakhot Start & Headings (Fixes #9 & #2):**
+   - Open **Berakhot**.
+   - Check that the book opens right at the beginning (**Daf 2a**, starting with *מאימתי קורין את שמע*), not missing the first pages.
+   - Look at the text headings and amud title (e.g., "Daf 2a"). Verify they show **English-only** labels without duplicate Hebrew text.
+3. **Test Commentary Layout & Titles (Fixes #3 & #5):**
+   - Tap a segment with commentary (like Rashi).
+   - Verify that commentary notes are grouped cleanly per source per segment with clean titles (e.g., `Rashi on Berakhot 2a:1`) instead of duplicated names or separate single-note headers.
+4. **Test Contents Page Links (Fixes #7):**
+   - Open the book's Contents page (or navigate to `nav.xhtml` right after the title).
+   - Tap one of the links (e.g., "Daf 3a" or "Daf 3b").
+   - Confirm that it successfully jumps directly to that amud instead of ignoring your tap.
+5. **Test Settings Wording (Fixes #8):**
+   - Open the reader menu and go to **Settings**.
+   - Confirm that for Talmud books, the option reads **"Talmud language"** and **"after each segment"** instead of referring to "verses".
+6. **Test Page Jump Keyboard (Fixes #4):**
+   - Tap "Go to page" or "Go to percent" to open the number entry box.
+   - Confirm that the on-screen keyboard pops up as an overlay without squishing or recalculating the underlying page numbers and reading position.
+
+---
+
 ## 1. "Steinsaltz on <tractate>" commentary is shown but not wanted
 
 - **Symptom:** the commentary source picker lists "Steinsaltz on Berakhot" and
@@ -399,4 +424,4 @@ Recorded in `talmud-epub-plan.md`.
 - Reader: restrict search to selected sources; group or add search to the
   source picker.
 - Laptop-built cache or the SQLite format: decision gate after step 4.
-- Record the blacklist decision and measured numbers in `talmud-epub-plan.md`. 
+- Record the blacklist decision and measured numbers in `talmud-epub-plan.md`.
