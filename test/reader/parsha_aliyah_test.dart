@@ -12,15 +12,7 @@ import 'package:eink_launcher/reader/services/tanach_layout_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const _aliyah = [
-  'ראשון',
-  'שני',
-  'שלישי',
-  'רביעי',
-  'חמישי',
-  'שישי',
-  'שביעי',
-];
+const _aliyah = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שביעי'];
 
 /// The dual navigation the Torah builders emit: one chapter list carrying the
 /// toc semantic, one Parshah/Aliyah list typed "other".
@@ -132,30 +124,72 @@ void main() {
       );
     });
 
-    test('is absent when the publication carries only the chapter list', () async {
-      final book = await parser.parseBytes(_fixture(parshaList: false));
+    test(
+      'is absent when the publication carries only the chapter list',
+      () async {
+        final book = await parser.parseBytes(_fixture(parshaList: false));
 
-      expect(book.hasParshaToc, isFalse);
-      expect(book.parshaTableOfContents, isEmpty);
-      expect(book.tableOfContents, hasLength(1));
-    });
+        expect(book.hasParshaToc, isFalse);
+        expect(book.parshaTableOfContents, isEmpty);
+        expect(book.tableOfContents, hasLength(1));
+      },
+    );
   });
 
   group('heading mode', () {
-    test('drops the Parshah headings and keeps the chapter heading by default', () {
-      final book = EpubParserService.parseBytesSync(
-        _fixture(parshaList: true, chapter: _dualChapter),
-      );
-      final text = _text(book);
+    test(
+      'drops the Parshah headings and keeps the chapter heading by default',
+      () {
+        final book = EpubParserService.parseBytesSync(
+          _fixture(parshaList: true, chapter: _dualChapter),
+        );
+        final text = _text(book);
 
-      expect(text, contains('Genesis 1'));
-      expect(text, isNot(contains('Bereshit')));
-      expect(text, isNot(contains('First Portion')));
-      expect(text, contains('Verse 1'));
-      expect(text, contains('Verse 2'));
-    });
+        expect(text, contains('Genesis 1'));
+        expect(text, isNot(contains('Bereshit')));
+        expect(text, isNot(contains('First Portion')));
+        expect(text, contains('Verse 1'));
+        expect(text, contains('Verse 2'));
+      },
+    );
 
-    test('shows the Parshah and Aliyah headings and drops the chapter heading', () {
+    test(
+      'shows the Parshah and Aliyah headings and drops the chapter heading',
+      () {
+        final parsed = EpubParserService.parseBytesSync(
+          _fixture(parshaList: true, chapter: _dualChapter),
+        );
+        final book = TanachLayoutService.layout(
+          parsed,
+          const ReaderSettings(showParshaAliyot: true),
+        );
+        final text = _text(book);
+
+        expect(text, isNot(contains('Genesis 1')));
+        expect(text, contains('Bereshit'));
+        expect(text, contains('First Portion'));
+        expect(text, contains('Verse 1'));
+
+        final parsha = book.parshaTableOfContents.single;
+        expect(
+          (parsha.position! as TextReadingPosition).blockIndex,
+          greaterThanOrEqualTo(0),
+        );
+        expect(
+          book.spine.first.anchors.keys,
+          containsAll(['parsha-bereshit', 'aliyah-bereshit-1']),
+        );
+
+        final backToChapters = TanachLayoutService.layout(
+          parsed,
+          const ReaderSettings(showParshaAliyot: false),
+        );
+        expect(_text(backToChapters), contains('Genesis 1'));
+        expect(_text(backToChapters), isNot(contains('Bereshit')));
+      },
+    );
+
+    test('renders Parshah and Aliyah labels as bilingual split headings', () {
       final parsed = EpubParserService.parseBytesSync(
         _fixture(parshaList: true, chapter: _dualChapter),
       );
@@ -163,29 +197,20 @@ void main() {
         parsed,
         const ReaderSettings(showParshaAliyot: true),
       );
-      final text = _text(book);
+      final headings = book.spine.single.blocks
+          .where(
+            (block) =>
+                block.id == 'parsha-bereshit' ||
+                block.id == 'aliyah-bereshit-1',
+          )
+          .toList();
 
-      expect(text, isNot(contains('Genesis 1')));
-      expect(text, contains('Bereshit'));
-      expect(text, contains('First Portion'));
-      expect(text, contains('Verse 1'));
-
-      final parsha = book.parshaTableOfContents.single;
-      expect(
-        (parsha.position! as TextReadingPosition).blockIndex,
-        greaterThanOrEqualTo(0),
-      );
-      expect(
-        book.spine.first.anchors.keys,
-        containsAll(['parsha-bereshit', 'aliyah-bereshit-1']),
-      );
-
-      final backToChapters = TanachLayoutService.layout(
-        parsed,
-        const ReaderSettings(showParshaAliyot: false),
-      );
-      expect(_text(backToChapters), contains('Genesis 1'));
-      expect(_text(backToChapters), isNot(contains('Bereshit')));
+      expect(headings, hasLength(2));
+      expect(headings.every((block) => block.hasSplitLayout), isTrue);
+      expect(headings.first.runs.single.text, 'Bereshit');
+      expect(headings.first.trailingRuns.single.text, 'בְּרֵאשִׁית');
+      expect(headings.last.runs.single.text, 'First Portion');
+      expect(headings.last.trailingRuns.single.text, 'ראשון');
     });
 
     test('leaves books without a Parshah heading untouched', () {
@@ -208,9 +233,8 @@ void main() {
     expect(ReaderSettings.fromJson(on.toJson()).showParshaAliyot, isTrue);
     expect(on.copyWith(showParshaAliyot: false).showParshaAliyot, isFalse);
     expect(
-      ReaderSettings.fromJson(
-        on.copyWith(showParshaAliyot: false).toJson(),
-      ).showParshaAliyot,
+      ReaderSettings.fromJson(on.copyWith(showParshaAliyot: false).toJson())
+          .showParshaAliyot,
       isFalse,
     );
   });
@@ -260,7 +284,10 @@ void main() {
       expect(saved, isNotNull);
       final settings = saved!;
       expect(settings.showParshaAliyot, isTrue);
-      expect(settings.copyWith(showParshaAliyot: false).showParshaAliyot, isFalse);
+      expect(
+        settings.copyWith(showParshaAliyot: false).showParshaAliyot,
+        isFalse,
+      );
     });
   });
 }
@@ -281,9 +308,7 @@ Future<void> openSettings(
       home: Builder(
         builder: (context) => OutlinedButton(
           onPressed: () async {
-            final settings = await Navigator.of(
-              context,
-            ).push<ReaderSettings>(
+            final settings = await Navigator.of(context).push<ReaderSettings>(
               MaterialPageRoute(
                 builder: (_) => ReaderSettingsScreen(
                   initialSettings: const ReaderSettings(),
@@ -302,4 +327,3 @@ Future<void> openSettings(
   await tester.tap(find.text('Open'));
   await tester.pumpAndSettle();
 }
-

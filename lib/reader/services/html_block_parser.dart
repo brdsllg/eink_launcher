@@ -230,7 +230,13 @@ class _HtmlWalker {
   }
 
   void _addTextElement(Element element, BlockType type) {
-    if (element.classes.contains('verse-heading')) {
+    // Study-book headings use the same two-span, bilingual presentation as a
+    // verse heading.  The EPUB declares the English and Hebrew spans with
+    // opposite directions; treating only verse headings specially collapsed
+    // Parshah and Aliyah labels onto the left in the native reader.
+    if (element.classes.contains('verse-heading') ||
+        element.classes.contains('parsha-heading') ||
+        element.classes.contains('aliyah-heading')) {
       final spans = element.children
           .where((child) => child.localName == 'span')
           .toList();

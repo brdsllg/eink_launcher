@@ -16,13 +16,16 @@ target was the Bigme B751C.
   `build/app/outputs/flutter-apk/app-release.apk`
   (SHA-256 `01D04659FC1BEB73F5A7F8767A357ACAA1E7078E82CA8701E9C1A4C80958706E`).
   Earlier trial APKs stay in the same folder for comparison.
-- **Latest checks (5 Oct 2026):** 436 automated tests pass. The one failure, in the
-  PDF runtime test, also occurs without recent changes and is unrelated. Static
-  analysis shows only two minor `avoid_print` notices.
+- **Latest source checks (5 Oct 2026):** The focused reader, selection, browser, and
+  study-book tests pass after the October device-test fixes. The full suite still has
+  the pre-existing PDF runtime-test failure; static analysis has only two minor
+  `avoid_print` notices.
 - **Current device status:** several areas are confirmed on the Bigme, but the
   remaining work is still concentrated in tabs, newer layouts, selection and
   annotations, dictionaries, and study books. This project does not treat any of
-  those partial checks as complete. See [DEVICE_TESTING.md](DEVICE_TESTING.md).
+  those partial checks as complete. The latest source fixes for study-book navigation,
+  bilingual headings, and selection-handle size still need a HiBreak recheck. See
+  [DEVICE_TESTING.md](DEVICE_TESTING.md).
 - **Confirmed on the device:** PDF page turns, scrolling and zooming with no
   ghosting or white flashes; startup, recovery, app drawer, and battery behavior
   (2 Sept); physical page buttons (18 Sept). The status of newer features is

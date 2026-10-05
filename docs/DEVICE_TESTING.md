@@ -17,9 +17,9 @@ refresh-mode name was never recorded.
 | EPUB/TXT/Markdown open, search, saved positions | Confirmed |
 | Physical page buttons | Confirmed (with the button assignment described below) |
 | Tabs, newer screen layouts | **Checked (Steps 1-4 passed successfully)** |
-| Selection, notes, underlines | **Partially checked (Handles small; multi-paragraph selection unsupported/desired)** |
+| Selection, notes, underlines | **Partially checked (larger handle targets are implemented; multi-paragraph selection remains a planned feature)** |
 | Hebrew and English dictionaries | **Checked (Passed)** |
-| Tanach and Talmud study books | **Partially checked (Issues noted with parshiyot/aliyot headings, TOC links, and layout)** |
+| Tanach and Talmud study books | **Partially checked (October source fixes await a physical recheck)** |
 | Renderer preference, preview/sharpen timing, unplugged idle battery drain | Optional measurements, never taken |
 
 ## Test history
@@ -80,15 +80,15 @@ and supported key pairs: [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md).
 ### 5 oct test (User pass on HiBreak)
 
 - **Steps 1–4 (Startup, Browser, PDF, Tabs):** Completed successfully with no problems.
-- **Step 5.2 (Selection):** Selection handles are quite small. Selection works within a single block, but does not extend across multiple paragraphs, which is a desired feature.
+- **Step 5.2 (Selection):** Selection worked within a single block, but its handles were quite small and it did not extend across multiple paragraphs. The source follow-up increases each handle's touch target to 48 dp; multi-paragraph selection remains a planned feature because annotations are anchored to one block. The larger handles still need a HiBreak check.
 - **Steps 5–6 (Text formatting, dictionaries):** Completed successfully.
-- **Study Books:** 
-  - Clearing the cache requires the reader to completely re-open and re-import the book for the first time (noting that pre-parsing on a laptop and transferring data over is a potential workflow).
-  - Parshiyot and aliyot within Genesis–Deuteronomy: selecting the fifth portion of Bereishit navigated to Genesis 4:1 without an aliyah heading, and navigating to Genesis 4:19 where the portion was supposed to start found no aliyah heading.
-  - EPUB TOC links: Chapter links work, but aliyot links never work even when enabled.
-  - UI preference: If aliyot are enabled, chapters should be hidden, and vice versa.
-  - Headings formatting: Chapters show "Genesis x" without a Hebrew equivalent on the right side. Parshiyot and aliyot show both English and Hebrew on the left side instead of being separated like pesukim.
-- **File Browser Quirk:** Occasionally (observed after deleting all open tabs though couldnt be recreated), folders refuse to open on tap unless navigating up a folder and back in.
+- **Study Books:**
+  - Clearing the disposable cache requires the next open to import the EPUB again. This is expected cache behavior, not a data-loss condition; pre-parsing and transferring a ready cache remains a possible future workflow.
+  - Parshiyot and aliyot within Genesis–Deuteronomy: selecting the fifth portion of Bereishit initially displayed Genesis 4:1 without the fifth-aliyah heading instead of Genesis 4:19. The source follow-up now resolves the anchor after the lazy chapter loads and waits for its page before displaying it. This needs a HiBreak recheck.
+  - EPUB TOC links: chapter links worked, but aliyah links initially did not. They use the same lazy-anchor correction and need a HiBreak recheck.
+  - UI preference: source code selects either the aliyah contents/headings or the chapter contents/headings, never both. Confirm this on the device with the revised build.
+  - Headings formatting: chapter headings remain chapter-only. Parshiyot and aliyot now use the same bilingual split renderer as pesukim (English left, Hebrew right); this needs a HiBreak recheck.
+- **File Browser Quirk:** Observed once after deleting all open tabs, but could not be reproduced. The normal folder-opening regression test passes; keep this in the next device pass and record exact steps if it recurs.
 
 ## Measurements (version 1.0.2)
 
@@ -149,10 +149,17 @@ deleted; copies, generators, and raw timings are kept locally in
 1. Tabs: open and close mixed formats, switch while one is loading, restart and
    confirm tabs return, check portrait and landscape.
 2. Layouts: browser, Apps, settings, dialogs, search, recovery.
-3. Text selection: copy, dictionary (English, Hebrew, Aramaic), note, underline;
-   restart and confirm underlines and notes remain; repeat in a text-layer PDF.
-4. Study books: see `docs/tanach/docs/tanach-epub.md` and
-   `docs/talmud/docs/reader-device-findings.md`.
+3. Text selection: confirm the 48 dp handles are easy to grab; then copy, look up,
+   add a note, and underline in English, Hebrew, and Aramaic. Restart and confirm
+   notes and underlines remain; repeat in a text-layer PDF. Multi-paragraph selection
+   is not yet expected to work.
+4. Study books: in Genesis, enable Parshiyot and Aliyot, choose Bereishit's fifth
+   aliyah, and confirm the view starts at its Genesis 4:19 heading (not Genesis 4:1).
+   Toggle back to Chapters and confirm each mode shows only its own headings and
+   contents. Confirm Parshah/Aliyah labels place English left and Hebrew right. Then
+   clear the disposable cache, reopen the EPUB, and confirm it imports and opens.
+   See `docs/tanach/docs/tanach-epub.md` and
+   `docs/talmud/docs/reader-device-findings.md` for the wider study-book pass.
 
 **PDF regression (after future PDF changes).** Use one text/vector PDF and one scanned
 PDF, with the same renderer and refresh mode:
@@ -174,5 +181,3 @@ PDF, with the same renderer and refresh mode:
 
 **When reporting a problem,** include the renderer, the Bigme refresh mode, and the
 side-button assignment.
-
-user here, is there any flutter test that can be added?

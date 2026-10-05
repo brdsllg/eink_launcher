@@ -8,7 +8,9 @@ its text automatically; tapping an underline shows its note, with Edit and Delet
 Bigme validation is still pending. The feature is therefore considered
 implemented-but-not-finally-confirmed: selection works within a single block,
 while multi-paragraph selection remains unsupported and is still a desired
-improvement.
+improvement. Following the 5 October device pass, the selection handles have a
+48 dp touch target; their physical usability still needs confirmation on the
+HiBreak.
 
 ## Scope
 
@@ -21,10 +23,10 @@ improvement.
 ## How it works
 
 - **Selection:** a long-press snaps to a word; the handles then grow or shrink the
-  selection one character at a time, clamped to the block's text. Handles live in an
-  overlay outside the clipped text slice, so short paragraphs and page-boundary
-  selections still have reachable controls. The action bar sits above the selection
-  (below if there is no room).
+  selection one character at a time, clamped to the block's text. Each has a 48 dp
+  touch target and lives in an overlay outside the clipped text slice, so short
+  paragraphs and page-boundary selections still have reachable controls. The action
+  bar sits above the selection (below if there is no room).
 - **Actions:** Copy puts the exact selected text on the clipboard. Dictionary opens
   the offline definition. Underline saves an annotation with no note. Add Note
   saves one with the typed note.

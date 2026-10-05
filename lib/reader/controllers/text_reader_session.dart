@@ -902,9 +902,18 @@ class TextReaderSession extends ReaderSession {
     final lifecycle = _lifecycleGeneration;
     final generation = _paginationGeneration;
     final spineIndex = _spineIndexForPosition(target, book);
-    await _ensureChapterPages(spineIndex, through: target);
+    // Navigation parsed from a study EPUB is intentionally cheap: its lazy
+    // chapter skeleton has no anchor map, so the initial target's block index
+    // is 0 even when it carries a precise block id.  Resolve that id after the
+    // chapter is loaded *before* asking the paginator for pages.  Otherwise a
+    // distant Aliyah briefly (and sometimes persistently) displayed the first
+    // verse of its chapter.
+    await _ensureChapterLoaded(spineIndex);
     if (!_navigationCurrent(lifecycle, generation)) return false;
-    _goToPosition(target);
+    final resolved = _clampPosition(target, _book!);
+    await _ensureChapterPages(spineIndex, through: resolved);
+    if (!_navigationCurrent(lifecycle, generation)) return false;
+    _goToPosition(resolved);
     _trimResidentChapters();
     return true;
   }

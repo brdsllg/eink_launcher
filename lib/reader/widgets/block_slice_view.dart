@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
 
 import '../models/annotation.dart';
 import '../models/content_block.dart';
@@ -47,6 +47,9 @@ class BlockSliceView extends StatefulWidget {
 }
 
 class _BlockSliceViewState extends State<BlockSliceView> {
+  // A 48 dp target is usable on the HiBreak's e-ink panel while the small
+  // visible marker still points precisely at the selected text boundary.
+  static const double _selectionHandleSize = 48;
   TextSelection? _selection;
   final _overlay = OverlayPortalController();
   final _surfaceKey = GlobalKey();
@@ -179,13 +182,13 @@ class _BlockSliceViewState extends State<BlockSliceView> {
         ),
         for (final start in [true, false])
           Positioned(
-            left: (start ? first.dx - 24 : last.dx).clamp(
+            left: (start ? first.dx - _selectionHandleSize : last.dx).clamp(
               0.0,
-              overlay.size.width - 24,
+              overlay.size.width - _selectionHandleSize,
             ),
             top: (start ? first.dy : last.dy).clamp(
               0.0,
-              overlay.size.height - 24,
+              overlay.size.height - _selectionHandleSize,
             ),
             child: GestureDetector(
               key: Key(
@@ -206,11 +209,11 @@ class _BlockSliceViewState extends State<BlockSliceView> {
                 _dragHandle(start, _dragPosition!, width);
               },
               child: SizedBox(
-                width: 24,
-                height: 24,
+                width: _selectionHandleSize,
+                height: _selectionHandleSize,
                 child: Align(
                   alignment: start ? Alignment.topRight : Alignment.topLeft,
-                  child: Container(width: 8, height: 16, color: Colors.black),
+                  child: Container(width: 12, height: 24, color: Colors.black),
                 ),
               ),
             ),
