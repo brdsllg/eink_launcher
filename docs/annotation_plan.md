@@ -4,8 +4,11 @@ Long-pressing a word starts a selection with draggable handles. An action bar of
 **Copy**, **Dictionary**, **Add Note**, and **Underline**. Adding a note underlines
 its text automatically; tapping an underline shows its note, with Edit and Delete.
 
-**Status:** implemented and covered by automated tests (analysis clean, full suite
-passing). **Still to do:** the check on the Bigme (below).
+**Status:** implemented in code and covered by automated tests, but the current
+Bigme validation is still pending. The feature is therefore considered
+implemented-but-not-finally-confirmed: selection works within a single block,
+while multi-paragraph selection remains unsupported and is still a desired
+improvement.
 
 ## Scope
 

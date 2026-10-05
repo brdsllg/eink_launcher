@@ -19,12 +19,14 @@ target was the Bigme B751C.
 - **Latest checks (5 Oct 2026):** 436 automated tests pass. The one failure, in the
   PDF runtime test, also occurs without recent changes and is unrelated. Static
   analysis shows only two minor `avoid_print` notices.
+- **Current device status:** several areas are confirmed on the Bigme, but the
+  remaining work is still concentrated in tabs, newer layouts, selection and
+  annotations, dictionaries, and study books. This project does not treat any of
+  those partial checks as complete. See [DEVICE_TESTING.md](DEVICE_TESTING.md).
 - **Confirmed on the device:** PDF page turns, scrolling and zooming with no
   ghosting or white flashes; startup, recovery, app drawer, and battery behavior
-  (2 Sept); physical page buttons (18 Sept).
-- **No recorded device check yet:** tabs, the newer screen layouts, text
-  selection/annotations, the Hebrew dictionaries, and Tanach/Talmud study books.
-  See [DEVICE_TESTING.md](DEVICE_TESTING.md).
+  (2 Sept); physical page buttons (18 Sept). The status of newer features is
+  tracked in the device checklist rather than assumed to be complete.
 
 ## What the app does
 

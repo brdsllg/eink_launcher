@@ -77,7 +77,7 @@ buttons enabled. The Bigme was not sending any supported key to this app. **Assi
 the side buttons to D-pad Left/Right in the Bigme firmware fixed it at once.** Details
 and supported key pairs: [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md).
 
-### Recent Device Testing (User pass on HiBreak)
+### 5 oct test (User pass on HiBreak)
 
 - **Steps 1–4 (Startup, Browser, PDF, Tabs):** Completed successfully with no problems.
 - **Step 5.2 (Selection):** Selection handles are quite small. Selection works within a single block, but does not extend across multiple paragraphs, which is a desired feature.
@@ -88,7 +88,7 @@ and supported key pairs: [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md).
   - EPUB TOC links: Chapter links work, but aliyot links never work even when enabled.
   - UI preference: If aliyot are enabled, chapters should be hidden, and vice versa.
   - Headings formatting: Chapters show "Genesis x" without a Hebrew equivalent on the right side. Parshiyot and aliyot show both English and Hebrew on the left side instead of being separated like pesukim.
-- **File Browser Quirk:** Occasionally (observed after deleting all open tabs), folders refuse to open on tap unless navigating up a folder and back in.
+- **File Browser Quirk:** Occasionally (observed after deleting all open tabs though couldnt be recreated), folders refuse to open on tap unless navigating up a folder and back in.
 
 ## Measurements (version 1.0.2)
 
@@ -174,3 +174,5 @@ PDF, with the same renderer and refresh mode:
 
 **When reporting a problem,** include the renderer, the Bigme refresh mode, and the
 side-button assignment.
+
+user here, is there any flutter test that can be added?
