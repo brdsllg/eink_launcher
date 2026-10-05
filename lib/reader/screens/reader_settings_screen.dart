@@ -19,6 +19,10 @@ class ReaderSettingsScreen extends StatefulWidget {
   /// so only Torah readers are offered the switch.
   final bool hasParshaToc;
 
+  /// The unit of a recognized study book: `'verse'` (Tanach) or `'segment'`
+  /// (Talmud). Only used to word the study controls; null reads as verse.
+  final String? studyUnit;
+
   const ReaderSettingsScreen({
     super.key,
     required this.initialSettings,
@@ -27,6 +31,7 @@ class ReaderSettingsScreen extends StatefulWidget {
     this.studyTranslations = const [],
     this.primaryStudyTranslationId,
     this.hasParshaToc = false,
+    this.studyUnit,
   });
 
   @override
@@ -56,6 +61,8 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
     }
   }
 
+  bool get _segmentUnit => widget.studyUnit == 'segment';
+
   void _changeOverlap(double delta) {
     final overlap = (_settings.splitOverlap + delta).clamp(0.0, 0.20);
     setState(() => _settings = _settings.copyWith(splitOverlap: overlap));
@@ -83,11 +90,13 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
   List<Widget> _textControls() => [
     if (widget.studySources.isNotEmpty ||
         widget.studyTranslations.isNotEmpty) ...[
-      const Text(
-        'Selected commentary appears after each verse. If a language or translation is missing, the available text is kept.',
+      Text(
+        'Selected commentary appears after each '
+        '${_segmentUnit ? 'segment' : 'verse'}. If a language or translation is '
+        'missing, the available text is kept.',
       ),
       _StudySelector(
-        label: 'Verse language',
+        label: _segmentUnit ? 'Talmud language' : 'Verse language',
         child: DropdownButtonFormField<String>(
           key: const Key('reader-settings-verse-language'),
           isExpanded: true,

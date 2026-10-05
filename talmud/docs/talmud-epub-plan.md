@@ -81,6 +81,16 @@ measure, then scale.
 - Same posture as Tanach: personal use only; private LFS or direct copy only;
   never the public repo or its releases.
 
+## Decision: pilot commentary policy (2026-10-05)
+
+- **Blacklist stays empty; Steinsaltz study notes stay in the pilot** (Levi's
+  call, resolving the open question in `reader-device-findings.md` #1). The
+  pilot commentary set remains Rashi + Tosafot + Steinsaltz, and the William
+  Davidson (Steinsaltz) translation is unchanged.
+- The broader scale-up policy from 2026-10-02 still stands: include every
+  Sefaria commentary on the Bavli with an empty blacklist, to be re-checked
+  against the measured device budget after the scale-up measurements.
+
 ## Open decision: commentary policy (to discuss after measuring)
 
 Levi does not know the meforshim well and prefers a **blacklist** (include

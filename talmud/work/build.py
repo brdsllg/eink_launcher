@@ -62,6 +62,15 @@ def natural(s):
     return tuple(int(x) if x.isdigit() else x for x in re.split(r'(\d+)', s))
 
 
+def natural_key(s):
+    """Sort key that orders digit runs numerically (2 before 10) and never
+    compares an int with a str, so refs with different shapes can't raise."""
+    return tuple(
+        (0, int(x)) if x.isdigit() else (1, x)
+        for x in re.split(r'(\d+)', s)
+    )
+
+
 # ─── Amud helpers ────────────────────────────────────────────────────────────
 # Sefaria addresses Bavli pages as strings: '2a', '2b', '3a', ...
 # We store them as (daf_number, side) where side is 0='a', 1='b'.
@@ -76,6 +85,35 @@ def amud_to_key(amud_str):
 
 def key_to_amud(daf, side):
     return f'{daf}{"a" if side == 0 else "b"}'
+
+
+def amud_from_index(idx0):
+    """Amud label for a 0-based array index in a Sefaria Bavli text.
+
+    Sefaria addresses Bavli arrays from the very first amud: index 0 is 1a,
+    1 is 1b, 2 is 2a, and so on. A tractate that opens on 2a therefore has two
+    leading empty entries (and Tamid, which opens on 25b, has many more).
+    Counting from 2a instead labels every amud one daf too late.
+    """
+    return key_to_amud(idx0 // 2 + 1, idx0 % 2)
+
+
+def amud_sequence(count):
+    """Labels for the first `count` entries of a Sefaria Bavli array."""
+    for idx0 in range(count):
+        yield amud_from_index(idx0)
+
+
+# First amud of each pilot tractate in the standard Vilna pagination. Used only
+# to warn when a build labels the first amud differently (an offset bug).
+EXPECTED_FIRST_AMUD = {
+    'Berakhot': '2a',
+    'Shabbat': '2a',
+    'Bava Metzia': '2a',
+    'Bava Batra': '2a',
+    'Sanhedrin': '2a',
+    'Tamid': '25b',
+}
 
 
 def amud_display(amud_str):
@@ -336,23 +374,9 @@ def generate(conn, editions, masechtos=None):
             body = [
                 f'<h1 class="amud-heading" id="amud-{e(amud)}">'
                 f'<span lang="en" xml:lang="en" dir="ltr">{e(amud_display(amud))}</span>'
-                f' <span lang="he" xml:lang="he" dir="rtl">{e(amud_display_he(amud))}</span>'
                 f'</h1>'
             ]
             aside_blocks = []
-
-            # All notes attached to any segment in this amud
-            amud_notes = {
-                row['id']: row
-                for row in conn.execute(
-                    '''SELECT DISTINCT n.*
-                       FROM notes n
-                       JOIN note_refs r ON r.note_id = n.id
-                       WHERE r.masechta = ? AND r.amud = ?
-                       ORDER BY n.sort_order, n.ref''',
-                    (masechta, amud),
-                )
-            }
 
             segments_rows = list(conn.execute(
                 '''SELECT * FROM segments
@@ -365,28 +389,33 @@ def generate(conn, editions, masechtos=None):
                 seg_id = f's-{ms}-{amud}-{seg["seg_num"]}'
                 seg_ref = f'{masechta} {amud}:{seg["seg_num"]}'
 
-                # Notes for this segment
-                note_ids = [
-                    row['note_id']
-                    for row in conn.execute(
-                        '''SELECT DISTINCT r.note_id, n.sort_order, n.ref
+                # Notes for this segment, grouped by source: one group (one
+                # aside, one title) per source, comments in natural ref order.
+                note_rows = sorted(
+                    conn.execute(
+                        '''SELECT DISTINCT n.id, n.source, n.sort_order, n.ref,
+                                  n.he, n.en
                            FROM note_refs r
                            JOIN notes n ON n.id = r.note_id
-                           WHERE r.masechta = ? AND r.amud = ? AND r.seg_num = ?
-                           ORDER BY n.sort_order, n.ref''',
+                           WHERE r.masechta = ? AND r.amud = ? AND r.seg_num = ?''',
                         (masechta, amud, seg['seg_num']),
-                    )
-                ]
-                total_notes.update(note_ids)
+                    ),
+                    key=lambda r: (
+                        r['sort_order'] or 0,
+                        r['source'] or '',
+                        natural_key(r['ref'] or ''),
+                    ),
+                )
+                groups = {}
+                for row in note_rows:
+                    groups.setdefault(row['source'] or row['id'], []).append(row)
+                total_notes.update(row['id'] for row in note_rows)
 
-                # Heading row: "Berakhot 2a:1"  /  "ברכות ב׳ עמוד א׳:א׳"
-                seg_num_he = _hebrew_number(seg['seg_num'])
+                # Heading row, English only: "Berakhot 2a:1"
                 heading = (
                     f'<div class="segment-heading">'
                     f'<span lang="en" xml:lang="en" dir="ltr">{e(seg_ref)}</span>'
-                    f' <span lang="he" xml:lang="he" dir="rtl">'
-                    f'{e(masechta)} {e(amud_display_he(amud))}:{e(seg_num_he)}'
-                    f'</span></div>'
+                    f'</div>'
                 )
 
                 # Hebrew/Aramaic text
@@ -414,7 +443,7 @@ def generate(conn, editions, masechtos=None):
                 # Note index link
                 index_id = f'idx-{seg_id}'
                 noteref_links = ''
-                if note_ids:
+                if groups:
                     noteref_links = (
                         f'<p class="note-links">'
                         f'<a href="#{index_id}">Notes &amp; commentary</a>'
@@ -428,86 +457,49 @@ def generate(conn, editions, masechtos=None):
                     + '</section>'
                 )
 
-                # Index aside for this segment
-                if note_ids:
-                    index_links = ''.join(
-                        f'<a epub:type="noteref" href="#{e("g-" + nid)}">'
-                        f'{e(amud_notes[nid]["source"] if nid in amud_notes else nid)}'
-                        f'</a> '
-                        for nid in note_ids
-                        if nid in amud_notes
-                    )
+                # One index aside per segment (one link per source) and one
+                # commentary aside per source, each holding all of that
+                # source's comments on this segment under a single title.
+                if groups:
+                    index_links = []
+                    for gi, (source_disp, rows) in enumerate(groups.items(), 1):
+                        gid = f'g-{seg_id}-{gi}'
+                        index_links.append(
+                            f'<a epub:type="noteref" href="#{e(gid)}">'
+                            f'{e(source_disp)}</a> '
+                        )
+                        parts = []
+                        for row in rows:
+                            he_content = clean(row['he'] or '')
+                            en_content = clean(row['en'] or '')
+                            if he_content:
+                                parts.append(
+                                    f'<div class="note-he" dir="rtl" lang="he" '
+                                    f'xml:lang="he">{he_content}</div>'
+                                )
+                            if en_content:
+                                parts.append(
+                                    f'<div class="note-en" dir="ltr" lang="en" '
+                                    f'xml:lang="en">{en_content}</div>'
+                                )
+                        aside_blocks.append(
+                            f'<aside epub:type="footnote" id="{e(gid)}" '
+                            f'class="commentary-note" data-source="{e(source_disp)}" '
+                            f'data-category="commentary" data-ref="{e(seg_ref)}">'
+                            f'<p class="note-title">'
+                            f'{e(source_disp)} {e(amud)}:{seg["seg_num"]}</p>'
+                            + ''.join(parts)
+                            + f'<p class="backlinks"><a href="#{e(seg_id)}">'
+                            f'↑ {seg["seg_num"]}</a></p>'
+                            + '</aside>'
+                        )
                     body.append(
                         f'<aside epub:type="footnote" id="{e(index_id)}" '
                         f'class="note-index">'
-                        f'<p class="note-links">{index_links}</p>'
+                        f'<p class="note-links">{"".join(index_links)}</p>'
                         f'</aside>'
                     )
-                    used.update(note_ids)
-
-            # Commentary asides (grouped by source+segment, one per amud)
-            note_order = list(dict.fromkeys(
-                row['note_id']
-                for row in conn.execute(
-                    '''SELECT r.note_id, n.sort_order, n.ref
-                       FROM note_refs r
-                       JOIN notes n ON n.id = r.note_id
-                       WHERE r.masechta = ? AND r.amud = ?
-                       ORDER BY n.sort_order, n.ref''',
-                    (masechta, amud),
-                )
-            ))
-
-            for nid in note_order:
-                if nid not in amud_notes:
-                    continue
-                n = amud_notes[nid]
-                gid = 'g-' + nid
-                source_disp = n['source'] or nid
-                ref_disp = n['ref'] or ''
-                note_title = (
-                    f'<p class="note-title">'
-                    f'{e(source_disp)}'
-                    f'{(" on " + e(ref_disp)) if ref_disp and ref_disp != source_disp else ""}'
-                    f'</p>'
-                )
-                # Segments attached to this group for back-navigation
-                attached_segs = [
-                    f's-{ms}-{amud}-{row["seg_num"]}'
-                    for row in conn.execute(
-                        'SELECT seg_num FROM note_refs WHERE note_id=? AND masechta=? AND amud=?',
-                        (nid, masechta, amud),
-                    )
-                ]
-                backlinks = (
-                    '<p class="backlinks">'
-                    + ' '.join(
-                        f'<a href="#{e(sid)}">↑ {e(sid.split("-")[-1])}</a>'
-                        for sid in attached_segs
-                    )
-                    + '</p>'
-                )
-
-                he_content = clean(n['he'] or '')
-                en_content = clean(n['en'] or '')
-                he_div = (
-                    f'<div class="note-he" dir="rtl" lang="he" xml:lang="he">'
-                    f'{he_content}</div>'
-                    if he_content else ''
-                )
-                en_div = (
-                    f'<div class="note-en" dir="ltr" lang="en" xml:lang="en">'
-                    f'{en_content}</div>'
-                    if en_content else ''
-                )
-
-                aside_blocks.append(
-                    f'<aside epub:type="footnote" id="{e(gid)}" '
-                    f'class="commentary-note" data-source="{e(source_disp)}" '
-                    f'data-category="commentary" data-ref="{e(ref_disp)}">'
-                    + note_title + he_div + en_div + backlinks
-                    + '</aside>'
-                )
+                    used.update(row['id'] for rows in groups.values() for row in rows)
 
             files[_amud_filename(amud)] = xhtml(
                 f'{masechta} {amud}',
@@ -780,7 +772,7 @@ def normalize(conn, pilot_masechtos=None):
     # ── Insert Hebrew segments ───────────────────────────────────────────────
     # Sefaria Bavli text structure: d['text'] is a list of amudim, each a list
     # of segment strings. Amud labels come from d['sectionNames'] + d['sections'].
-    # Fallback: index-based amud generation starting from 2a.
+    # Amud labels are generated from the array index, starting at 1a (index 0).
     segment_keys = set()
 
     for b, d, eid in docs:
@@ -795,18 +787,9 @@ def normalize(conn, pilot_masechtos=None):
             WARN.append(dict(kind='unexpected_text_structure', masechta=masechta))
             continue
 
-        # Generate amud labels: start at 2a, then 2b, 3a, 3b, ...
-        def _amud_sequence(count):
-            daf = 2
-            side = 0  # 0=a, 1=b
-            for _ in range(count):
-                yield key_to_amud(daf, side)
-                side += 1
-                if side > 1:
-                    side = 0
-                    daf += 1
-
-        for amud, chapter_segs in zip(_amud_sequence(len(text_data)), text_data):
+        # Amud labels come from the array index; index 0 is 1a (see
+        # amud_from_index), so leading empty entries are simply skipped below.
+        for amud, chapter_segs in zip(amud_sequence(len(text_data)), text_data):
             if not isinstance(chapter_segs, list):
                 chapter_segs = [chapter_segs] if chapter_segs else []
             daf_n, side_n = amud_to_key(amud)
@@ -831,17 +814,7 @@ def normalize(conn, pilot_masechtos=None):
         if not isinstance(text_data, list):
             continue
 
-        def _amud_sequence(count):
-            daf = 2
-            side = 0
-            for _ in range(count):
-                yield key_to_amud(daf, side)
-                side += 1
-                if side > 1:
-                    side = 0
-                    daf += 1
-
-        for amud, chapter_segs in zip(_amud_sequence(len(text_data)), text_data):
+        for amud, chapter_segs in zip(amud_sequence(len(text_data)), text_data):
             if not isinstance(chapter_segs, list):
                 chapter_segs = [chapter_segs] if chapter_segs else []
             for seg_idx, seg_text in enumerate(chapter_segs, 1):
@@ -939,12 +912,9 @@ def normalize(conn, pilot_masechtos=None):
                 amud_idx = loc[0]
                 seg_num = loc[1] if len(loc) > 1 else 1
 
-                def _amud_from_idx(idx):
-                    daf = 2 + (idx - 1) // 2
-                    side = (idx - 1) % 2
-                    return key_to_amud(daf, side)
-
-                amud = _amud_from_idx(amud_idx)
+                # Commentary arrays use the same convention as the base text:
+                # loc[0] is 1-based, so index 1 is 1a.
+                amud = amud_from_index(amud_idx - 1)
                 if (base_masechta, amud, seg_num) in segment_keys:
                     nid = resolver[prefix][loc]
                     attachments.add((
@@ -1033,8 +1003,24 @@ def normalize(conn, pilot_masechtos=None):
     )
     conn.commit()
 
+    # Record the first amud per tractate so a rebuild can be checked at a glance
+    # (Berakhot must open on 2a, Tamid on 25b), and warn when it is not.
+    first_amud = {}
+    for m_name, a_label in conn.execute(
+        'SELECT masechta, amud FROM segments ORDER BY masechta, daf, side'
+    ):
+        first_amud.setdefault(m_name, a_label)
+    for m_name, expected in EXPECTED_FIRST_AMUD.items():
+        got = first_amud.get(m_name)
+        if got is not None and got != expected:
+            WARN.append(dict(
+                kind='unexpected_first_amud', masechta=m_name,
+                expected=expected, got=got,
+            ))
+
     report = dict(
         masechtos=len(target_masechtos),
+        first_amud=first_amud,
         segments=len(segment_keys),
         notes=len(attached),
         attachments=len(attachments),

@@ -122,32 +122,20 @@
   },
   "cache_inputs": {
     "books.json": {
-      "sha256": "dff0dd23027fc9e0b5c992d8b95648b89977cecd31e6e57e21ac382924025edc",
-      "bytes": 21688002
+      "sha256": "00a8da34a5c1e8bfc4983897e4e0711eb4c8e3971d4e7b08957fb61a34424917",
+      "bytes": 21746806
     },
     "books.json.meta.json": {
-      "sha256": "f53238a8727e8455b3eedd6b21349486a46648393c1550562692ccd97b559782",
-      "bytes": 356
-    },
-    "download-plan.json": {
-      "sha256": "5f6b4f22cea49549c06ad452884c37f5c4386bf0d320dee88777ec89bfe6e1a0",
-      "bytes": 79840
-    },
-    "schemas-failures.json": {
-      "sha256": "8eefd4ddc13a9f8ae5550a5e41358547b22d3ff1c8fdae6e8a1a96e14d5d5672",
-      "bytes": 742
+      "sha256": "90d3aa2726f4c114be1ce41490f06f65f65873dfc97233b37e27bd54c2285bc7",
+      "bytes": 349
     },
     "table_of_contents.json": {
-      "sha256": "d2886a9a37e58e15e4238fed64ddb388db5c073600988a001d14f9e2f8b2311a",
-      "bytes": 10820059
+      "sha256": "ddffa33ca4d34237f504c1f51e05be26786a8589e66a920ae7f4124789e97941",
+      "bytes": 10822534
     },
     "table_of_contents.json.meta.json": {
-      "sha256": "c0b96cef73bf0549fd5616450502fb18a855c7b4d01357a9a9a48cf5e351c9e0",
-      "bytes": 345
-    },
-    "texts-failures.json": {
-      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "bytes": 2
+      "sha256": "6b731f95d3bc00dc50fc209d54648f7d73202cdd384f1405df11298fc8050acd",
+      "bytes": 338
     }
   },
   "sources": [

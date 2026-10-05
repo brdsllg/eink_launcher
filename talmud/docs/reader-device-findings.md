@@ -322,4 +322,81 @@ SQLite file directly, and the reader would open it without the import step.
 - Bigme B751C RAM and free storage.
 - Any commentaries to blacklist from the start (duplicates, wrong-language
   editions, works with little text)?
-- user here, i have a question: would it be a practical possibility to do the memory and cpu intensive work on first open on a laptop and save the data when importing to the device? 
+- user here, i have a question: would it be a practical possibility to do the memory and cpu intensive work on first open on a laptop and save the data when importing to the device?
+
+---
+
+## Status and work order (2026-10-05)
+
+Checked against the current code before editing; the item numbers above are
+unchanged but several reader items were already fixed.
+
+**Already fixed in the reader before this pass:** #4 (`resizeToAvoidBottomInset:
+false` in `reader_screen.dart`) and #7 (`openLink` now loads a lazy chapter
+before looking up its anchor). `ParsedBook.studyUnit` and its cache plumbing
+also existed; only the settings labels were missing.
+
+**Changed this pass (run and verified 2026-10-05; see the block below):**
+- G / #9 — `build.py` now labels amudim from array index 0 = 1a
+  (`amud_from_index`). The build report records `first_amud` per tractate and
+  warns `unexpected_first_amud` if a pilot tractate does not open on its known
+  first amud (Berakhot 2a, Tamid 25b, the rest 2a).
+- #2 — segment and amud headings are English only.
+- #3 and #5 — one commentary aside per source per segment, titled like
+  `Rashi on Berakhot 3a:1`, comments in natural order (1, 2, 10), one index link
+  per source. Aside ids are now `g-<segment id>-<n>`.
+- #8 — the settings screen reads "Talmud language" / "after each segment" when
+  `studyUnit == 'segment'` (Tanach wording unchanged).
+
+**Decided 2026-10-05:** #1 Steinsaltz — **Levi: keep Steinsaltz, blacklist stays
+empty.** No `inventory.py` change; the pilot set remains Rashi/Tosafot/Steinsaltz.
+Recorded in `talmud-epub-plan.md`.
+
+**Run and verified (2026-10-05, after re-syncing the Sefaria cache):**
+- The local `talmud/work/cache/` was gone, so the full sync was re-run:
+  `sync.py catalog` → `inventory.py` → `sync.py schemas|texts|links` (264/264
+  texts, 17/17 link CSVs; only the known Ta'anit / Mo'ed Katan / Me'ilah schema
+  404s, none in the pilot). `outputs/source-selection.json` only changed in
+  cache fingerprints.
+- `python talmud/work/build.py --pilot` — all 6 EPUBs built.
+  `build-report.json`: `first_amud` = Berakhot 2a, Tamid 25b, Shabbat 2a,
+  Bava Metzia 2a, Bava Batra 2a, Sanhedrin 2a; **no `unexpected_first_amud`
+  warning**. Warnings: only the 2 known French-edition `language_mismatch`
+  entries (Rashi/Tosafot on Berakhot).
+- Spot checks on `berakhot.epub`: spine starts `title, nav, amud-2a, amud-2b`;
+  nav starts at `Daf 2a`; `Berakhot 2a:1` begins מאימתי קורין את שמע (#9 fixed);
+  headings English-only, no Hebrew in `h1`–`h6` (#2 fixed); asides titled
+  `Rashi on Berakhot 2a:1` style, one per source per segment (#3, #5 fixed).
+- `validate.py --pilot`: **all 6 EPUBs passed** (EPUBCheck 5.4.0 exit 0 +
+  structural OK). `audit_links.py --pilot`: no link errors. EPUBCheck/JDK 21
+  were fetched to `talmud/work/tools/` (unpacked, not installed).
+- `flutter analyze`: only the 2 pre-existing `avoid_print` infos in
+  `file_intent_service.dart`. `flutter test`: 436 passed; the single failure
+  (`pdf_runtime_service_test`) reproduces **without** this pass's changes, so it
+  is pre-existing and unrelated.
+- Not done: the on-device check — no Bigme was connected (the attached device
+  is a Samsung SM-A176B without the app installed).
+
+**Next, in this order:**
+1. Run the pilot build (`python talmud/work/build.py --pilot`, a full
+   normalize, not `regenerate.py`) and check `build-report.json`: `first_amud`
+   correct, no `unexpected_first_amud` warning. Then confirm Berakhot 2a:1
+   starts with מאימתי קורין את שמע. Run `validate.py --pilot` and
+   `audit_links.py --pilot`.
+2. Run `flutter analyze` / `flutter test`, push the new EPUBs, and check on the
+   Bigme: headings, one title per source, Contents links, settings wording.
+3. Only then the scaling work (E): index comments per source instead of
+   rescanning for every link row, one tractate at a time, one edition per
+   language.
+4. Measure one big tractate with 2, then about 5, then all sources (step 4 above).
+
+**Undecided, not started:**
+- ~~#1 Steinsaltz notes~~ — **decided 2026-10-05: kept** (see above).
+- F (source discovery looks incomplete): `books.json` and `table_of_contents.json`
+  are now in `talmud/work/cache/` (re-synced 2026-10-05), so this can be
+  investigated on this machine.
+- #6 (logcat): needs the full stack trace.
+- Reader: restrict search to selected sources; group or add search to the
+  source picker.
+- Laptop-built cache or the SQLite format: decision gate after step 4.
+- Record the blacklist decision and measured numbers in `talmud-epub-plan.md`. 
