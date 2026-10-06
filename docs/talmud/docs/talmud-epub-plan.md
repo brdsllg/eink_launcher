@@ -103,7 +103,8 @@ repository or its releases.
 
 Done: the shared study-text contract (the reader accepts the Talmud dialect, so the
 books open as study text with commentary-source, commentary-language, and translation
-controls and the SQLite cache); "Talmud language" / "after each segment" wording. The
+controls and the SQLite cache); "Talmud language" option with the "Selected
+commentary appears after each segment…" helper sentence. The
 Parshah/Aliyot toggle stays hidden because Talmud has no Parshah contents.
 
 Implemented Oct 2026: a setting to hide vowel points; a paragraph-versus-continuous

@@ -22,7 +22,28 @@ validation on the Bigme remains.
   and index-to-note link resolves), database invariants, heading checks, and
   grouped-note content preservation. The reader's all-book import, reopen, first/last
   chapter, and search test passed on 24 Sept.
-- **Not established:** performance on the device for the largest books.
+- **Device status 6 Oct 2026 (HiBreak, release):** chapters mode, bilingual
+  headings, and chapter contents pass; cold import after cache clear **1m 45s**,
+  warm reopen **~2s** (no Tanach sidecars built — on-device import). Parsha mode
+  has open builder/reader issues, tracked below; full log in
+  `docs/DEVICE_TESTING.md`.
+
+### Device findings (6 Oct 2026, owner pass) — open
+
+1. **Parsha order (Builder, confirmed in source):** the Miketz entry (Gen
+   41:1–44:17) is listed after Vayechi (Gen 47:28–50:26) in
+   `tanach/work/build.py`, so parsha contents show Miketz after Vayechi.
+2. **Aliyah landings (Builder + Reader):** Bereishit 5th aliyah lands on Gen
+   4:1 with no heading (want 4:19); the 4th lands on Gen 3 (reported want
+   2:20); Noach portions also misbehave. Builder mapping and reader
+   lazy-anchor resolution both suspect.
+3. **Chapters retained in parsha mode (Reader):** `_applyHeadingMode`
+   (`lib/reader/services/tanach_layout_service.dart`) strips only top-level
+   `body h1` non-parsha headings, so chapter headings at other levels survive.
+   Want parsha/aliyah headings only in parsha mode.
+4. **Escaped markup visible (TBD):** literal `span` / `class` / `nbsp` text in
+   places. Capture exact book/verse examples before assigning builder vs
+   reader.
 
 ### Source limits (kept, not filled in)
 
@@ -113,8 +134,10 @@ The native reader:
 Import, cache, and search behavior are described in `READER_PLAN.md` (study books).
 The exact EPUB format is in `outputs/reader-compatibility.md`.
 
-The latest presentation has **not yet been confirmed on the device**; do not claim the
-selector, layout, or label problems are solved there.
+Device confirmation 6 Oct 2026: translation selector (Metsudah default, no generic
+option), bilingual one-row headings, and grouped commentary titles are confirmed
+on the Bigme in chapters mode. Parsha-mode headings/labels are not confirmed
+(open device findings above).
 
 ## EPUB package limits (not blockers for the reader)
 
@@ -197,9 +220,13 @@ should come back to Levi. The authoritative list is `outputs/source-selection.js
 
 ## Next work
 
-1. Install the updated reader on the Bigme and test the largest books (Genesis,
-   Exodus, Leviticus, Deuteronomy, Numbers, Psalms): cold import, warm reopen,
-   pagination, memory pressure, search, and note navigation.
+1. Fix the parsha/aliyah builder data (Miketz order, aliyah mapping, escaped
+   markup) and the reader heading-mode exclusivity, build Tanach
+   `.study.sqlite` sidecars (`dart run tool/build_study_index.dart`), then
+   re-run the device pass: cold import, warm reopen, 5th-aliyah landing (want
+   Gen 4:19 heading), parsha-only headings, Chapters/Parshiyot exclusivity.
+   Then extend to the other largest books (Exodus, Leviticus, Deuteronomy,
+   Numbers, Psalms): pagination, memory pressure, search, and note navigation.
 2. Have the owner check the latest formatting on the device before treating the
    presentation as final. Do not revert settled preferences while troubleshooting.
 3. Revisit the source limits only if broader edition approval or a different text

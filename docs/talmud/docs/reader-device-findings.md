@@ -5,25 +5,32 @@ Batra, Sanhedrin, Tamid) in the custom reader on the Bigme, and the analysis of
 whether the format can carry *every* commentary. **Owner** shows where a fix lives:
 *Builder* (regenerate the EPUBs) or *Reader* (Dart code in `lib/reader`).
 
-## Status of the nine findings (5 Oct 2026)
+## Status of the nine findings (6 Oct 2026: verified on the Bigme unless noted)
 
 | # | Item | Owner | Status |
 |---|---|---|---|
 | 1 | Steinsaltz notes included | Builder | **Closed.** Levi chose to keep them |
-| 2 | Bilingual reference headings; wanted English-only | Builder | Fixed and verified on the computer |
-| 3 | Doubled commentary titles ("Rashi on Berakhot on Rashi on…") | Builder | Fixed and verified |
-| 4 | Page numbers shifted when the keyboard opened | Reader | Fixed (keyboard no longer resizes the reader) |
-| 5 | One title per note instead of per commented section | Builder | Fixed and verified (one block per source per segment) |
+| 2 | Bilingual reference headings; wanted English-only | Builder | **Verified on device 6 Oct** |
+| 3 | Doubled commentary titles ("Rashi on Berakhot on Rashi on…") | Builder | **Verified on device 6 Oct** |
+| 4 | Page numbers shifted when the keyboard opened | Reader | **Verified on device 6 Oct** |
+| 5 | One title per note instead of per commented section | Builder | **Verified on device 6 Oct** |
 | 6 | Logcat: "Another exception was thrown: DiagnosticsProperty<void>" | — | **Open: needs the full error text** |
-| 7 | Contents-page links ("Daf 3a"…) did nothing | Reader | Fixed (links now load the target chapter first) |
-| 8 | Settings said "Verse language" | Reader | Fixed ("Talmud language" / "after each segment") |
-| 9 | Berakhot began at Daf 3a (2a and 2b missing) | Builder | Fixed; cause was a one-daf offset, now corrected |
+| 7 | Contents-page links ("Daf 3a"…) did nothing | Reader | **Verified on device 6 Oct** |
+| 8 | Settings said "Verse language" | Reader | **Verified on device 6 Oct** ("Talmud language" shown; "after each segment" is the helper sentence *"Selected commentary appears after each segment…"*, not a control label — checklist corrected) |
+| 9 | Berakhot began at Daf 3a (2a and 2b missing) | Builder | **Verified on device 6 Oct** (opens at 2a, correct words) |
 
-The builder fixes (2, 3, 5, 9) were checked on the pilot rebuild: Berakhot opens at
-2a with `Berakhot 2a:1` beginning מאימתי קורין את שמע; headings contain no Hebrew;
-commentary blocks are one per source per segment and titled like `Rashi on Berakhot
-2a:1`. All six EPUBs pass EPUBCheck and the link audit. **None of this has been
-checked on the Bigme** (no Bigme was connected at the time).
+New device-verified timings (owner stopwatch, HiBreak release): first open
+**21s**, reopen **1–2s**. The 21s first open suggests a stale/missing sidecar
+with fallback to on-device import — verify sidecar fingerprints next pass.
+Full device log: `docs/DEVICE_TESTING.md` (6 Oct 2026 pass).
+
+### Open follow-ups from the 6 Oct device pass
+
+| # | Item | Owner | Status |
+|---|---|---|---|
+| 10 | Commentary display order: picker is Rashi → Tosafot → rest, but reading order with all sources selected puts Steinsaltz before Tosafot | Reader | Open. Projected notes append in builder index-link order, not `orderedStudySources` rank; sort appended notes by source rank. Standing order wanted: Rashi then Tosafot first |
+| 11 | Berakhot → Continuous mode crashed the launcher | Reader | Open crash bug. Capture `adb logcat` around the switch; add a regression test once the cause is known |
+| 12 | Vowels/punctuation toggle shows no change on Talmud text | — | Likely expected (unpointed text); verify the same toggle on a pointed Tanach verse before calling it a bug |
 
 ### Item 6 (open)
 
@@ -40,19 +47,23 @@ cause is known.
 2. **Copy each `.study.sqlite` next to its EPUB** (built with
    `dart run tool/build_study_index.dart talmud/outputs/books`). First opens
    should be instant with no import wait; if a sidecar is stale the reader
-   falls back to importing on the device.
-2. **Berakhot start and headings:** open Berakhot. It should begin at **Daf 2a**
+   falls back to importing on the device. (Verify fingerprints if a first
+   open still takes ~20s.)
+3. **Berakhot start and headings:** open Berakhot. It should begin at **Daf 2a**
    (מאימתי קורין את שמע), and headings should be English-only with no duplicated Hebrew.
-3. **Commentary:** tap a segment with Rashi. Notes should be grouped per source per
+4. **Commentary:** tap a segment with Rashi. Notes should be grouped per source per
    segment with clean titles such as `Rashi on Berakhot 2a:1`.
-4. **Contents links:** on the book's Contents page, tap "Daf 3a" or "Daf 3b"; it
+5. **Contents links:** on the book's Contents page, tap "Daf 3a" or "Daf 3b"; it
    should jump straight to that amud.
-5. **Settings wording:** the options should read **"Talmud language"** and **"after
-   each segment"**.
-6. **Page-jump keyboard:** open "Go to page" or "Go to percent". The keyboard should
+6. **Settings wording:** the language option should read **"Talmud language"**;
+   the helper sentence above the selectors reads **"Selected commentary appears
+   after each segment…"**.
+7. **Page-jump keyboard:** open "Go to page" or "Go to percent". The keyboard should
    appear over the reader without changing page numbers or position.
-7. **Commentary picker:** it should list Rashi, Tosafot, and Steinsaltz (kept on
+8. **Commentary picker:** it should list Rashi, Tosafot, and Steinsaltz (kept on
    purpose), plus the Rashi-slot substitutes for Bava Batra and Tamid.
+   With several sources selected, reading order should keep Rashi then Tosafot
+   first (open item 10).
 
 ## How the reader treats study books
 

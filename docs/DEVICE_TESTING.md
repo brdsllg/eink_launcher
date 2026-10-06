@@ -17,9 +17,10 @@ refresh-mode name was never recorded.
 | EPUB/TXT/Markdown open, search, saved positions | Confirmed |
 | Physical page buttons | Confirmed (with the button assignment described below) |
 | Tabs, newer screen layouts | **Checked (Steps 1-4 passed successfully)** |
-| Selection, notes, underlines | **Partially checked (larger handle targets are implemented; multi-paragraph selection remains a planned feature)** |
+| Selection, notes, underlines | **Partially checked (48 dp handles confirmed grabbable 6 Oct; bidirectional handles requested; multi-paragraph selection remains a planned feature)** |
 | Hebrew and English dictionaries | **Checked (Passed)** |
-| Tanach and Talmud study books | **Partially checked (October source fixes await a physical recheck)** |
+| Tanach study books | **Partially checked (6 Oct: chapters/bilingual pass; parsha/aliyah builder data faulty — Miketz misordered, aliyah landings off, chapters retained in parsha mode, escaped markup visible)** |
+| Talmud study books | **Partially checked (6 Oct: Berakhot start/headings/links pass; commentary display order, Continuous crash, vowels explainer open)** |
 | Renderer preference, preview/sharpen timing, unplugged idle battery drain | Optional measurements, never taken |
 
 ## Test history
@@ -90,6 +91,66 @@ and supported key pairs: [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md).
   - Headings formatting: chapter headings remain chapter-only. Parshiyot and aliyot now use the same bilingual split renderer as pesukim (English left, Hebrew right); this needs a HiBreak recheck.
 - **File Browser Quirk:** Observed once after deleting all open tabs, but could not be reproduced. The normal folder-opening regression test passes; keep this in the next device pass and record exact steps if it recurs.
 
+### 6 Oct 2026: release pass (owner, HiBreak, release build)
+
+Fresh full rebuild installed by the owner. Timings are stopwatch-measured below.
+
+- **Tanach (Genesis):**
+  - Cold open after install showed "loading" for over a minute. There is currently
+    **no prebuilt sidecar workflow for Tanach**: `tool/build_study_index.dart`
+    works for any study EPUB (Tanach included), but no Tanach sidecars were
+    built/copied, so the device imports on first open. Follow-up: build Tanach
+    sidecars on the laptop and copy each `<book>.study.sqlite` next to its EPUB.
+  - Parshiyot/aliyot toggle enables successfully, but **chapter headings remain
+    visible in parsha mode** (want parsha/aliyah headings only). Reader cause:
+    `_applyHeadingMode` (`lib/reader/services/tanach_layout_service.dart`)
+    removes only top-level `body h1` non-parsha headings in parsha mode, so
+    chapter headings at other levels survive.
+  - **Aliyah landings are wrong, not just one anchor:** Bereishit 5th aliyah
+    lands on Genesis 4:1 with no 5th-aliyah heading (want 4:19); the 4th lands
+    on Genesis 3 (reported want: 2:20); Noach portions also misbehave.
+  - **Builder data bug (confirmed in source):** in `tanach/work/build.py` the
+    Miketz entry (Gen 41:1–44:17) is listed *after* Vayechi (Gen 47:28–50:26),
+    so the parsha contents order is wrong (Miketz appears after Vayechi).
+  - **Escaped markup visible in places:** literal `span`, `class`, `nbsp` text
+    in the rendered book. Needs exact book/verse examples captured before a
+    builder-vs-reader call is made.
+  - Chapters mode, bilingual headings, and chapter contents all pass.
+- **Cache reimport (Genesis):** after clearing the disposable cache, cold
+  import took **1m 45s** (stopwatch); warm reopen **~2s**.
+- **Talmud (Berakhot pilot):**
+  - First open **21s**, reopen **1–2s**, begins at **Daf 2a** with the correct
+    opening words. (21s suggests the sidecar was stale/missing and the reader
+    fell back to on-device import; verify sidecar fingerprints next pass.)
+  - Headings English-only, no duplication — pass. Commentary grouped one block
+    per source per segment — pass. Contents daf links — pass. Page-jump
+    keyboard overlay — pass. Picker lists Rashi/Tosafot/Steinsaltz — pass.
+  - **Commentary display order:** the picker itself is now correctly ordered
+    (Rashi → Tosafot → rest), but with all sources selected the *reading* order
+    puts Steinsaltz before Tosafot. Reader cause: projected notes are appended
+    in builder index-link order, not in `orderedStudySources` rank order
+    (`tanach_layout_service.dart` projection loop). Follow-up: sort appended
+    commentary notes by source rank. Requested standing order: Rashi then
+    Tosafot first when reading with multiple commentaries.
+  - **Settings wording:** "Talmud language" confirmed. "After each segment" was
+    never a control label — it is the helper sentence *"Selected commentary
+    appears after each segment…"* above the selectors. No action; checklist
+    wording corrected in `docs/talmud/docs/reader-device-findings.md`.
+  - **Vowels toggle on Talmud:** showing/hiding vowel points and punctuation
+    produced no visible change. Expected if the Talmud text carries no niqqud;
+    verify on a pointed Tanach verse before calling it a bug.
+  - **Continuous mode crash:** switching Berakhot to Continuous crashed the
+    launcher. Open crash bug — needs `adb logcat` around the switch plus a
+    regression test once the cause is known.
+  - Search "Kayin": 22 matches — consistent with the earlier base-text-only
+    check.
+- **Selection:** 48 dp handles confirmed easy to grab. Request: bidirectional
+  handles (either handle drags either direction, modern-phone style) instead of
+  fixed forward/back roles. Notes/underlines persistence and text-layer PDF
+  repeat were not re-run (already passed 5 Oct).
+- **Ghosting/refresh:** reported "all beautiful" — no ghosting or white
+  flashes on this pass.
+
 ## Measurements (version 1.0.2)
 
 **Cold start** (Android's activity display time; five runs each):
@@ -124,6 +185,17 @@ Legacy-renderer scanned-PDF pass (fresh process, so not comparable): 214,545 tot
 First full page of each PDF type was visible by the second sample (about 2 s after
 the tap). Screenshot capture slows sampling, so this is coarse.
 
+## Measurements (study books, 6 Oct 2026, owner stopwatch, HiBreak release)
+
+| Book | Cold (after cache clear / first open) | Warm reopen |
+| --- | --- | --- |
+| Genesis (Tanach, no sidecar — on-device import) | **1m 45s** | **~2s** |
+| Berakhot (Talmud pilot; sidecar likely stale/missing — verify) | **21s** | **1–2s** |
+
+Sidecar workflow: `dart run tool/build_study_index.dart <book.epub|books-dir>`
+builds a `<book>.study.sqlite` that must sit next to its EPUB; a stale sidecar
+falls back to on-device import. Applies to Tanach books too, not just Talmud.
+
 ## Limits of the evidence
 
 - Screenshots show app pixels, not e-ink ghosting; the owner's observation fills that
@@ -149,17 +221,21 @@ deleted; copies, generators, and raw timings are kept locally in
 1. Tabs: open and close mixed formats, switch while one is loading, restart and
    confirm tabs return, check portrait and landscape.
 2. Layouts: browser, Apps, settings, dialogs, search, recovery.
-3. Text selection: confirm the 48 dp handles are easy to grab; then copy, look up,
-   add a note, and underline in English, Hebrew, and Aramaic. Restart and confirm
-   notes and underlines remain; repeat in a text-layer PDF. Multi-paragraph selection
+3. Text selection: bidirectional handles (either handle drags either way) are a
+   new request; then copy, look up, add a note, and underline in English,
+   Hebrew, and Aramaic on the new-handle code. Restart and confirm notes and
+   underlines remain; repeat in a text-layer PDF. Multi-paragraph selection
    is not yet expected to work.
-4. Study books: in Genesis, enable Parshiyot and Aliyot, choose Bereishit's fifth
-   aliyah, and confirm the view starts at its Genesis 4:19 heading (not Genesis 4:1).
-   Toggle back to Chapters and confirm each mode shows only its own headings and
-   contents. Confirm Parshah/Aliyah labels place English left and Hebrew right. Then
-   clear the disposable cache, reopen the EPUB, and confirm it imports and opens.
-   See `docs/tanach/docs/tanach-epub.md` and
-   `docs/talmud/docs/reader-device-findings.md` for the wider study-book pass.
+4. Study books (details live here; builders/trackers own the fixes):
+   - Tanach: needs rebuilt EPUBs (parsha order, aliyah mapping, escaped
+     markup) — see `docs/tanach/docs/tanach-epub.md` — plus Tanach sidecars,
+     then recheck 5th-aliyah landing (want Gen 4:19 heading), parsha-only
+     headings, and Chapters/Parshiyot exclusivity.
+   - Talmud: needs commentary display-order fix + Continuous-crash diagnosis —
+     see `docs/talmud/docs/reader-device-findings.md` — then recheck
+     multi-source order (Rashi → Tosafot), Continuous layout, and sidecar
+     fingerprints. Capture `adb logcat` for any crash and exact book/verse
+     for any escaped markup.
 
 **PDF regression (after future PDF changes).** Use one text/vector PDF and one scanned
 PDF, with the same renderer and refresh mode:
