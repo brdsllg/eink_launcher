@@ -201,7 +201,7 @@ def main():
             if stop is None or start is None or stop + 1 != start:
                 problems.append(f'{book}: gap or overlap after {before["start"]}')
         entries = []
-        for name in names:
+        for name in sorted(names, key=lambda n: readings[n]['start']):
             record = readings[name]
             label = NAME_OVERRIDES.get(name, name).replace('-', ' ')
             boundaries = record['aliyot']

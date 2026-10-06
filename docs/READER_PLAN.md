@@ -97,7 +97,7 @@ book at open time.
 Each session sets its image budget from Android's normal heap class: 25%, clamped to
 4–128 MiB, or 32 MiB if unknown. Images on screen, the active native render, PDFium
 data, and graphics memory sit outside that budget, which is why suspension and
-memory-pressure recovery matter. On the HiBreak, total memory after sequential PDF
+memory-pressure recovery matter. On the HiBreak (B751C), total memory after sequential PDF
 use was about 332 MiB and fell to about 148 MiB after memory-pressure recovery.
 
 ## Text (EPUB, TXT, Markdown)

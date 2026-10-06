@@ -3,9 +3,8 @@
 Everything tested on the physical device, in one place: what was checked, what the
 measurements were, what is still unchecked, and checklists for next time.
 
-Devices: all tests so far used a **Bigme HiBreak** (Android 14, arm64, 1264 × 1680,
-density 300, 256 MiB normal heap class, default Impeller OpenGLES renderer). The
-original target, the **Bigme B751C**, has not been physically verified. The Bigme's
+Devices: all tests so far used a **Bigme HiBreak (model B751C)** (Android 14, arm64, 1264 × 1680,
+density 300, 256 MiB normal heap class, default Impeller OpenGLES renderer). The Bigme's
 refresh-mode name was never recorded.
 
 ## Status at a glance
@@ -78,7 +77,7 @@ buttons enabled. The Bigme was not sending any supported key to this app. **Assi
 the side buttons to D-pad Left/Right in the Bigme firmware fixed it at once.** Details
 and supported key pairs: [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md).
 
-### 5 oct test (User pass on HiBreak)
+### 5 Oct test (User pass on HiBreak)
 
 - **Steps 1–4 (Startup, Browser, PDF, Tabs):** Completed successfully with no problems.
 - **Step 5.2 (Selection):** Selection worked within a single block, but its handles were quite small and it did not extend across multiple paragraphs. The source follow-up increases each handle's touch target to 48 dp; multi-paragraph selection remains a planned feature because annotations are anchored to one block. The larger handles still need a HiBreak check.
@@ -94,6 +93,11 @@ and supported key pairs: [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md).
 ### 6 Oct 2026: release pass (owner, HiBreak, release build)
 
 Fresh full rebuild installed by the owner. Timings are stopwatch-measured below.
+Code fixes landed after this pass (6 Oct fix pass, host-tested, needs recheck):
+Continuous-crash root cause (segment headings parsed as paragraphs), commentary
+reading-order sort, parsha-order + heading-mode fixes, vowel-range unification,
+bidirectional handles, inventory Finding F. Rebuild EPUBs + sidecars before the
+next device pass.
 
 - **Tanach (Genesis):**
   - Cold open after install showed "loading" for over a minute. There is currently
@@ -221,11 +225,11 @@ deleted; copies, generators, and raw timings are kept locally in
 1. Tabs: open and close mixed formats, switch while one is loading, restart and
    confirm tabs return, check portrait and landscape.
 2. Layouts: browser, Apps, settings, dialogs, search, recovery.
-3. Text selection: bidirectional handles (either handle drags either way) are a
-   new request; then copy, look up, add a note, and underline in English,
+3. Text selection: bidirectional handles (either handle drags either way) are built
+   6 Oct and need a device recheck; then copy, look up, add a note, and underline in English,
    Hebrew, and Aramaic on the new-handle code. Restart and confirm notes and
    underlines remain; repeat in a text-layer PDF. Multi-paragraph selection
-   is not yet expected to work.
+   via **More** is expected to work; direct drag-across-blocks is not yet expected.
 4. Study books (details live here; builders/trackers own the fixes):
    - Tanach: needs rebuilt EPUBs (parsha order, aliyah mapping, escaped
      markup) — see `docs/tanach/docs/tanach-epub.md` — plus Tanach sidecars,

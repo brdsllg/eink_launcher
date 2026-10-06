@@ -138,16 +138,22 @@ def main():
 
     # ── Build sources list (commentaries) ───────────────────────────────────
     # Find all commentary and supercommentary titles linked to Bavli.
+    # Sefaria files most commentaries UNDER Talmud/Bavli (e.g. categories
+    # ['Talmud','Bavli','Rishonim on Talmud',...]), so the commentary check
+    # must come before the base-text skip. Only true base-text nodes
+    # (masechtos without commentary markers) are skipped.
     commentary_titles = set()
     for n in _walk(toc):
         cats = n.get('categories', [])
-        if 'Talmud' in cats and 'Bavli' in cats:
-            continue  # base text
-        if any(
+        is_commentary = any(
             c in cats
             for c in ('Rishonim on Talmud', 'Acharonim on Talmud', 'Modern Commentary on Talmud')
-        ):
+        )
+        if is_commentary:
             commentary_titles.add(n['title'])
+            continue
+        if 'Talmud' in cats and 'Bavli' in cats:
+            continue  # base text, guides, minor tractates
     # Also add explicitly required pilot sources.
     for m in MASECHTA_ORDER:
         for prefix in ('Rashi on', 'Tosafot on', 'Steinsaltz on'):

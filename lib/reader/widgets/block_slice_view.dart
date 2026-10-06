@@ -56,6 +56,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
   final _overlay = OverlayPortalController();
   final _surfaceKey = GlobalKey();
   Offset? _dragPosition;
+  bool? _draggingStart;
   ContentBlock get block => widget.block;
   BlockSlice get slice => widget.slice;
   ReaderSettings get settings => widget.settings;
@@ -133,13 +134,28 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     final max = painter.text!.toPlainText().length;
     final selection = _selection!;
     painter.dispose();
-    setState(
-      () => _selection = start
-          ? selection.copyWith(baseOffset: offset.clamp(min, selection.end - 1))
-          : selection.copyWith(
-              extentOffset: offset.clamp(selection.start + 1, max),
-            ),
-    );
+    final clamped = offset.clamp(min, max);
+    // Bidirectional handles (modern-phone style): either handle drags either
+    // direction. When the dragged edge crosses the anchor, flip which edge
+    // the finger controls so the handle stays under the finger.
+    final anchor = start ? selection.extentOffset : selection.baseOffset;
+    TextSelection next;
+    var nextStart = start;
+    if ((start && clamped <= anchor) || (!start && clamped >= anchor)) {
+      next = start
+          ? selection.copyWith(baseOffset: clamped)
+          : selection.copyWith(extentOffset: clamped);
+    } else {
+      // Crossed: anchor becomes the new start, finger takes the far edge.
+      next = TextSelection(baseOffset: anchor, extentOffset: clamped);
+      nextStart = !start;
+      _draggingStart = nextStart;
+    }
+    // Keep at least one char selected.
+    if (next.start == next.end) {
+      return;
+    }
+    setState(() => _selection = next);
   }
 
   Widget _selectionOverlay(BuildContext context, double width) {
@@ -210,6 +226,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
               behavior: HitTestBehavior.opaque,
               onPanStart: (_) {
                 final box = start ? boxes.first : boxes.last;
+                _draggingStart = start;
                 _dragPosition = surface.localToGlobal(
                   Offset(
                     start ? box.start : box.end,
@@ -219,7 +236,10 @@ class _BlockSliceViewState extends State<BlockSliceView> {
               },
               onPanUpdate: (details) {
                 _dragPosition = _dragPosition! + details.delta;
-                _dragHandle(start, _dragPosition!, width);
+                _dragHandle(_draggingStart ?? start, _dragPosition!, width);
+              },
+              onPanEnd: (_) {
+                _draggingStart = null;
               },
               child: SizedBox(
                 width: _selectionHandleSize,

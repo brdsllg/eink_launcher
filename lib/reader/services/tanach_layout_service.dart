@@ -187,7 +187,26 @@ class TanachLayoutService {
             );
             if (replacement != null) primary.replaceWith(replacement);
           }
-          for (final noteEntry in linked.entries) {
+          // Sort commentary by picker rank (Rashi/Rashbam/Mefaresh, Tosafot,
+          // then rest) so reading order matches the picker, not builder
+          // index-link order which put Steinsaltz before Tosafot.
+          final orderedNotes = linked.entries.toList()
+            ..sort((a, b) {
+              final rankA = _sourceRank(a.value.attributes['data-source'] ?? '');
+              final rankB = _sourceRank(b.value.attributes['data-source'] ?? '');
+              if (rankA != rankB) return rankA.compareTo(rankB);
+              final aIsTrans =
+                  a.value.attributes['data-category'] == 'translation' ? 0 : 1;
+              final bIsTrans =
+                  b.value.attributes['data-category'] == 'translation' ? 0 : 1;
+              if (aIsTrans != bIsTrans) return aIsTrans.compareTo(bIsTrans);
+              return (a.value.attributes['data-source'] ?? '')
+                  .toLowerCase()
+                  .compareTo(
+                    (b.value.attributes['data-source'] ?? '').toLowerCase(),
+                  );
+            });
+          for (final noteEntry in orderedNotes) {
             final note = noteEntry.value;
             extracted.add(note);
             changedPaths.add(noteEntry.key.split('#').first);
@@ -296,6 +315,11 @@ class TanachLayoutService {
       );
       if (settings.studyContinuous) {
         blocks = mergeContinuousBlocks(blocks);
+        // Repair anchors for ids that were merged away: map every pre-merge
+        // id to its post-merge block index instead of leaving stale indices.
+        for (final entry in TanachLayoutService._lastMergeRemap.entries) {
+          anchors[entry.key] = entry.value;
+        }
       }
       return ParsedSpineItem(
         id: item.id,
@@ -371,18 +395,23 @@ class TanachLayoutService {
   ///
   /// The builder emits the chapter heading next to the Parshah/Aliyah
   /// headings, so a reader that follows one table of contents must not also
-  /// page through the other's headings. Chapters without a Parshah heading
-  /// are left untouched.
+  /// page through the other's headings. In parsha mode chapter headings are
+  /// hidden whenever the chapter carries any parsha or aliyah heading, so
+  /// only parsha/aliyah headings page (device finding 6 Oct: chapter headings
+  /// survived because only top-level `body h1` in dual chapters were stripped).
   static void _applyHeadingMode(
     Document document, {
     required bool showParshaAliyot,
   }) {
-    final dual = document.querySelector('h1.parsha-heading') != null;
-    if (dual && showParshaAliyot) {
-      for (final heading in document.querySelectorAll('body h1')) {
-        if (!heading.classes.contains('parsha-heading')) heading.remove();
+    if (showParshaAliyot) {
+      final hasParshaOrAliyah =
+          document.querySelector('.parsha-heading, .aliyah-heading') != null;
+      if (hasParshaOrAliyah) {
+        for (final heading in document.querySelectorAll('h1')) {
+          if (!heading.classes.contains('parsha-heading')) heading.remove();
+        }
+        return;
       }
-      return;
     }
     for (final heading
         in document.querySelectorAll('.parsha-heading, .aliyah-heading')) {
@@ -527,20 +556,9 @@ class TanachLayoutService {
   /// Rashi (and its slot substitutes Rashbam/Mefaresh) first, Tosafot
   /// second, then the rest alphabetically.
   static List<String> orderedStudySources(Set<String> sources) {
-    int rank(String source) {
-      final lower = source.toLowerCase();
-      if (lower.startsWith('rashi') ||
-          lower.startsWith('rashbam') ||
-          lower.startsWith('mefaresh')) {
-        return 0;
-      }
-      if (lower.startsWith('tosafot')) return 1;
-      return 2;
-    }
-
     final sorted = sources.toList()
       ..sort((a, b) {
-        final rankCompare = rank(a).compareTo(rank(b));
+        final rankCompare = _sourceRank(a).compareTo(_sourceRank(b));
         if (rankCompare != 0) return rankCompare;
         return a.toLowerCase().compareTo(b.toLowerCase());
       });
@@ -550,45 +568,118 @@ class TanachLayoutService {
   /// Talmud continuous mode: join consecutive body paragraphs so breaks fall
   /// only at headings (segment headings like `Berakhot 2a:1`) and amud/file
   /// boundaries. Headings, lists, quotes, images and rules stay as separators.
+  /// Merges break on direction/style change and are chunked so one amud can
+  /// never become a single giant TextPainter (the Berakhot Continuous crash).
   static List<ContentBlock> mergeContinuousBlocks(List<ContentBlock> blocks) {
+    const maxChars = 4000;
+    const maxRuns = 200;
     final merged = <ContentBlock>[];
+    // Maps every pre-merge block id to its post-merge index so anchors survive.
+    final idRemap = <String, int>{};
     var pending = <InlineRun>[];
     var pendingDirection = BlockTextDirection.ltr;
     String? pendingId;
+    double? pendingFontSize;
+    double? pendingLineHeight;
+    int pendingChars = 0;
+    final pendingIds = <String>[];
 
     void flush() {
       if (pending.isEmpty) return;
+      final index = merged.length;
       merged.add(
         ContentBlock(
           type: BlockType.paragraph,
           runs: List<InlineRun>.unmodifiable(pending),
           direction: pendingDirection,
           id: pendingId,
+          fontSizeMultiplier: pendingFontSize,
+          lineHeight: pendingLineHeight,
         ),
       );
+      for (final id in pendingIds) {
+        idRemap[id] = index;
+      }
       pending = <InlineRun>[];
       pendingId = null;
+      pendingFontSize = null;
+      pendingLineHeight = null;
+      pendingChars = 0;
+      pendingIds.clear();
     }
 
-    for (final block in blocks) {
+    bool compatible(ContentBlock block) {
+      if (pending.isEmpty) return true;
+      if (block.direction != pendingDirection) return false;
+      if (block.fontSizeMultiplier != pendingFontSize) return false;
+      if (block.lineHeight != pendingLineHeight) return false;
+      if (block.alignment != BlockAlignment.start) return false;
+      if (pendingChars + block.characterCount > maxChars) return false;
+      if (pending.length + block.runs.length > maxRuns) return false;
+      return true;
+    }
+
+    for (var i = 0; i < blocks.length; i++) {
+      final block = blocks[i];
+      if (block.id != null) {
+        // Record pre-merge index; remapped to merged index on flush.
+        // Non-merged blocks map to themselves below.
+        if (block.type != BlockType.paragraph ||
+            block.resourcePath != null ||
+            block.trailingRuns.isNotEmpty) {
+          idRemap[block.id!] = merged.length;
+        }
+      }
       if (block.type == BlockType.paragraph &&
           block.resourcePath == null &&
-          block.trailingRuns.isEmpty) {
+          block.trailingRuns.isEmpty &&
+          block.alignment == BlockAlignment.start) {
+        if (!compatible(block)) {
+          flush();
+        }
         if (pending.isEmpty) {
           pendingDirection = block.direction;
           pendingId = block.id;
+          pendingFontSize = block.fontSizeMultiplier;
+          pendingLineHeight = block.lineHeight;
         }
         if (pending.isNotEmpty) {
           pending.add(const InlineRun(text: ' '));
+          pendingChars += 1;
         }
         pending.addAll(block.runs);
+        pendingChars += block.characterCount;
+        if (block.id != null) pendingIds.add(block.id!);
+        // Chunk huge runs so no single block overwhelms TextPainter.
+        if (pendingChars >= maxChars || pending.length >= maxRuns) {
+          flush();
+        }
       } else {
         flush();
         merged.add(block);
       }
     }
     flush();
+    // Stash remap on merged blocks via id lookup done by caller.
+    _lastMergeRemap
+      ..clear()
+      ..addAll(idRemap);
     return List<ContentBlock>.unmodifiable(merged);
+  }
+
+  /// Remap from pre-merge block ids to post-merge indices for the last call.
+  /// Used to repair anchors that would otherwise point at stale indices.
+  static final Map<String, int> _lastMergeRemap = <String, int>{};
+
+  static int _sourceRank(String source) {
+    final lower = source.toLowerCase();
+    if (lower.startsWith('rashi') ||
+        lower.startsWith('rashbam') ||
+        lower.startsWith('mefaresh')) {
+      return 0;
+    }
+    if (lower.startsWith('tosafot')) return 1;
+    return 2;
   }
 
   static void _stableIds(Element root, String prefix) {

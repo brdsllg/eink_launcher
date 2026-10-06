@@ -7,8 +7,7 @@
 An Android home launcher, file manager, and document reader built with Flutter for
 e-ink devices. It uses black and white, instant transitions, fixed-page lists, and
 small bounded caches to limit ghosting and wasted work. It is built for personal
-sideloading. It has been tested on a Bigme HiBreak (Android 14); the original
-target was the Bigme B751C.
+sideloading. It has been tested on a Bigme HiBreak (model B751C, Android 14).
 
 ## Where things stand
 
@@ -16,10 +15,11 @@ target was the Bigme B751C.
   `build/app/outputs/flutter-apk/app-release.apk`
   (SHA-256 `01D04659FC1BEB73F5A7F8767A357ACAA1E7078E82CA8701E9C1A4C80958706E`).
   Earlier trial APKs stay in the same folder for comparison.
-- **Latest source checks (5 Oct 2026):** The focused reader, selection, browser, and
-  study-book tests pass after the October device-test fixes. The full suite still has
-  the pre-existing PDF runtime-test failure; static analysis has only two minor
-  `avoid_print` notices.
+- **Latest source checks (6 Oct 2026):** The focused reader, selection, browser, and
+  study-book tests pass including new Continuous/commentary-order/vowel-range
+  regressions. `flutter analyze` is clean. Rebuild EPUBs (parsha-order fix) and
+  sidecars before the next HiBreak pass. See
+  [DEVICE_TESTING.md](DEVICE_TESTING.md).
 - **Current device status:** several areas are confirmed on the Bigme, but the
   remaining work is still concentrated in tabs, newer layouts, selection and
   annotations, dictionaries, and study books. This project does not treat any of
@@ -150,7 +150,7 @@ until the app has its own `FileProvider`; the file chooser relies on it.
 
 ## Next
 
-1. Run a device pass on the HiBreak (or B751C) covering tabs, layouts, annotations,
+1. Run a device pass on the HiBreak (B751C) covering tabs, layouts, annotations,
    and the dictionaries. The checklist is in [DEVICE_TESTING.md](DEVICE_TESTING.md).
 2. Test the largest Tanach books on the device: first-open time, memory, search.
 3. Finish Talmud device checks and scale-up work (see `docs/talmud/README.md`).

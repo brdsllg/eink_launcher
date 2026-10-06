@@ -1,6 +1,6 @@
 # Tanach EPUB sample set
 
-Nine chapter samples for testing on the Bigme B751C and your existing reader. These are not the complete 39 books.
+Nine chapter samples for testing on the Bigme HiBreak (B751C) and your existing reader. These are not the complete 39 books.
 
 ## Your settings
 

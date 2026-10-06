@@ -24,13 +24,13 @@ New device-verified timings (owner stopwatch, HiBreak release): first open
 with fallback to on-device import — verify sidecar fingerprints next pass.
 Full device log: `docs/DEVICE_TESTING.md` (6 Oct 2026 pass).
 
-### Open follow-ups from the 6 Oct device pass
+### Open follow-ups from the 6 Oct device pass (code-fixed, needs recheck)
 
 | # | Item | Owner | Status |
 |---|---|---|---|
-| 10 | Commentary display order: picker is Rashi → Tosafot → rest, but reading order with all sources selected puts Steinsaltz before Tosafot | Reader | Open. Projected notes append in builder index-link order, not `orderedStudySources` rank; sort appended notes by source rank. Standing order wanted: Rashi then Tosafot first |
-| 11 | Berakhot → Continuous mode crashed the launcher | Reader | Open crash bug. Capture `adb logcat` around the switch; add a regression test once the cause is known |
-| 12 | Vowels/punctuation toggle shows no change on Talmud text | — | Likely expected (unpointed text); verify the same toggle on a pointed Tanach verse before calling it a bug |
+| 10 | Commentary display order: picker is Rashi → Tosafot → rest, but reading order with all sources selected puts Steinsaltz before Tosafot | Reader | Fixed 6 Oct in source: projected notes now sort by `orderedStudySources` rank. Needs HiBreak recheck |
+| 11 | Berakhot → Continuous mode crashed the launcher | Reader | Fixed 6 Oct in source: single-span segment headings now parse as headings, merges chunked + break on direction/style, anchors remapped. Needs HiBreak recheck; capture `adb logcat` if it recurs |
+| 12 | Vowels/punctuation toggle shows no change on Talmud text | — | Likely expected (unpointed text); verify the same toggle on a pointed Tanach verse before calling it a bug. Vowel range unified 6 Oct to full U+0591–05C7 |
 
 ### Item 6 (open)
 
@@ -101,7 +101,7 @@ can be fixed in the builder.
 | C | First open sends every amud's XHTML through parsing, compression, and search-text building before anything shows. The main risk for the biggest tractates (Shabbat, Bava Batra, Bava Metzia, Zevachim, Chullin) with full commentary | Reader | Open; must be tested on the device |
 | D | Search scans every amud's text including unselected commentary, then fully projects every candidate; a common Hebrew word matches nearly every amud | Reader | Partially fixed Oct 2026: SQLite v6 splits `base_search_text`/`commentary_search_text`; with no source selected only base is scanned. With sources selected the final projection still applies the exact filter. Full per-source index still future |
 | E | Build script: the link-attachment loop rescans every comment of a source for each link row (roughly links × comments); all comments sit in memory at once; `inventory.py` downloads every non-merged edition including other languages | Builder | Open |
-| F | Source discovery may be incomplete: the manifest lists only 13 non-pilot titles "pending review", far fewer than exist, and `inventory.py` skips any category containing both `Talmud` and `Bavli` as base text, which would silently drop commentaries filed there. The rule to implement is "labeled a commentary by Sefaria's category", not "linked to the Bavli" | Builder | Unverified. `books.json` and `table_of_contents.json` are now cached (5 Oct), so it can be checked |
+| F | Source discovery may be incomplete: the manifest lists only 13 non-pilot titles "pending review", far fewer than exist, and `inventory.py` skips any category containing both `Talmud` and `Bavli` as base text, which would silently drop commentaries filed there. The rule to implement is "labeled a commentary by Sefaria's category", not "linked to the Bavli" | Builder | Fixed 6 Oct in source: commentary markers now checked before the Talmud+Bavli base-text skip (most commentaries live under Talmud/Bavli). Do NOT rerun `inventory.py` over an edited `source-selection.json`; verify by re-running inventory on a copy and comparing counts |
 | G | Amud offset (arrays assumed to start at 2a) | Builder | **Resolved**: see the plan document |
 
 ### Order of work
@@ -171,10 +171,8 @@ answer to Levi's question below: the heavy work would happen on the computer, on
   `talmud.sqlite` 83 MB for pilot content) are comfortable; the risk is only the
   full-commentary build, which is why we measure Shabbat with 2, ~5, then all
   sources before deciding.
-- How large are the full-commentary EPUBs and `talmud.sqlite`? (The Sefaria cache
-  was re-synced on 5 Oct, so sizes can now be measured. Device: 4 GB RAM.)
 - How large are the full-commentary EPUBs and `talmud.sqlite`, and what are the
   Bigme's RAM and free storage? (The Sefaria cache was re-synced on 5 Oct, so sizes
-  can now be measured.)
+  can now be measured. Device: 4 GB RAM, owner Oct 2026.)
 - Any commentaries to blacklist from the start (duplicates, wrong-language editions,
   works with little text)? Currently none.

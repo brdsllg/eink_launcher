@@ -1,6 +1,6 @@
 # Tanach EPUB reader compatibility and implementation guide
 
-This guide describes the nine direct-commentary whitelist EPUB samples generated for the Bigme B751C. It is based on inspection of the actual ZIP contents, XHTML, metadata, and links. The reader’s source code has not been inspected, so the changes below are a contract to compare against its existing implementation, not a claim that each feature is missing.
+This guide describes the nine direct-commentary whitelist EPUB samples generated for the Bigme HiBreak (B751C). It is based on inspection of the actual ZIP contents, XHTML, metadata, and links. The reader’s source code has not been inspected, so the changes below are a contract to compare against its existing implementation, not a claim that each feature is missing.
 
 ## 1. What the reader needs to do
 

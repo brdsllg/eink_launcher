@@ -7,9 +7,10 @@ reader contract; where this folder is silent, `docs/tanach/docs/tanach-epub.md` 
 segment because the pipeline rewrites it; its readable summary is in
 `docs/tanach/outputs/reader-compatibility.md`.
 
-**Status (5 Oct 2026):** the six-tractate pilot is built and passes EPUBCheck and
-link checks. Problems found on the device were fixed and re-verified on the computer.
-Still to do: checking on the Bigme, building the other 31 tractates, and the
+**Status (6 Oct 2026):** the six-tractate pilot is built and passes EPUBCheck and
+link checks. 6 Oct device findings got code fixes (Continuous crash,
+commentary order, inventory Finding F) that need rebuilt books + HiBreak
+recheck. Still to do: checking on the Bigme, building the other 31 tractates, and the
 scale-up work.
 
 ## What it produces

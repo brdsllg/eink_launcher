@@ -4,7 +4,7 @@ Draft selection manifest. Catalogs are cached locally. Edition licenses, actual 
 
 ## Confirmed preferences
 
-37 masechtos of Talmud Bavli with Gemara; Hebrew with nikud; William Davidson (Steinsaltz) English; Rashi, Tosafot, Steinsaltz commentary for the pilot; personal use; Bigme B751C.
+37 masechtos of Talmud Bavli with Gemara; Hebrew with nikud; William Davidson (Steinsaltz) English; Rashi, Tosafot, Steinsaltz commentary for the pilot; personal use; Bigme HiBreak (B751C).
 
 ## Pilot masechtos
 

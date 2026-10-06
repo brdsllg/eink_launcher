@@ -66,7 +66,7 @@ buttons are confirmed working on the Bigme test device (history in
 
 ## References
 
-Bigme documents the original B751C's page buttons on its
+Bigme documents the HiBreak (B751C)'s page buttons on its
 [product page](https://store.bigme.vip/products/bigme-7-b751c-color-epaper-notepad-with-android-11-os-copy-1)
 and in the [manual, page 5](https://cdn.shopify.com/s/files/1/0629/1311/8387/files/B751C_V5.0.pdf?v=1734508307).
 Flutter receives the standard Android keys through its normal path; handling them in

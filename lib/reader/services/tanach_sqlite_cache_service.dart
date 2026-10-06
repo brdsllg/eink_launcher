@@ -629,14 +629,7 @@ String normalizeTanachSearchText(String source) {
   return buffer.toString().trim();
 }
 
-bool _isHebrewMark(int rune) =>
-    (rune >= 0x0591 && rune <= 0x05bd) ||
-    rune == 0x05bf ||
-    rune == 0x05c1 ||
-    rune == 0x05c2 ||
-    rune == 0x05c4 ||
-    rune == 0x05c5 ||
-    rune == 0x05c7;
+bool _isHebrewMark(int rune) => rune >= 0x0591 && rune <= 0x05c7;
 
 List<Map<String, dynamic>> _encodeBlocks(List<ContentBlock> blocks) => [
   for (final block in blocks)

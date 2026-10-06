@@ -1,6 +1,6 @@
 # Talmud Bavli EPUB pilot sample set
 
-Pilot amudim for device testing on the Bigme B751C. Not the complete 37-masechta collection.
+Pilot amudim for device testing on the Bigme HiBreak (B751C). Not the complete 37-masechta collection.
 
 ## Your settings
 

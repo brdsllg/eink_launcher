@@ -148,6 +148,16 @@ class _HtmlWalker {
   void _parseBlockElement(Element element, {required int listDepth}) {
     final tag = element.localName ?? '';
     if (_ignoredTags.contains(tag)) return;
+    // Study headings must stay headings even when the builder emits a single
+    // span (Talmud segment headings are English-only). Otherwise a
+    // `<div class="segment-heading">` falls through to parseContainer and
+    // becomes a plain paragraph, so continuous mode merges an entire amud
+    // into one giant block and the launcher OOMs/crashes.
+    final studyHeadingType = _studyHeadingType(element);
+    if (studyHeadingType != null) {
+      _addTextElement(element, studyHeadingType);
+      return;
+    }
     if (tag == 'hr') {
       blocks.add(const ContentBlock(type: BlockType.horizontalRule));
       return;
@@ -235,7 +245,8 @@ class _HtmlWalker {
     // opposite directions; treating only verse headings specially collapsed
     // Parshah and Aliyah labels onto the left in the native reader. Talmud
     // segment and amud headings get the same treatment so both study books
-    // share one heading style.
+    // share one heading style. Single-span headings (Talmud English-only)
+    // still stay headings so continuous mode breaks at segment boundaries.
     if (element.classes.contains('verse-heading') ||
         element.classes.contains('parsha-heading') ||
         element.classes.contains('aliyah-heading') ||
@@ -255,7 +266,7 @@ class _HtmlWalker {
           _styleFor(spans.last, inherited),
         );
         _addTextBlock(
-          type,
+          _studyHeadingType(element) ?? type,
           element: element,
           runs: leading,
           trailingRuns: trailing,
@@ -264,6 +275,17 @@ class _HtmlWalker {
             trailing.map((run) => run.text).join(),
           ),
         );
+        return;
+      }
+      final forced = _studyHeadingType(element);
+      if (forced != null) {
+        final style = _styleFor(element, const _RunStyle());
+        final runs = _inlineRuns(
+          element.nodes,
+          style,
+          preserveWhitespace: forced == BlockType.preformatted,
+        );
+        _addTextBlock(forced, element: element, runs: runs);
         return;
       }
     }
@@ -607,6 +629,19 @@ class _HtmlWalker {
     'pre' => BlockType.preformatted,
     _ => BlockType.paragraph,
   };
+
+  BlockType? _studyHeadingType(Element element) {
+    if (element.classes.contains('parsha-heading') ||
+        element.classes.contains('amud-heading')) {
+      return BlockType.heading1;
+    }
+    if (element.classes.contains('aliyah-heading') ||
+        element.classes.contains('verse-heading') ||
+        element.classes.contains('segment-heading')) {
+      return BlockType.heading2;
+    }
+    return null;
+  }
 }
 
 class _BlockPresentation {

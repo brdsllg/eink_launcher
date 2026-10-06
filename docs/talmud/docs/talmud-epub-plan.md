@@ -1,8 +1,9 @@
 # Talmud EPUB plan
 
-**Status (5 Oct 2026):** pilot built and validated for six tractates (Berakhot,
+**Status (6 Oct 2026):** pilot built and validated for six tractates (Berakhot,
 Shabbat, Bava Metzia, Bava Batra, Sanhedrin, Tamid). The reader's study-book support
-covers Talmud. Device checking, the other 31 tractates, and scale-up remain. Generated
+covers Talmud. Code fixes 6 Oct (Continuous crash, commentary order, inventory
+Finding F) need rebuilt books + Bigme recheck. Device checking, the other 31 tractates, and scale-up remain. Generated
 data is local under `work/` and `outputs/` and ignored by git.
 
 Read `docs/tanach/docs/tanach-epub.md` first, plus

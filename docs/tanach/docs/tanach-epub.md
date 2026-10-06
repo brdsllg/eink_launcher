@@ -1,6 +1,6 @@
 # Tanach EPUB project: current brief
 
-Last updated 22 Sept 2026 (Hebrew-size amendment 28 Sept). Later decisions here
+Last updated 6 Oct 2026 (parsha-order + heading-mode fix; Hebrew-size amendment 28 Sept). Later decisions here
 supersede earlier experiments. Read this before changing the project, and do not
 re-ask settled preference questions.
 
@@ -28,19 +28,23 @@ validation on the Bigme remains.
   has open builder/reader issues, tracked below; full log in
   `docs/DEVICE_TESTING.md`.
 
-### Device findings (6 Oct 2026, owner pass) — open
+### Device findings (6 Oct 2026, owner pass) — code-fixed, needs rebuilt EPUBs + recheck
 
-1. **Parsha order (Builder, confirmed in source):** the Miketz entry (Gen
-   41:1–44:17) is listed after Vayechi (Gen 47:28–50:26) in
-   `tanach/work/build.py`, so parsha contents show Miketz after Vayechi.
+1. **Parsha order (Builder, fixed in source 6 Oct):** the Miketz entry (Gen
+   41:1–44:17) was listed after Vayechi (Gen 47:28–50:26) in
+   `tanach/work/build.py`; Leviticus was also out of canonical order. Fixed to
+   Vayeshev → Miketz → Vayigash → Vayechi and Vayikra → Bechukotai;
+   `derive_parshiyot.py` now sorts by start so regeneration won't regress.
+   Rebuild EPUBs + sidecars, then recheck contents order.
 2. **Aliyah landings (Builder + Reader):** Bereishit 5th aliyah lands on Gen
    4:1 with no heading (want 4:19); the 4th lands on Gen 3 (reported want
    2:20); Noach portions also misbehave. Builder mapping and reader
-   lazy-anchor resolution both suspect.
-3. **Chapters retained in parsha mode (Reader):** `_applyHeadingMode`
-   (`lib/reader/services/tanach_layout_service.dart`) strips only top-level
-   `body h1` non-parsha headings, so chapter headings at other levels survive.
-   Want parsha/aliyah headings only in parsha mode.
+   lazy-anchor resolution both suspect. Retest after rebuild.
+3. **Chapters retained in parsha mode (Reader, fixed in source 6 Oct):**
+   `_applyHeadingMode` (`lib/reader/services/tanach_layout_service.dart`)
+   stripped only top-level `body h1` in dual chapters; now hides chapter `h1`
+   whenever any parsha/aliyah heading exists in the chapter. Want
+   parsha/aliyah headings only in parsha mode. Needs recheck.
 4. **Escaped markup visible (TBD):** literal `span` / `class` / `nbsp` text in
    places. Capture exact book/verse examples before assigning builder vs
    reader.
@@ -220,9 +224,10 @@ should come back to Levi. The authoritative list is `outputs/source-selection.js
 
 ## Next work
 
-1. Fix the parsha/aliyah builder data (Miketz order, aliyah mapping, escaped
-   markup) and the reader heading-mode exclusivity, build Tanach
-   `.study.sqlite` sidecars (`dart run tool/build_study_index.dart`), then
+1. Rebuild EPUBs after the parsha-order fix (`python -X utf8 work/build.py`,
+   then `validate.py`, `package_full.py`), build Tanach
+   `.study.sqlite` sidecars (`dart run tool/build_study_index.dart`
+   verified 6 Oct on Obadiah), copy pairs to the device, then
    re-run the device pass: cold import, warm reopen, 5th-aliyah landing (want
    Gen 4:19 heading), parsha-only headings, Chapters/Parshiyot exclusivity.
    Then extend to the other largest books (Exodus, Leviticus, Deuteronomy,

@@ -135,14 +135,7 @@ _NormalizedText _normalize(String source) {
 }
 
 // Hebrew combining marks only; maqaf and other Hebrew punctuation are retained.
-bool _isHebrewMark(int rune) =>
-    (rune >= 0x0591 && rune <= 0x05bd) ||
-    rune == 0x05bf ||
-    rune == 0x05c1 ||
-    rune == 0x05c2 ||
-    rune == 0x05c4 ||
-    rune == 0x05c5 ||
-    rune == 0x05c7;
+bool _isHebrewMark(int rune) => rune >= 0x0591 && rune <= 0x05c7;
 
 String _snippet(String source, int matchStart) {
   var start = math.max(0, matchStart - 40);
