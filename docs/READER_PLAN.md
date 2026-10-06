@@ -203,8 +203,6 @@ internal paths, and stack traces are never shown.
   Switching to an already active tab skips this.
 - **Entry points:** opening any file from the browser, and **+ → Tabs**, which opens
   the most recently read tab.
-- **Out of scope:** close-others, reopen-last-closed, and an always-visible tab bar
-  for wide screens.
 
 ## Remaining work
 

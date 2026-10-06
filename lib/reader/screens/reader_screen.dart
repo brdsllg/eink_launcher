@@ -18,6 +18,7 @@ import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
 import '../models/toc_entry.dart';
 import '../services/book_store_service.dart';
+import '../services/tanach_layout_service.dart';
 import '../services/reader_error_service.dart';
 import '../services/pdf_render_scheduler.dart';
 import '../services/pdf_thumbnail_cache_service.dart';
@@ -321,7 +322,9 @@ class _ReaderScreenState extends State<ReaderScreen>
           initialSettings: session.settings,
           format: session.doc.format,
           studySources: session is TextReaderSession
-              ? session.book?.studySources ?? const []
+              ? TanachLayoutService.orderedStudySources(
+                  session.book?.studySources.toSet() ?? const {},
+                )
               : const [],
           studyTranslations: session is TextReaderSession
               ? session.book?.studyTranslations ?? const []

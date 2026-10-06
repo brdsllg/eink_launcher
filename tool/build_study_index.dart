@@ -154,4 +154,8 @@ class _DefaultProjection implements StudyProjectionSettings {
   bool get honorPublisherCss => true;
   @override
   bool get showParshaAliyot => false;
+  @override
+  bool get hideVowelPoints => false;
+  @override
+  bool get studyContinuous => false;
 }

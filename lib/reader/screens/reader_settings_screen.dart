@@ -161,6 +161,55 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
               ),
             ),
           ),
+        if (_segmentUnit) ...[
+          _SettingsGroup(
+            label: 'Vowel points',
+            child: GridActions(
+              children: [
+                _ChoiceButton(
+                  key: const Key('reader-settings-hide-vowels'),
+                  toggle: true,
+                  label: _settings.hideVowelPoints ? 'Hidden' : 'Shown',
+                  selected: _settings.hideVowelPoints,
+                  onPressed: () => setState(
+                    () => _settings = _settings.copyWith(
+                      hideVowelPoints: !_settings.hideVowelPoints,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _SettingsGroup(
+            label: 'Talmud layout',
+            child: GridActions(
+              minCellWidth: 120,
+              maxColumns: 2,
+              children: [
+                _ChoiceButton(
+                  key: const Key('reader-settings-paragraphs'),
+                  label: 'Paragraphs',
+                  selected: !_settings.studyContinuous,
+                  onPressed: () => setState(
+                    () => _settings = _settings.copyWith(
+                      studyContinuous: false,
+                    ),
+                  ),
+                ),
+                _ChoiceButton(
+                  key: const Key('reader-settings-continuous'),
+                  label: 'Continuous',
+                  selected: _settings.studyContinuous,
+                  onPressed: () => setState(
+                    () => _settings = _settings.copyWith(
+                      studyContinuous: true,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         ExpansionTile(
           title: const Text('Commentary sources'),
           subtitle: Text(

@@ -52,15 +52,31 @@ TextSearchResults _searchDatabase(
   if (needle.isEmpty) return const TextSearchResults();
   final database = sqlite3.open(path, mode: OpenMode.readOnly);
   try {
-    // instr preserves literal substring semantics, including %, _, and infixes.
-    // Candidate selection ignores filters; projection applies the exact same
-    // language fallback and edition selection as the visible reader.
-    final candidates = database
-        .select('SELECT path FROM documents WHERE instr(search_text, ?) > 0', [
-          needle,
-        ])
-        .map((row) => row['path'] as String)
-        .toSet();
+    // Selected sources limit the search: base text is always searched, while
+    // commentary text is only searched when at least one source is selected.
+    // Final projection still applies the exact source filter, so this
+    // candidate query only trims work without changing semantics.
+    final hasCommentaryFilter = settings.commentarySources.isNotEmpty;
+    Set<String> candidates;
+    try {
+      candidates = database
+          .select(
+            hasCommentaryFilter
+                ? 'SELECT path FROM documents WHERE instr(search_text, ?) > 0'
+                : 'SELECT path FROM documents WHERE instr(base_search_text, ?) > 0',
+            [needle],
+          )
+          .map((row) => row['path'] as String)
+          .toSet();
+    } catch (_) {
+      // Pre-v6 cache without the split columns: fall back to full text.
+      candidates = database
+          .select('SELECT path FROM documents WHERE instr(search_text, ?) > 0', [
+            needle,
+          ])
+          .map((row) => row['path'] as String)
+          .toSet();
+    }
     final matches = <TextSearchMatch>[];
     for (var index = 0; index < spine.length; index++) {
       final item = spine[index];

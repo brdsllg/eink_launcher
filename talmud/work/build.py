@@ -489,8 +489,6 @@ def generate(conn, editions, masechtos=None):
                             f'<p class="note-title">'
                             f'{e(source_disp)} {e(amud)}:{seg["seg_num"]}</p>'
                             + ''.join(parts)
-                            + f'<p class="backlinks"><a href="#{e(seg_id)}">'
-                            f'↑ {seg["seg_num"]}</a></p>'
                             + '</aside>'
                         )
                     body.append(

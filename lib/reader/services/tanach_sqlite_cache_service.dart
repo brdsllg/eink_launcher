@@ -24,7 +24,7 @@ import 'tanach_layout_service.dart';
 class TanachSqliteCacheService {
   // Bumped to 5 when the skeleton began recording `study_unit`, so an older
   // cache re-imports and the study controls keep the right labels.
-  static const schemaVersion = 5;
+  static const schemaVersion = 6;
   static const maxCacheBytes = 768 * 1024 * 1024;
 
   static final Map<String, int> _pins = {};
@@ -401,7 +401,9 @@ class TanachSqliteCacheService {
         CREATE TABLE documents(
           path TEXT PRIMARY KEY,
           source_gzip BLOB NOT NULL,
-          search_text TEXT NOT NULL
+          search_text TEXT NOT NULL,
+          base_search_text TEXT NOT NULL DEFAULT '',
+          commentary_search_text TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE dependencies(source TEXT, target TEXT, PRIMARY KEY(source, target));
         CREATE TABLE resources(path TEXT PRIMARY KEY, bytes BLOB NOT NULL);
@@ -440,11 +442,40 @@ class TanachSqliteCacheService {
               sources.add(note.attributes['data-source']!);
             }
           }
-          database.execute('INSERT INTO documents VALUES (?, ?, ?)', [
+          final baseClone = html.parse(entry.value);
+          const commentaryCategories = {
+            'rishon',
+            'acharon',
+            'modern',
+            'commentary',
+          };
+          for (final aside in baseClone.querySelectorAll('aside[data-source]')) {
+            if (commentaryCategories.contains(
+              aside.attributes['data-category'],
+            )) {
+              aside.remove();
+            }
+          }
+          final commentaryText = document
+              .querySelectorAll('aside[data-source]')
+              .where(
+                (aside) => commentaryCategories.contains(
+                  aside.attributes['data-category'],
+                ),
+              )
+              .map((aside) => aside.text)
+              .join(' ');
+          database.execute('INSERT INTO documents VALUES (?, ?, ?, ?, ?)', [
             entry.key,
             Uint8List.fromList(gzip.encode(utf8.encode(entry.value))),
             normalizeTanachSearchText(document.body?.text ?? document.outerHtml)
                 .replaceAll(RegExp(r'\s+'), ''),
+            normalizeTanachSearchText(
+              baseClone.body?.text ?? '',
+            ).replaceAll(RegExp(r'\s+'), ''),
+            normalizeTanachSearchText(
+              commentaryText,
+            ).replaceAll(RegExp(r'\s+'), ''),
           ]);
           for (final link in document.querySelectorAll('a[href]')) {
             final isNote = link.attributes.entries.any(

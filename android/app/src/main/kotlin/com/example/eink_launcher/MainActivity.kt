@@ -159,14 +159,13 @@ class MainActivity : FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        // Notify Dart about the new file intent
-        if (intent.action == Intent.ACTION_VIEW) {
-            val uri = intent.data
-            if (uri != null) {
-                val path = FileIntentHandler.getPathFromUri(this, uri)
-                if (path != null) {
-                    FileIntentHandler.sendFilePathToDart(path)
-                }
+        // Notify Dart about the new file intent: VIEW (open-with) as well as
+        // SEND / SEND_MULTIPLE (share sheet), cold-start and warm alike.
+        val file = FileIntentHandler.getFileFromIntent(this, intent)
+        if (file != null) {
+            val path = file["path"]
+            if (path != null) {
+                FileIntentHandler.sendFilePathToDart(path)
             }
         }
     }

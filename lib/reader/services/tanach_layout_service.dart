@@ -1,6 +1,7 @@
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html;
 
+import '../models/content_block.dart';
 import '../models/parsed_book.dart';
 import '../models/reading_position.dart';
 import '../models/toc_entry.dart';
@@ -16,6 +17,8 @@ abstract class StudyProjectionSettings {
   String get studyTranslation;
   bool get honorPublisherCss;
   bool get showParshaAliyot;
+  bool get hideVowelPoints;
+  bool get studyContinuous;
 }
 
 /// Projects recognized verse/index/footnote relationships into reading order.
@@ -283,7 +286,7 @@ class TanachLayoutService {
       final document = documents[item.href];
       if (document == null) return item;
       final anchors = <String, int>{};
-      final blocks = HtmlBlockParser.parseSync(
+      var blocks = HtmlBlockParser.parseSync(
         document.outerHtml,
         anchors: anchors,
         honorPublisherCss: settings.honorPublisherCss,
@@ -291,6 +294,9 @@ class TanachLayoutService {
             ? item.href.substring(0, item.href.lastIndexOf('/'))
             : '',
       );
+      if (settings.studyContinuous) {
+        blocks = mergeContinuousBlocks(blocks);
+      }
       return ParsedSpineItem(
         id: item.id,
         href: item.href,
@@ -340,7 +346,7 @@ class TanachLayoutService {
       tableOfContents: book.tableOfContents.map(remap).toList(),
       parshaTableOfContents: book.parshaTableOfContents.map(remap).toList(),
       studyDocuments: book.studyDocuments,
-      studySources: sources.toList()..sort(),
+      studySources: orderedStudySources(sources),
       studyTranslations: List<StudyTranslationOption>.unmodifiable(
         translations.values,
       ),
@@ -432,6 +438,8 @@ class TanachLayoutService {
       settings.studyTranslation,
       settings.honorPublisherCss,
       settings.showParshaAliyot,
+      settings.hideVowelPoints,
+      settings.studyContinuous,
     ].join('\u001e');
   }
 
@@ -514,6 +522,73 @@ class TanachLayoutService {
     }
     _stableIds(copy, copy.id);
     return copy;
+  }
+
+  /// Rashi (and its slot substitutes Rashbam/Mefaresh) first, Tosafot
+  /// second, then the rest alphabetically.
+  static List<String> orderedStudySources(Set<String> sources) {
+    int rank(String source) {
+      final lower = source.toLowerCase();
+      if (lower.startsWith('rashi') ||
+          lower.startsWith('rashbam') ||
+          lower.startsWith('mefaresh')) {
+        return 0;
+      }
+      if (lower.startsWith('tosafot')) return 1;
+      return 2;
+    }
+
+    final sorted = sources.toList()
+      ..sort((a, b) {
+        final rankCompare = rank(a).compareTo(rank(b));
+        if (rankCompare != 0) return rankCompare;
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
+    return sorted;
+  }
+
+  /// Talmud continuous mode: join consecutive body paragraphs so breaks fall
+  /// only at headings (segment headings like `Berakhot 2a:1`) and amud/file
+  /// boundaries. Headings, lists, quotes, images and rules stay as separators.
+  static List<ContentBlock> mergeContinuousBlocks(List<ContentBlock> blocks) {
+    final merged = <ContentBlock>[];
+    var pending = <InlineRun>[];
+    var pendingDirection = BlockTextDirection.ltr;
+    String? pendingId;
+
+    void flush() {
+      if (pending.isEmpty) return;
+      merged.add(
+        ContentBlock(
+          type: BlockType.paragraph,
+          runs: List<InlineRun>.unmodifiable(pending),
+          direction: pendingDirection,
+          id: pendingId,
+        ),
+      );
+      pending = <InlineRun>[];
+      pendingId = null;
+    }
+
+    for (final block in blocks) {
+      if (block.type == BlockType.paragraph &&
+          block.resourcePath == null &&
+          block.trailingRuns.isEmpty) {
+        if (pending.isEmpty) {
+          pendingDirection = block.direction;
+          pendingId = block.id;
+        }
+        if (pending.isNotEmpty) {
+          pending.add(const InlineRun(text: ' '));
+        }
+        pending.addAll(block.runs);
+      } else {
+        flush();
+        merged.add(block);
+      }
+    }
+    flush();
+    return List<ContentBlock>.unmodifiable(merged);
   }
 
   static void _stableIds(Element root, String prefix) {

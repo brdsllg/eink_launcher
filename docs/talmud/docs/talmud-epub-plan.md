@@ -106,9 +106,11 @@ books open as study text with commentary-source, commentary-language, and transl
 controls and the SQLite cache); "Talmud language" / "after each segment" wording. The
 Parshah/Aliyot toggle stays hidden because Talmud has no Parshah contents.
 
-Still to do: a setting to hide vowel points; a paragraph-versus-continuous setting
-with the `Berakhot 2a:1` heading; picker ordering (Rashi, Tosafot, rest); restricting
-search to selected sources. Details and device findings are in
+Implemented Oct 2026: a setting to hide vowel points; a paragraph-versus-continuous
+setting with the `Berakhot 2a:1` heading kept; picker ordering (Rashi/Rashbam/
+Mefaresh, Tosafot, rest alphabetical); search skips commentary candidates when no
+source is selected (SQLite v6 `base_search_text`/`commentary_search_text`;
+per-source full-text index still future). Details and device findings are in
 [reader-device-findings.md](reader-device-findings.md).
 
 ## Open questions

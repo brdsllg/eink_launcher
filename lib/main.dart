@@ -95,6 +95,9 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+  final _navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   void initState() {
     super.initState();
@@ -109,17 +112,43 @@ class _MyAppState extends State<MyApp> {
     super.dispose();
   }
 
+  /// Handles a file path delivered from Android (open-with VIEW or share
+  /// SEND). UI access goes through [_scaffoldMessengerKey]/[_navigatorKey]:
+  /// this State's own context sits above MaterialApp, so ScaffoldMessenger
+  /// and Navigator lookups on it throw.
   Future<void> _handleFileIntent(String filePath) async {
     if (!mounted) return;
 
     final trimmedPath = filePath.trim();
+    debugPrint('File intent received: $trimmedPath');
     if (trimmedPath.isEmpty) return;
+
+    void showMessage(String message) {
+      _scaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
 
     final file = File(trimmedPath);
     if (!file.existsSync()) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('File no longer exists: $trimmedPath')),
+        showMessage('File no longer exists: $trimmedPath');
+      }
+      return;
+    }
+
+    // Shared files (share sheet / open-with) may arrive as application/octet-stream
+    // or text/* with an unfamiliar extension. Fail fast with a clear message
+    // instead of the raw "Unsupported format" ArgumentError.
+    final fileName = trimmedPath.split('/').last.toLowerCase();
+    final dotIndex = fileName.lastIndexOf('.');
+    final extension = dotIndex > 0 ? fileName.substring(dotIndex) : '';
+    if (!kReadableExtensions.contains(extension)) {
+      if (mounted) {
+        final shown = extension.isEmpty ? 'no file extension' : '$extension files';
+        showMessage(
+          'This app reads PDF, EPUB, TXT, and Markdown. '
+          'Could not open $shown.',
         );
       }
       return;
@@ -129,16 +158,20 @@ class _MyAppState extends State<MyApp> {
       final doc = await DocIdentityService.createDocRef(trimmedPath);
       if (!mounted) return;
 
-      await Navigator.of(context, rootNavigator: true).push(
+      final navigator = _navigatorKey.currentState;
+      if (navigator == null) {
+        debugPrint('File intent dropped: navigator not ready for $trimmedPath');
+        return;
+      }
+      await navigator.push(
         noTransitionRoute(
           ReaderScreen(doc: doc, registry: ReaderSessionRegistry.instance),
         ),
       );
-    } catch (error) {
+    } catch (error, stack) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open file: $error')),
-        );
+        debugPrint('File intent open failed: $error\n$stack');
+        showMessage('Could not open file: $error');
       }
     }
   }
@@ -147,6 +180,8 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'E-Ink Launcher',
+      scaffoldMessengerKey: _scaffoldMessengerKey,
+      navigatorKey: _navigatorKey,
       builder: (context, child) => ReadingStateWarning(
         store: BookStoreService.instance,
         child: child ?? const SizedBox.shrink(),

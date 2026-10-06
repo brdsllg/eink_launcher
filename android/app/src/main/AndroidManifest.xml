@@ -31,15 +31,46 @@
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-            <!-- Intent filter for opening EPUB and PDF files -->
+            <!-- Open-with: file managers, browsers, "Open with" sheets. -->
+            <!-- Covers the reader's formats (PDF/EPUB/TXT/Markdown). text/* +
+                 octet-stream are included because many apps share or report
+                 plain-text and ebook files under a generic type; unsupported
+                 files are rejected in Dart with a friendly message. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/octet-stream" />
                 <data android:scheme="file" />
                 <data android:scheme="content" />
+            </intent-filter>
+            <!-- Share sheet: "Share" / SEND from other apps (single file). -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <!-- Share sheet: multiple files — the reader opens the first
+                 readable one and ignores the rest. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

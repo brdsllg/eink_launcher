@@ -82,9 +82,13 @@ William Davidson English; the old gap was a spelling mismatch, now fixed.
 
 The reader recognizes Talmud EPUBs as study books (translation and commentary
 controls, SQLite cache), and its settings read "Talmud language" and "after each
-segment". Reader work still to do: a setting to hide vowel points, a
-paragraph-versus-continuous setting, commentary picker ordering (Rashi, Tosafot,
-then the rest; currently alphabetical), and limiting search to the selected sources.
+segment". Implemented Oct 2026: a setting to hide vowel points, a
+paragraph-versus-continuous setting (continuous merges body paragraphs, breaks
+only at headings/amud boundaries), commentary picker ordering (Rashi/Rashbam/
+Mefaresh, Tosafot, then the rest alphabetically), and search that skips
+commentary candidates when no source is selected (SQLite v6 split
+base/commentary index; final projection still applies the exact filter).
+Still to do: picker grouping/search box for dozens of sources.
 
 ## Licensing
 

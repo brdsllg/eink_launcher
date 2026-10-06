@@ -92,7 +92,7 @@ void main() {
           .direction,
       BlockTextDirection.rtl,
     );
-    expect(book.studySources, ['Other', 'Rashi on Genesis']);
+    expect(book.studySources, ['Rashi on Genesis', 'Other']);
     expect(book.studyTranslations.map((option) => option.label), [
       'Metsudah',
       'Koren',

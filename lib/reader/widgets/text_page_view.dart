@@ -73,6 +73,63 @@ class _TextPageViewState extends State<TextPageView> {
     setState(() {});
   }
 
+  Future<void> _extendToNextParagraph(
+    int spineIndex,
+    int blockIndex,
+    TextSelection sourceRange,
+  ) async {
+    final book = widget.session.book;
+    if (book == null) return;
+    final chapter = book.spine[spineIndex];
+    var nextIndex = blockIndex + 1;
+    while (nextIndex < chapter.blocks.length &&
+        chapter.blocks[nextIndex].plainText.trim().isEmpty) {
+      nextIndex++;
+    }
+    if (nextIndex >= chapter.blocks.length) return;
+    final first = chapter.blocks[blockIndex];
+    final next = chapter.blocks[nextIndex];
+    final firstPart = first.plainText.substring(
+      sourceRange.start.clamp(0, first.plainText.length),
+      sourceRange.end.clamp(0, first.plainText.length),
+    );
+    final combined = '$firstPart\n\n${next.plainText}';
+    final docId = widget.session.doc.id;
+    final session = widget.session;
+    final store = BookStoreService.instance;
+    final state =
+        store.getBookState(docId) ??
+        BookState(
+          docId: docId,
+          lastPath: session.doc.path,
+          format: session.doc.format,
+          lastRead: DateTime.now(),
+          position: session.position,
+          percent: session.percent,
+          bookmarks: session.bookmarks,
+        );
+    final annotation = Annotation(
+      id: Annotation.generateId(),
+      docId: docId,
+      createdAt: DateTime.now(),
+      spineIndex: spineIndex,
+      blockIndex: blockIndex,
+      documentPath: chapter.href,
+      blockId: first.id,
+      startOffset: sourceRange.start,
+      endOffset: first.plainText.length,
+      endBlockIndex: nextIndex,
+      endBlockId: next.id,
+      endDocumentPath: chapter.href,
+      endBlockOffset: next.plainText.length,
+      text: combined,
+    );
+    store.saveBookState(
+      state.copyWith(annotations: [...state.annotations, annotation]),
+    );
+    if (mounted) setState(() {});
+  }
+
   Future<void> _openAnnotation(Annotation annotation) async {
     final action = await showAnnotationViewer(context, annotation);
     if (!mounted || action == null) return;
@@ -167,6 +224,11 @@ class _TextPageViewState extends State<TextPageView> {
                       range,
                       text,
                       addNote,
+                    ),
+                    onExtendSelection: (sourceRange) => _extendToNextParagraph(
+                      page.start.spineIndex,
+                      slice.blockIndex,
+                      sourceRange,
                     ),
                     onOpenLink: (href) async {
                       final opened = await widget.session.openLink(href);

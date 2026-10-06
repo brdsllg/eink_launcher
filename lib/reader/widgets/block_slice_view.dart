@@ -26,6 +26,7 @@ class BlockSliceView extends StatefulWidget {
   final void Function(Annotation annotation)? onOpenAnnotation;
   final Future<void> Function(TextSelection range, String text, bool addNote)?
   onAnnotate;
+  final Future<void> Function(TextSelection sourceRange)? onExtendSelection;
 
   const BlockSliceView({
     super.key,
@@ -40,6 +41,7 @@ class BlockSliceView extends StatefulWidget {
     this.annotations = const [],
     this.onOpenAnnotation,
     this.onAnnotate,
+    this.onExtendSelection,
   });
 
   @override
@@ -100,6 +102,14 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     if (selection == null) return;
     final range = AnnotationTextMapping(block, settings).toSource(selection);
     if (range.isCollapsed) return;
+    if (action == 'extend') {
+      final extend = widget.onExtendSelection;
+      if (extend == null) return;
+      final current = range;
+      _clearSelection();
+      await extend(current);
+      return;
+    }
     final text = block.plainText.substring(range.start, range.end);
     _clearSelection();
     switch (action) {
@@ -178,6 +188,9 @@ class _BlockSliceViewState extends State<BlockSliceView> {
             onDictionary: () => _act('dictionary'),
             onAddNote: () => _act('note'),
             onUnderline: () => _act('underline'),
+            onExtend: widget.onExtendSelection == null
+                ? null
+                : () => _act('extend'),
           ),
         ),
         for (final start in [true, false])
@@ -225,10 +238,75 @@ class _BlockSliceViewState extends State<BlockSliceView> {
   List<Widget> _annotationTargets(double width) {
     final painter = TextBlockLayout.createPainter(block, settings, width);
     final mapping = AnnotationTextMapping(block, settings);
+    TextSelection? displayFor(Annotation annotation) {
+      if (!annotation.isMultiBlock) return mapping.toDisplay(annotation);
+      final length = block.plainText.length;
+      if (slice.blockIndex == annotation.blockIndex &&
+          slice.blockIndex == annotation.resolvedEndBlockIndex) {
+        return mapping.toDisplay(
+          Annotation(
+            id: annotation.id,
+            docId: annotation.docId,
+            createdAt: annotation.createdAt,
+            spineIndex: annotation.spineIndex,
+            blockIndex: annotation.blockIndex,
+            startOffset: annotation.startOffset,
+            endOffset: annotation.resolvedEndBlockOffset,
+            text: '',
+          ),
+        );
+      }
+      if (slice.blockIndex == annotation.blockIndex) {
+        if (annotation.startOffset >= length) return null;
+        return mapping.toDisplay(
+          Annotation(
+            id: annotation.id,
+            docId: annotation.docId,
+            createdAt: annotation.createdAt,
+            spineIndex: annotation.spineIndex,
+            blockIndex: annotation.blockIndex,
+            startOffset: annotation.startOffset,
+            endOffset: length,
+            text: '',
+          ),
+        );
+      }
+      if (slice.blockIndex == annotation.resolvedEndBlockIndex) {
+        final end = annotation.resolvedEndBlockOffset.clamp(0, length);
+        if (end <= 0) return null;
+        return mapping.toDisplay(
+          Annotation(
+            id: annotation.id,
+            docId: annotation.docId,
+            createdAt: annotation.createdAt,
+            spineIndex: annotation.spineIndex,
+            blockIndex: annotation.blockIndex,
+            startOffset: 0,
+            endOffset: end,
+            text: '',
+          ),
+        );
+      }
+      // Middle block: full extent.
+      if (length <= 0) return null;
+      return mapping.toDisplay(
+        Annotation(
+          id: annotation.id,
+          docId: annotation.docId,
+          createdAt: annotation.createdAt,
+          spineIndex: annotation.spineIndex,
+          blockIndex: annotation.blockIndex,
+          startOffset: 0,
+          endOffset: length,
+          text: '',
+        ),
+      );
+    }
+
     try {
       return [
         for (final annotation in widget.annotations)
-          if (mapping.toDisplay(annotation) case final range?)
+          if (displayFor(annotation) case final range?)
             for (final box in painter.getBoxesForSelection(range))
               Positioned.fromRect(
                 rect: box.toRect(),
@@ -396,6 +474,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
                 settings,
                 _selection,
                 widget.annotations,
+                slice.blockIndex,
               ),
             ),
             if (widget.onOpenAnnotation != null &&
@@ -439,12 +518,46 @@ class _TextBlockPainter extends CustomPainter {
   final ReaderSettings settings;
   final TextSelection? selection;
   final List<Annotation> annotations;
+  final int sliceBlockIndex;
   _TextBlockPainter(
     this.block,
     this.settings,
     this.selection,
     this.annotations,
+    this.sliceBlockIndex,
   );
+
+  TextSelection? _displayFor(Annotation annotation, AnnotationTextMapping mapping) {
+    if (!annotation.isMultiBlock) return mapping.toDisplay(annotation);
+    final length = block.plainText.length;
+    Annotation probe(int start, int end) => Annotation(
+      id: annotation.id,
+      docId: annotation.docId,
+      createdAt: annotation.createdAt,
+      spineIndex: annotation.spineIndex,
+      blockIndex: annotation.blockIndex,
+      startOffset: start,
+      endOffset: end,
+      text: '',
+    );
+    if (sliceBlockIndex == annotation.blockIndex &&
+        sliceBlockIndex == annotation.resolvedEndBlockIndex) {
+      return mapping.toDisplay(
+        probe(annotation.startOffset, annotation.resolvedEndBlockOffset),
+      );
+    }
+    if (sliceBlockIndex == annotation.blockIndex) {
+      if (annotation.startOffset >= length) return null;
+      return mapping.toDisplay(probe(annotation.startOffset, length));
+    }
+    if (sliceBlockIndex == annotation.resolvedEndBlockIndex) {
+      final end = annotation.resolvedEndBlockOffset.clamp(0, length);
+      if (end <= 0) return null;
+      return mapping.toDisplay(probe(0, end));
+    }
+    if (length <= 0) return null;
+    return mapping.toDisplay(probe(0, length));
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -456,7 +569,7 @@ class _TextBlockPainter extends CustomPainter {
       ..color = Colors.black
       ..strokeWidth = 1.5;
     for (final annotation in annotations) {
-      final range = mapping!.toDisplay(annotation);
+      final range = _displayFor(annotation, mapping!);
       if (range == null) continue;
       for (final box in painter.getBoxesForSelection(range)) {
         canvas.drawLine(
@@ -499,5 +612,6 @@ class _TextBlockPainter extends CustomPainter {
       oldDelegate.block != block ||
       oldDelegate.settings != settings ||
       oldDelegate.selection != selection ||
-      oldDelegate.annotations != annotations;
+      oldDelegate.annotations != annotations ||
+      oldDelegate.sliceBlockIndex != sliceBlockIndex;
 }

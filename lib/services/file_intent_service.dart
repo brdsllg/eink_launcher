@@ -3,10 +3,16 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Service for handling file intents from Android when a user opens a file with this app.
-/// 
-/// When the user opens an EPUB or PDF file with your app from the file manager,
-/// this service captures the file path and navigates to the reader.
+/// Service for handling file intents from Android when a user opens or shares
+/// a file with this app.
+///
+/// Covers both entry points:
+/// - "Open with" / VIEW (file manager, browser, downloads), cold-start and
+///   while already running.
+/// - "Share" / SEND and SEND_MULTIPLE (share sheet): single files open
+///   directly; for multiples the native side passes the first resolvable file.
+/// Plain-text shares with no file (EXTRA_TEXT) are persisted to cache as
+/// `.txt` by the native side so they arrive here as a regular path.
 class FileIntentService {
   static const _channel = MethodChannel('eink_launcher/file_intent');
   static const _eventChannel = EventChannel('eink_launcher/file_intent_events');

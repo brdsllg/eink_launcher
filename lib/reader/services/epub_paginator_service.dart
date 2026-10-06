@@ -403,9 +403,12 @@ class TextBlockLayout {
     final actualPrefix = prefix ?? prefixFor(block, settings);
     if (actualPrefix.isNotEmpty) children.add(TextSpan(text: actualPrefix));
     for (final run in runs) {
-      final text = settings.hyphenate
-          ? const HyphenationService().hyphenateLatinText(run.text)
+      final visible = settings.hideVowelPoints
+          ? withoutVowelPoints(run.text)
           : run.text;
+      final text = settings.hyphenate
+          ? const HyphenationService().hyphenateLatinText(visible)
+          : visible;
       children.add(
         TextSpan(
           text: text.replaceAll("\u00ad", "\u200b"),
@@ -491,11 +494,36 @@ class TextBlockLayout {
     ReaderSettings settings,
   ) => block.runs
       .map(
-        (run) => settings.hyphenate
-            ? const HyphenationService().hyphenateLatinText(run.text)
-            : run.text,
+        (run) {
+          final base = settings.hideVowelPoints
+              ? withoutVowelPoints(run.text)
+              : run.text;
+          return settings.hyphenate
+              ? const HyphenationService().hyphenateLatinText(base)
+              : base;
+        },
       )
       .join();
+
+  /// Removes Hebrew vowel points and cantillation-era combining marks for the
+  /// Talmud "hide vowels" display setting. One build only; source text stays.
+  static String withoutVowelPoints(String source) {
+    final buffer = StringBuffer();
+    for (final rune in source.runes) {
+      if (_isVowelMark(rune)) continue;
+      buffer.writeCharCode(rune);
+    }
+    return buffer.toString();
+  }
+
+  static bool _isVowelMark(int rune) =>
+      (rune >= 0x0591 && rune <= 0x05bd) ||
+      rune == 0x05bf ||
+      rune == 0x05c1 ||
+      rune == 0x05c2 ||
+      rune == 0x05c4 ||
+      rune == 0x05c5 ||
+      rune == 0x05c7;
 
   static String? linkAtOffset(
     ContentBlock block,
@@ -534,6 +562,7 @@ class TextBlockLayout {
 
   /// Maps display boundaries (excluding the decorative prefix) to source text.
   /// Repeated offsets represent inserted discretionary break characters.
+  /// Hidden vowel points consume source offsets but produce no display chars.
   static List<int> sourceOffsetsForDisplay(
     ContentBlock block,
     ReaderSettings settings,
@@ -541,17 +570,36 @@ class TextBlockLayout {
     final offsets = <int>[0];
     var source = 0;
     for (final run in block.runs) {
-      final display = settings.hyphenate
-          ? const HyphenationService().hyphenateLatinText(run.text)
+      final base = settings.hideVowelPoints
+          ? withoutVowelPoints(run.text)
           : run.text;
+      // Source offset of each base char, so removed vowels still advance.
+      final baseToSource = <int>[];
+      var cursor = source;
+      for (final rune in run.text.runes) {
+        final char = String.fromCharCode(rune);
+        if (settings.hideVowelPoints && _isVowelMark(rune)) {
+          cursor += char.length;
+          continue;
+        }
+        baseToSource.add(cursor);
+        cursor += char.length;
+      }
+      final display = settings.hyphenate
+          ? const HyphenationService().hyphenateLatinText(base)
+          : base;
       var original = 0;
       for (var i = 0; i < display.length; i++) {
-        if (original < run.text.length && display[i] == run.text[original]) {
+        if (original < base.length && display[i] == base[original]) {
           original++;
-          source++;
+          source = baseToSource.length > original - 1
+              ? baseToSource[original - 1] +
+                    base.substring(original - 1, original).length
+              : cursor;
         }
         offsets.add(source);
       }
+      source = cursor;
     }
     return offsets;
   }

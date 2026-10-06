@@ -1,0 +1,56 @@
+# Planned-features status (Oct 2026 pass)
+
+Source: full `docs/` sweep. Items 1–21 from that sweep; this file records what
+this pass built and what remains.
+
+## Built in this pass
+
+1. **Multi-paragraph selection** — `Annotation` now carries an optional end block
+   (`endBlockIndex/Id/DocumentPath/Offset`), `matchesBlock`/`rangeForBlock`
+   cover start/middle/end blocks, painting and tap targets underline every
+   covered paragraph, and the toolbar **More** button extends the current
+   selection through the next readable paragraph. Drag across blocks, cross-
+   chapter ranges, and multi-block Copy/Dictionary are still single-block.
+   Tests: `test/reader/planned_features_test.dart`, existing annotation tests.
+2. **Hide vowel points** — `ReaderSettings.hideVowelPoints` (+
+   `StudyProjectionSettings`), persisted JSON, pagination v8 and projection keys
+   include it, display strips U+0591–05C7 with source-offset mapping so
+   annotations stay anchored, Talmud settings show Hidden/Shown. Needs Bigme
+   check.
+3. **Paragraph-vs-continuous** — `ReaderSettings.studyContinuous`, persisted,
+   projection/pagination keys include it, `mergeContinuousBlocks` joins
+   consecutive body paragraphs (headings/amud boundaries stay), Talmud settings
+   show Paragraphs/Continuous with the `Berakhot 2a:1` heading kept. Needs
+   Bigme check.
+5. **Search respects selection + picker ordering** — SQLite v6 adds
+   `base_search_text`/`commentary_search_text` (translations stay in base;
+   only commentary asides split out); with no source selected only base is
+   scanned, otherwise full text with exact projection filter. Picker order is
+   Rashi/Rashbam/Mefaresh, Tosafot, then rest
+   (`TanachLayoutService.orderedStudySources`). Picker grouping/search box for
+   dozens of sources still to do. Old caches re-import automatically.
+6. **Docs: removed `READER_PLAN.md` Tabs “Out of scope” line** — close-others,
+   reopen-last-closed, always-visible wide tab bar no longer listed as
+   out-of-scope (feature work itself not built).
+13. **Builder back-links removed** — `talmud/work/build.py` and
+   `tanach/work/build.py` no longer emit `<p class="backlinks">` (reader
+   already stripped them at display). Regenerate books to take effect; old
+   EPUBs still open (reader strips).
+
+## Not yet built/fixed (still open)
+
+- Direct drag-across-blocks gesture; multi-block Copy/Dictionary; cross-chapter
+  multi-ranges.
+- Picker grouping/search box for dozens of sources; auto-default to
+  Rashi+Tosafot (left as opt-in); full per-source full-text index (current
+  split is base vs all-commentary).
+- Talmud scale-up: other 31 tractates; builder one-tractate-at-a-time +
+  per-source indexing; source-discovery audit (Finding F); big-tractate
+  measurements (2 → ~5 → all) and EPUB-vs-SQLite gate; Bava Batra 29a slot,
+  large-tractate splits, commentary budget, addressing verification;
+  Yerushalmi/Mishnah-only/cross-refs/daf>amud nesting.
+- Tanach tooling split + auto-checksum + Sefaria-change detection; EPUB
+  page-list/publisher metadata.
+- Bigme refresh bridge (needs documented API); renderer/timing/battery
+  measurements; Item 6 logcat; browser-quirk repro; all device rechecks
+  (48 dp handles, vowels, continuous, search, study books, tabs/layouts).

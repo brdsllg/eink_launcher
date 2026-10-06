@@ -9,7 +9,7 @@ import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
 
 class PaginationCacheService {
-  static const int _cacheVersion = 7;
+  static const int _cacheVersion = 8;
   static const int defaultMaxBytes = 64 * 1024 * 1024;
   static Future<void> _writes = Future.value();
   static Future<void>? _legacyCleanup;
@@ -53,6 +53,8 @@ class PaginationCacheService {
       'publisherCss': settings.honorPublisherCss,
       'parshaHeadings': settings.showParshaAliyot,
       'verseLanguage': settings.verseLanguage,
+      'hideVowels': settings.hideVowelPoints,
+      'continuous': settings.studyContinuous,
     });
     return sha1.convert(utf8.encode(source)).toString();
   }

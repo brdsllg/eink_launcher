@@ -60,7 +60,13 @@ double readerHeaderActionWidth(double availableWidth) =>
 const double kReaderChromeIconSize = 30;
 
 /// File extensions opened by the built-in document reader.
-const Set<String> kReadableExtensions = {'.pdf', '.epub', '.txt', '.md'};
+const Set<String> kReadableExtensions = {
+  '.pdf',
+  '.epub',
+  '.txt',
+  '.md',
+  '.markdown',
+};
 
 /// Three equal vertical tap zones: previous, menu, and next.
 const double kTapZoneEdgeWidthRatio = 1 / 3;

@@ -6,6 +6,7 @@ class SelectionToolbar extends StatelessWidget {
   final VoidCallback onDictionary;
   final VoidCallback onAddNote;
   final VoidCallback onUnderline;
+  final VoidCallback? onExtend;
 
   const SelectionToolbar({
     super.key,
@@ -13,6 +14,7 @@ class SelectionToolbar extends StatelessWidget {
     required this.onDictionary,
     required this.onAddNote,
     required this.onUnderline,
+    this.onExtend,
   });
 
   @override
@@ -27,6 +29,7 @@ class SelectionToolbar extends StatelessWidget {
           _button('Dictionary', 'dictionary', onDictionary),
           _button('Add Note', 'note', onAddNote),
           _button('Underline', 'underline', onUnderline),
+          if (onExtend != null) _button('More', 'extend', onExtend!),
         ],
       ),
     ),

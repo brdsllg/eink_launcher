@@ -587,7 +587,7 @@ def generate(conn,editions,chapters_by_book=None,books=None):
                     if t['is_primary'] or primary is None:continue
                     info=editions[t['edition']];used.add(t['edition']);nid=f't-{ch}-{v}-{t["edition"]}'
                     links.append(f'<a id="r-{nid}" epub:type="noteref" href="#{nid}" data-category="translation" data-source="{e(translation_label(info["version_title"]))}">{e(translation_label(info["version_title"]))}</a>')
-                    aside.append(f'<aside epub:type="footnote" id="{nid}" data-category="translation" data-source="{e(translation_label(info["version_title"]))}" data-edition="{t["edition"]}"><div lang="en" xml:lang="en" dir="ltr">{clean(t["text"])}</div><p class="backlinks"><a href="#{vid}">Back to verse {v}</a></p></aside>')
+                    aside.append(f'<aside epub:type="footnote" id="{nid}" data-category="translation" data-source="{e(translation_label(info["version_title"]))}" data-edition="{t["edition"]}"><div lang="en" xml:lang="en" dir="ltr">{clean(t["text"])}</div></aside>')
                 nids=note_ids_by_verse[v]
                 nids.sort(key=lambda nid:(chapter_notes[nid]['sort_order'],natural(chapter_notes[nid]['ref'])))
                 # Every marker points directly to a full note, including in popup readers.
@@ -612,12 +612,12 @@ def generate(conn,editions,chapters_by_book=None,books=None):
                     for nid in ids:
                         if nid not in total_notes:book_notes[source]+=1
                         total_notes.add(nid)
-                    contents.append(f'<p class="backlinks"><a href="#{vid}">Back to verse {v}</a> / <a href="#index-{bs}-{ch}-{v}">Other notes</a></p></aside>')
+                    contents.append('</aside>')
                     aside.append(''.join(contents))
                 if links:
                     index_id=f'index-{bs}-{ch}-{v}'
                     body.append(f'<p class="note-links"><a epub:type="noteref" href="#{index_id}" data-category="index" data-ref="{e(book)} {ch}:{v}">Notes &amp; translations</a></p>')
-                    aside.append(f'<aside epub:type="footnote" id="{index_id}" data-category="index" data-ref="{e(book)} {ch}:{v}"><p class="note-title">{e(book)} {ch}:{v} · Translations and commentary</p><div class="note-links">'+''.join('<p>'+link+'</p>' for link in links)+f'</div><p class="backlinks"><a href="#{vid}">Back to verse {v}</a></p></aside>')
+                    aside.append(f'<aside epub:type="footnote" id="{index_id}" data-category="index" data-ref="{e(book)} {ch}:{v}"><p class="note-title">{e(book)} {ch}:{v} · Translations and commentary</p><div class="note-links">'+''.join('<p>'+link+'</p>' for link in links)+'</div></aside>')
                 body.append('</section>')
             files[f'chapter-{ch}.xhtml']=xhtml(f'{book} {ch}',''.join(body)+'<section epub:type="endnotes"><h2>Translations and commentary</h2>'+''.join(aside)+'</section>')
         credits=['<div class="colophon"><h1>Sources and credits</h1><p>Text supplied by Sefaria’s public export. Edition titles, licenses, and sources below are reproduced from its metadata. Prepared for personal use.</p><p>Changes: removed cantillation from the base text if present; rearranged qere/ketiv for display; sanitized source markup; selected commentary editions by segment, preferring Metsudah where available. Original text and provenance are retained in the build database.</p>']
