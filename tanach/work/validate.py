@@ -3,8 +3,14 @@ from concurrent.futures import ThreadPoolExecutor
 from xml.etree import ElementTree as ET
 from sync import ROOT
 out=ROOT/'outputs';books=out/'books'
-java=next((ROOT/'work/tools/java').rglob('java.exe'))
-jar=next((ROOT/'work/tools/epubcheck').rglob('epubcheck.jar'))
+def _find_tool(patterns):
+    for base in (ROOT/'work/tools', ROOT.parent/'talmud'/'work'/'tools'):
+        for pattern in patterns:
+            matches=sorted(p for p in base.rglob(pattern) if p.is_file())
+            if matches:return matches[0]
+    raise SystemExit(f'Validation tool not found: {patterns}; run work/get_validation_tools.py')
+java=_find_tool(('java.exe','java'))
+jar=_find_tool(('epubcheck.jar',))
 reports=ROOT/'work/validation';reports.mkdir(exist_ok=True)
 results=[]
 NS='{http://www.w3.org/1999/xhtml}'

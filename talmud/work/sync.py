@@ -102,12 +102,21 @@ if __name__ == '__main__':
         raise SystemExit(0)
 
     if mode in ('java', 'epubcheck'):
-        # Reuse tanach's cached tools if they already exist.
+        # Reuse already-unpacked tools from either segment; otherwise cache the
+        # release metadata and delegate the download+unpack to tanach's
+        # installer so both segments share one code path.
+        import subprocess
+
+        def usable(binary, dest):
+            pats = ('java.exe', 'java') if binary == 'java' else (binary,)
+            return any(p.is_file() for pat in pats for p in dest.rglob(pat))
+
         tanach_tools = ROOT.parent / 'tanach' / 'work' / 'tools'
         tools = ROOT / 'work' / 'tools'
-        for subdir in (tanach_tools / mode,):
-            if subdir.exists():
-                print(f'Using existing tools from {subdir}', flush=True)
+        binary = 'java' if mode == 'java' else 'epubcheck.jar'
+        for base in (tools, tanach_tools):
+            if usable(binary, base):
+                print(f'Using existing {mode} from {base}', flush=True)
                 raise SystemExit(0)
         # Download release metadata then the actual archive.
         release_url = (
@@ -120,7 +129,9 @@ if __name__ == '__main__':
         if failures:
             raise RuntimeError(failures)
         print(f'{mode} release metadata cached at {meta_path}', flush=True)
-        raise SystemExit(0)
+        installer = ROOT.parent / 'tanach' / 'work' / 'get_validation_tools.py'
+        run = subprocess.run([sys.executable, str(installer), '--tools-dir', str(tools)])
+        raise SystemExit(run.returncode)
 
     # For schemas / texts / links we need the source-selection config.
     config_path = ROOT / 'outputs' / 'source-selection.json'

@@ -37,7 +37,7 @@ _LOCAL_TOOLS = ROOT / 'work' / 'tools'
 
 def _find_tool(name, pattern):
     for base in (_LOCAL_TOOLS, _TANACH_TOOLS):
-        matches = list(base.rglob(pattern))
+        matches = sorted(p for p in base.rglob(pattern) if p.is_file())
         if matches:
             return matches[0]
     return None

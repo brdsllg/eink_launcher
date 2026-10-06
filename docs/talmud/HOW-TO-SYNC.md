@@ -8,9 +8,11 @@ sync the build runs fully offline. Run all commands from the repository root.
 
 - Python 3.10 or later (standard library only for sync and build).
 - Internet access for the first download only.
-- Java for EPUBCheck validation: `python talmud/work/sync.py java` fetches it into
-  `talmud/work/tools/` (unpacked, not installed). EPUBCheck 5.4.0 was used at the
-  last run.
+- Java for EPUBCheck validation: `python talmud/work/sync.py java` makes sure a Java
+  runtime is available (reusing an unpacked copy from either segment, otherwise
+  downloading and unpacking the pinned release into `talmud/work/tools/`, nothing
+  installed). EPUBCheck 5.4.0 was used at the last run; `sync.py epubcheck` does
+  the same for the EPUBCheck jar.
 
 ## Steps
 
