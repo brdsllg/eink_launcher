@@ -58,24 +58,25 @@ class FileOperationsService {
   /// Creates an empty folder named [name] inside [parentPath].
   /// Throws on failure (permission, invalid name, existing path).
   Future<void> createFolder(String parentPath, String name) {
+    _checkSingleFileName(name, 'name');
     return Directory('$parentPath/$name').create();
+  }
+
+  static void _checkSingleFileName(String value, String paramName) {
+    if (value.isEmpty ||
+        value == '.' ||
+        value == '..' ||
+        value.contains('/') ||
+        value.contains('\\') ||
+        value.contains('\u0000')) {
+      throw ArgumentError.value(value, paramName, 'Expected a single file name');
+    }
   }
 
   /// Renames the entry at [path] in place to [newName] (same parent).
   /// Throws on failure.
   Future<void> renameEntry(String path, String newName) async {
-    if (newName.isEmpty ||
-        newName == '.' ||
-        newName == '..' ||
-        newName.contains('/') ||
-        newName.contains('\\') ||
-        newName.contains('\u0000')) {
-      throw ArgumentError.value(
-        newName,
-        'newName',
-        'Expected a single file name',
-      );
-    }
+    _checkSingleFileName(newName, 'newName');
     final parent = _parentOf(path);
     final newPath = '$parent/$newName';
     renameWithoutReplacing(path, newPath);
@@ -88,7 +89,7 @@ class FileOperationsService {
     final errors = <String>[];
     for (final path in paths) {
       try {
-        final entity = FileSystemEntity.typeSync(path, followLinks: false);
+        final entity = await FileSystemEntity.type(path, followLinks: false);
         if (entity == FileSystemEntityType.directory) {
           await Directory(path).delete(recursive: true);
         } else {
@@ -131,9 +132,9 @@ class FileOperationsService {
   bool isTrashRoot(String path) => _slashed(path) == _slashed(trashItemsDir);
 
   /// Creates the bin folder if needed so it can be listed while still empty.
-  void ensureTrashDir() {
+  Future<void> ensureTrashDir() async {
     try {
-      Directory(trashItemsDir).createSync(recursive: true);
+      await Directory(trashItemsDir).create(recursive: true);
     } catch (_) {
       // Listing the folder will report the problem.
     }
@@ -144,19 +145,22 @@ class FileOperationsService {
   Future<List<String>> trashEntries(List<String> paths) {
     return _serialized(() async {
       try {
-        Directory(trashItemsDir).createSync(recursive: true);
+        await Directory(trashItemsDir).create(recursive: true);
       } catch (e) {
         return ['Could not open the Recycle Bin: $e'];
       }
       final errors = <String>[];
-      final index = _readTrashIndex();
+      final index = await _readTrashIndex();
       for (final path in paths) {
         try {
-          final type = FileSystemEntity.typeSync(path, followLinks: false);
+          final type = await FileSystemEntity.type(path, followLinks: false);
           if (type == FileSystemEntityType.notFound) {
             throw const FileSystemException('No longer exists');
           }
-          final dest = _uniqueDestination(trashItemsDir, _basename(path));
+          final dest = await _uniqueDestinationAsync(
+            trashItemsDir,
+            _basename(path),
+          );
           await _moveForPaste(path, dest, type);
           index[_basename(dest)] = _TrashRecord(
             originalPath: _slashed(path),
@@ -166,7 +170,7 @@ class FileOperationsService {
           errors.add('Could not delete ${_basename(path)}: $e');
         }
       }
-      _writeTrashIndex(index);
+      await _writeTrashIndex(index);
       return errors;
     });
   }
@@ -177,11 +181,11 @@ class FileOperationsService {
   Future<List<String>> restoreEntries(List<String> paths) {
     return _serialized(() async {
       final errors = <String>[];
-      final index = _readTrashIndex();
+      final index = await _readTrashIndex();
       for (final path in paths) {
         final name = _basename(path);
         try {
-          final type = FileSystemEntity.typeSync(path, followLinks: false);
+          final type = await FileSystemEntity.type(path, followLinks: false);
           if (type == FileSystemEntityType.notFound) {
             index.remove(name);
             throw const FileSystemException('No longer in the Recycle Bin');
@@ -192,15 +196,15 @@ class FileOperationsService {
               ? _parentOf(original)
               : _parentOf(_trashRoot);
           final targetName = original != null ? _basename(original) : name;
-          Directory(targetDir).createSync(recursive: true);
-          final dest = _uniqueDestination(targetDir, targetName);
+          await Directory(targetDir).create(recursive: true);
+          final dest = await _uniqueDestinationAsync(targetDir, targetName);
           await _moveForPaste(path, dest, type);
           index.remove(name);
         } catch (e) {
           errors.add('Could not restore $name: $e');
         }
       }
-      _writeTrashIndex(index);
+      await _writeTrashIndex(index);
       return errors;
     });
   }
@@ -212,15 +216,15 @@ class FileOperationsService {
 
   /// Permanently deletes everything in the bin. Returns error messages.
   Future<List<String>> emptyTrash() {
-    return _serialized(() {
+    return _serialized(() async {
       final List<String> paths;
       try {
         final dir = Directory(trashItemsDir);
-        paths = dir.existsSync()
-            ? dir.listSync(followLinks: false).map((e) => e.path).toList()
+        paths = await dir.exists()
+            ? await dir.list(followLinks: false).map((e) => e.path).toList()
             : <String>[];
       } catch (e) {
-        return Future.value(['Could not read the Recycle Bin: $e']);
+        return ['Could not read the Recycle Bin: $e'];
       }
       return _deleteTrashItems(paths);
     });
@@ -228,25 +232,28 @@ class FileOperationsService {
 
   Future<List<String>> _deleteTrashItems(List<String> paths) async {
     final errors = await deleteEntries(paths);
-    final index = _readTrashIndex();
+    final index = await _readTrashIndex();
     var changed = false;
     for (final path in paths) {
       final name = _basename(path);
-      if (index.containsKey(name) && !_exists(path)) {
+      if (index.containsKey(name) &&
+          await FileSystemEntity.type(path, followLinks: false) ==
+              FileSystemEntityType.notFound) {
         index.remove(name);
         changed = true;
       }
     }
-    if (changed) _writeTrashIndex(index);
+    if (changed) await _writeTrashIndex(index);
     return errors;
   }
 
   /// Whole days left before each top-level bin item is purged (rounded up, so
   /// a fresh item shows 30), keyed by the item's name in the bin.
-  Map<String, int> trashDaysRemaining() {
+  Future<Map<String, int>> trashDaysRemaining() async {
     final now = _now();
+    final index = await _readTrashIndex();
     return {
-      for (final entry in _readTrashIndex().entries)
+      for (final entry in index.entries)
         entry.key:
             (entry.value.deletedAt
                         .add(_trashRetention)
@@ -268,13 +275,13 @@ class FileOperationsService {
       final dir = Directory(trashItemsDir);
       final List<FileSystemEntity> items;
       try {
-        if (!dir.existsSync()) return 0;
-        items = dir.listSync(followLinks: false);
+        if (!await dir.exists()) return 0;
+        items = await dir.list(followLinks: false).toList();
       } catch (_) {
         return 0;
       }
 
-      final index = _readTrashIndex();
+      final index = await _readTrashIndex();
       final cutoff = _now().subtract(_trashRetention);
       final present = <String>{};
       var purged = 0;
@@ -289,7 +296,7 @@ class FileOperationsService {
           changed = true;
         } else if (record.deletedAt.isBefore(cutoff)) {
           try {
-            if (FileSystemEntity.typeSync(item.path, followLinks: false) ==
+            if (await FileSystemEntity.type(item.path, followLinks: false) ==
                 FileSystemEntityType.directory) {
               await Directory(item.path).delete(recursive: true);
             } else {
@@ -310,7 +317,7 @@ class FileOperationsService {
         index.remove(key);
         changed = true;
       }
-      if (changed) _writeTrashIndex(index);
+      if (changed) await _writeTrashIndex(index);
       return purged;
     });
   }
@@ -321,12 +328,12 @@ class FileOperationsService {
     return result;
   }
 
-  Map<String, _TrashRecord> _readTrashIndex() {
+  Future<Map<String, _TrashRecord>> _readTrashIndex() async {
     final index = <String, _TrashRecord>{};
     try {
       final file = File(_trashIndexPath);
-      if (!file.existsSync()) return index;
-      final decoded = jsonDecode(file.readAsStringSync());
+      if (!await file.exists()) return index;
+      final decoded = jsonDecode(await file.readAsString());
       if (decoded is! Map) return index;
       decoded.forEach((name, value) {
         if (name is! String || value is! Map) return;
@@ -345,7 +352,7 @@ class FileOperationsService {
     return index;
   }
 
-  void _writeTrashIndex(Map<String, _TrashRecord> index) {
+  Future<void> _writeTrashIndex(Map<String, _TrashRecord> index) async {
     try {
       final json = jsonEncode({
         for (final entry in index.entries)
@@ -355,8 +362,8 @@ class FileOperationsService {
           },
       });
       final tmp = File('$_trashIndexPath.tmp');
-      tmp.writeAsStringSync(json, flush: true);
-      tmp.renameSync(_trashIndexPath);
+      await tmp.writeAsString(json, flush: true);
+      await tmp.rename(_trashIndexPath);
     } catch (_) {
       // Best effort: without the index, items are adopted on the next purge.
     }
@@ -411,7 +418,7 @@ class FileOperationsService {
   }
 
   Future<void> _pasteOne(String src, String destinationDir, bool moving) async {
-    final srcType = FileSystemEntity.typeSync(src, followLinks: false);
+    final srcType = await FileSystemEntity.type(src, followLinks: false);
 
     // A folder pasted into itself (or one of its own descendants) would
     // recurse forever — detect that up front and refuse.
@@ -426,7 +433,7 @@ class FileOperationsService {
     }
 
     final name = _basename(src);
-    final dest = _uniqueDestination(destinationDir, name);
+    final dest = await _uniqueDestinationAsync(destinationDir, name);
 
     if (moving) {
       // Cut = move. Same-volume renames are the fast path and never need a
@@ -471,13 +478,13 @@ class FileOperationsService {
   /// make this recurse forever.
   Future<void> _copyDirectoryRecursive(String src, String dest) async {
     await Directory(dest).create(recursive: true);
-    final entities = Directory(src).listSync(followLinks: false);
+    final entities = await Directory(src).list(followLinks: false).toList();
     final fileFutures = <Future<void>>[];
 
     for (final entity in entities) {
       final childName = _basename(entity.path);
       final childDest = '$dest/$childName';
-      final type = FileSystemEntity.typeSync(entity.path, followLinks: false);
+      final type = await FileSystemEntity.type(entity.path, followLinks: false);
 
       if (type == FileSystemEntityType.directory) {
         await _copyDirectoryRecursive(entity.path, childDest);
@@ -489,7 +496,7 @@ class FileOperationsService {
         // so a link back to an ancestor can't cause recursion.
         try {
           final link = Link(entity.path);
-          final target = link.targetSync();
+          final target = await link.target();
           await Link(childDest).create(target);
         } catch (_) {
           // Unreadable/undeletable link target — ignore rather than abort.
@@ -505,11 +512,10 @@ class FileOperationsService {
   /// Returns a destination path inside [dir] for [name] that doesn't exist yet.
   /// On a clash it appends " (1)", " (2)", … — before the extension for files,
   /// after the bare name for folders — and never overwrites.
-  String _uniqueDestination(String dir, String name) {
+  Future<String> _uniqueDestinationAsync(String dir, String name) async {
     var candidate = '$dir/$name';
-    if (!_exists(candidate)) return candidate;
+    if (!await _existsAsync(candidate)) return candidate;
 
-    // Split name into base and (for files) extension.
     final dot = name.lastIndexOf('.');
     final isDotfile = name.startsWith('.');
     final hasExt = !isDotfile && dot > 0 && dot < name.length - 1;
@@ -519,13 +525,13 @@ class FileOperationsService {
     var i = 1;
     while (true) {
       candidate = '$dir/$base ($i)$ext';
-      if (!_exists(candidate)) return candidate;
+      if (!await _existsAsync(candidate)) return candidate;
       i++;
     }
   }
 
-  bool _exists(String path) {
-    return FileSystemEntity.typeSync(path, followLinks: false) !=
+  Future<bool> _existsAsync(String path) async {
+    return await FileSystemEntity.type(path, followLinks: false) !=
         FileSystemEntityType.notFound;
   }
 

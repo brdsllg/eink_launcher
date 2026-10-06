@@ -25,7 +25,10 @@ class ReadingStateWarning extends StatelessWidget {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -33,13 +36,19 @@ class ReadingStateWarning extends StatelessWidget {
                         message,
                         style: const TextStyle(
                           color: Colors.black,
-                          fontSize: 14,
+                          fontSize: 15,
                         ),
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => unawaited(store.flush()),
-                      child: const Text('Retry'),
+                    SizedBox(
+                      height: 48,
+                      child: TextButton(
+                        onPressed: () => unawaited(store.flush()),
+                        child: const Text(
+                          'Retry',
+                          style: TextStyle(fontSize: 15),
+                        ),
+                      ),
                     ),
                   ],
                 ),

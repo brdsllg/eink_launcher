@@ -45,8 +45,13 @@ void main() {
 
     expect(find.text('Previous'), findsNothing);
     expect(find.text('Next'), findsNothing);
-    for (final label in ['Home', 'Bookmarks', 'Settings']) {
+    for (final label in ['Home', 'Bookmarks']) {
       expect(find.text(label), findsNothing);
+      expect(find.byTooltip(label), findsOneWidget);
+    }
+    // Bottom-bar actions show an icon with a short label underneath.
+    for (final label in ['Settings', 'Fit height', 'Fit width']) {
+      expect(find.text(label), findsOneWidget);
       expect(find.byTooltip(label), findsOneWidget);
     }
     expect(find.byKey(const Key('reader-crop-button')), findsNothing);
@@ -100,7 +105,7 @@ void main() {
     expect(searched, isTrue);
     expect(find.byKey(const Key('reader-fit-height-button')), findsNothing);
     expect(tester.takeException(), isNull);
-    expect(find.text('Contents'), findsNothing);
+    expect(find.text('Contents'), findsOneWidget);
     expect(find.byTooltip('Contents'), findsOneWidget);
     expect(find.byKey(const Key('reader-clock-cell')), findsOneWidget);
     expect(find.byKey(const Key('reader-battery-cell')), findsOneWidget);

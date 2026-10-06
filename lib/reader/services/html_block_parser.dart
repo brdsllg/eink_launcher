@@ -233,10 +233,14 @@ class _HtmlWalker {
     // Study-book headings use the same two-span, bilingual presentation as a
     // verse heading.  The EPUB declares the English and Hebrew spans with
     // opposite directions; treating only verse headings specially collapsed
-    // Parshah and Aliyah labels onto the left in the native reader.
+    // Parshah and Aliyah labels onto the left in the native reader. Talmud
+    // segment and amud headings get the same treatment so both study books
+    // share one heading style.
     if (element.classes.contains('verse-heading') ||
         element.classes.contains('parsha-heading') ||
-        element.classes.contains('aliyah-heading')) {
+        element.classes.contains('aliyah-heading') ||
+        element.classes.contains('segment-heading') ||
+        element.classes.contains('amud-heading')) {
       final spans = element.children
           .where((child) => child.localName == 'span')
           .toList();
@@ -488,10 +492,18 @@ class _HtmlWalker {
 
   _BlockPresentation _presentationFor(Element? element) {
     if (element == null) return const _BlockPresentation();
-    final isVerseHeading = element.classes.contains('verse-heading');
+    // All study headings share one compact, bold, body-size style so Tanach
+    // verses, parshiyot/aliyot, and Talmud segments/amudim look like one
+    // book instead of three.
+    final isStudyHeading =
+        element.classes.contains('verse-heading') ||
+        element.classes.contains('parsha-heading') ||
+        element.classes.contains('aliyah-heading') ||
+        element.classes.contains('segment-heading') ||
+        element.classes.contains('amud-heading');
     final isNoteTitle = element.classes.contains('note-title');
     if (!honorPublisherCss) {
-      return _BlockPresentation(forceBold: isVerseHeading || isNoteTitle);
+      return _BlockPresentation(forceBold: isStudyHeading || isNoteTitle);
     }
 
     var inTanach = false;
@@ -508,7 +520,7 @@ class _HtmlWalker {
       inEnglishNote = inEnglishNote || current.classes.contains('note-en');
       current = current.parent;
     }
-    if (!inTanach && !isVerseHeading && !isNoteTitle) {
+    if (!inTanach && !isStudyHeading && !isNoteTitle) {
       return const _BlockPresentation();
     }
 
@@ -516,38 +528,42 @@ class _HtmlWalker {
     final isHebrew = classes.contains('hebrew') || inHebrewNote;
     final isTranslation = classes.contains('translation');
     final isEnglish = isTranslation || inEnglishNote;
-    final isNoteParagraph = classes.contains('note-paragraph');
-    // These multipliers mirror the EPUB stylesheet: the verse heading is
-    // 1.15em, the note title is .8em, and the Hebrew verse (.hebrew) plus the
-    // Hebrew commentary body (.note-he) are 1.1em. English bodies stay 1em.
+    final isNoteParagraph =
+        classes.contains('note-paragraph') ||
+        classes.contains('comment-segment');
+    // These multipliers mirror the EPUB stylesheet: study headings are
+    // body-size and bold, the note title is 0.9em, and the Hebrew verse
+    // (.hebrew) plus the Hebrew commentary body (.note-he) are 1.1em.
+    // English bodies stay 1em. One shared scale keeps Tanach and Talmud
+    // reading as one book.
     return _BlockPresentation(
-      fontSizeMultiplier: isVerseHeading
-          ? 1.15
+      fontSizeMultiplier: isStudyHeading
+          ? 1.0
           : isNoteTitle
-          ? 0.8
+          ? 0.9
           : isHebrew
           ? 1.1
           : null,
       lineHeight: isNoteTitle
-          ? 1.45
+          ? 1.5
           : isHebrew
-          ? 1.8
+          ? 1.7
           : isEnglish
-          ? 1.65
+          ? 1.55
           : null,
-      spacingAfterEm: isVerseHeading
+      spacingAfterEm: isStudyHeading
           ? 0.35
           : isNoteTitle
-          ? 0.7
+          ? 0.5
           : isNoteParagraph
-          ? 0.65
+          ? 0.6
           : classes.contains('hebrew')
-          ? 0.4
+          ? 0.45
           : isTranslation
-          ? 0.55
+          ? 0.5
           : null,
       textIndentEm: inTanach ? 0 : null,
-      forceBold: isVerseHeading || isNoteTitle,
+      forceBold: isStudyHeading || isNoteTitle,
     );
   }
 

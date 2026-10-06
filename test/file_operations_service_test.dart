@@ -33,6 +33,13 @@ void main() {
     expect(Directory(p2('NewDir')).existsSync(), isTrue);
   });
 
+  test('createFolder rejects path escapes like rename does', () async {
+    for (final bad in ['..', '.', '', 'a/b', 'a\\b', 'x\u0000y']) {
+      expect(() => ops.createFolder(temp.path, bad), throwsArgumentError);
+    }
+    expect(Directory(p2('a')).existsSync(), isFalse);
+  });
+
   test('renameEntry renames a file and a folder', () async {
     writeFile('a.txt');
     Directory(p2('folder')).createSync();
@@ -277,7 +284,7 @@ void main() {
 
     test('purging an empty or missing bin is harmless', () async {
       expect(await bin.purgeExpiredTrash(), 0);
-      bin.ensureTrashDir();
+      await bin.ensureTrashDir();
       expect(await bin.purgeExpiredTrash(), 0);
     });
 
@@ -298,16 +305,16 @@ void main() {
     test('trashDaysRemaining counts down from 30, rounding up', () async {
       writeFile('a.txt');
       await bin.trashEntries([p2('a.txt')]);
-      expect(bin.trashDaysRemaining(), {'a.txt': 30});
+      expect(await bin.trashDaysRemaining(), {'a.txt': 30});
 
       clock = clock.add(const Duration(days: 1, hours: 1));
-      expect(bin.trashDaysRemaining()['a.txt'], 29);
+      expect((await bin.trashDaysRemaining())['a.txt'], 29);
 
       clock = clock.add(const Duration(days: 28));
-      expect(bin.trashDaysRemaining()['a.txt'], 1); // 22 hours left
+      expect((await bin.trashDaysRemaining())['a.txt'], 1); // 22 hours left
 
       clock = clock.add(const Duration(days: 2));
-      expect(bin.trashDaysRemaining()['a.txt'], 0); // overdue, never negative
+      expect((await bin.trashDaysRemaining())['a.txt'], 0); // overdue, never negative
     });
 
     test('emptyTrash permanently removes everything in the bin', () async {
@@ -319,7 +326,7 @@ void main() {
       expect(await bin.emptyTrash(), isEmpty);
       expect(inBin('d'), isFalse);
       expect(inBin('a.txt'), isFalse);
-      expect(bin.trashDaysRemaining(), isEmpty);
+      expect(await bin.trashDaysRemaining(), isEmpty);
     });
 
     test('emptyTrash on a bin that does not exist yet is harmless', () async {

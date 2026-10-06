@@ -1,4 +1,6 @@
 import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 /// Service for handling file intents from Android when a user opens a file with this app.
@@ -19,18 +21,45 @@ class FileIntentService {
 
   StreamSubscription<dynamic>? _fileEventSubscription;
   bool _initialized = false;
+  String? _pendingInitialFile;
 
-  /// Callback when a file is opened with this app
-  Function(String filePath)? onFileOpened;
+  Function(String filePath)? _onFileOpened;
 
-  /// Initialize the service and set up listeners
-  Future<void> initialize() async {
+  /// Callback when a file is opened with this app.
+  /// If the OS already delivered the launch file before this was set,
+  /// it is replayed immediately so the first file is never dropped.
+  Function(String filePath)? get onFileOpened => _onFileOpened;
+
+  set onFileOpened(Function(String filePath)? callback) {
+    _onFileOpened = callback;
+    final pending = _pendingInitialFile;
+    if (pending != null && callback != null) {
+      _pendingInitialFile = null;
+      // Deliver outside the setter so a slow reader open can't re-enter.
+      Future.microtask(() => callback(pending));
+    }
+  }
+
+  /// Start listening for files without fetching the launch file yet.
+  /// Safe to call from `main()` before any UI callback exists.
+  void startListening() {
     if (_initialized) return;
     _initialized = true;
     _listenToFileIntents();
+  }
+
+  /// Initialize the service and set up listeners.
+  /// The launch file is kept until [onFileOpened] is set, so calling this
+  /// before the UI is ready no longer loses the first file.
+  Future<void> initialize() async {
+    startListening();
     final initialFile = await getInitialFile();
-    if (initialFile != null && onFileOpened != null) {
-      onFileOpened!(initialFile);
+    if (initialFile == null) return;
+    final callback = _onFileOpened;
+    if (callback != null) {
+      callback(initialFile);
+    } else {
+      _pendingInitialFile ??= initialFile;
     }
   }
 
@@ -44,7 +73,7 @@ class FileIntentService {
       }
       return null;
     } on PlatformException catch (e) {
-      print('Error getting initial file: ${e.message}');
+      debugPrint('Error getting initial file: ${e.message}');
       return null;
     }
   }
@@ -61,7 +90,7 @@ class FileIntentService {
         }
       },
       onError: (error) {
-        print('Error listening to file intents: $error');
+        debugPrint('Error listening to file intents: $error');
       },
     );
   }
@@ -70,6 +99,7 @@ class FileIntentService {
   void dispose() {
     if (_initialized) {
       _fileEventSubscription?.cancel();
+      _fileEventSubscription = null;
       _initialized = false;
     }
   }

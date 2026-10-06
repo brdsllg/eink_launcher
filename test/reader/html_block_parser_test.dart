@@ -71,8 +71,10 @@ void main() {
     expect(blocks.single.direction, BlockTextDirection.rtl);
   });
 
-  test('preserves revision-5 Tanach layout semantics and the 1.1 Hebrew scale', () {
-    final blocks = HtmlBlockParser.parseSync('''
+  test(
+    'preserves revision-5 Tanach layout semantics and the 1.1 Hebrew scale',
+    () {
+      final blocks = HtmlBlockParser.parseSync('''
       <section class="verse" id="v-ruth-3-1">
         <h2 class="verse-heading" dir="ltr">
           <span lang="en" dir="ltr">Verse 1</span>
@@ -90,39 +92,42 @@ void main() {
       </section>
     ''');
 
-    final heading = blocks.first;
-    expect(heading.plainText, 'Verse 1 פסוק א׳');
-    expect(heading.hasSplitLayout, isTrue);
-    expect(heading.direction, BlockTextDirection.ltr);
-    expect(heading.trailingDirection, BlockTextDirection.rtl);
-    expect(heading.fontSizeMultiplier, 1.15);
-    expect(heading.forceBold, isTrue);
+      final heading = blocks.first;
+      expect(heading.plainText, 'Verse 1 פסוק א׳');
+      expect(heading.hasSplitLayout, isTrue);
+      expect(heading.direction, BlockTextDirection.ltr);
+      expect(heading.trailingDirection, BlockTextDirection.rtl);
+      expect(heading.fontSizeMultiplier, 1.0);
+      expect(heading.forceBold, isTrue);
 
-    final hebrew = blocks.firstWhere((block) => block.plainText == 'בְּרֵאשִׁית');
-    expect(hebrew.alignment, BlockAlignment.right);
-    expect(hebrew.lineHeight, 1.8);
-    expect(hebrew.textIndentEm, 0);
-    expect(hebrew.fontSizeMultiplier, 1.1);
-    final english = blocks.firstWhere(
-      (block) => block.plainText == 'In the beginning',
-    );
-    expect(english.alignment, BlockAlignment.left);
-    expect(english.lineHeight, 1.65);
-    expect(english.fontSizeMultiplier, isNull);
-    final title = blocks.firstWhere(
-      (block) => block.plainText == 'Ibn Ezra on Ruth 3:1',
-    );
-    expect(title.fontSizeMultiplier, 0.8);
-    expect(title.forceBold, isTrue);
-    final hebrewNoteBlocks = blocks
-        .where((block) => {'אחד', 'שנים'}.contains(block.plainText))
-        .toList();
-    expect(hebrewNoteBlocks, hasLength(2));
-    expect(
-      hebrewNoteBlocks.every((block) => block.fontSizeMultiplier == 1.1),
-      isTrue,
-    );
-  });
+      final hebrew = blocks.firstWhere(
+        (block) => block.plainText == 'בְּרֵאשִׁית',
+      );
+      expect(hebrew.alignment, BlockAlignment.right);
+      expect(hebrew.lineHeight, 1.7);
+      expect(hebrew.textIndentEm, 0);
+      expect(hebrew.fontSizeMultiplier, 1.1);
+      final english = blocks.firstWhere(
+        (block) => block.plainText == 'In the beginning',
+      );
+      expect(english.alignment, BlockAlignment.left);
+      expect(english.lineHeight, 1.55);
+      expect(english.fontSizeMultiplier, isNull);
+      final title = blocks.firstWhere(
+        (block) => block.plainText == 'Ibn Ezra on Ruth 3:1',
+      );
+      expect(title.fontSizeMultiplier, 0.9);
+      expect(title.forceBold, isTrue);
+      final hebrewNoteBlocks = blocks
+          .where((block) => {'אחד', 'שנים'}.contains(block.plainText))
+          .toList();
+      expect(hebrewNoteBlocks, hasLength(2));
+      expect(
+        hebrewNoteBlocks.every((block) => block.fontSizeMultiplier == 1.1),
+        isTrue,
+      );
+    },
+  );
 
   test('parses a complete XHTML document on a background isolate', () async {
     final blocks = await parser.parse('''
@@ -139,5 +144,33 @@ void main() {
       BlockType.paragraph,
     ]);
     expect(blocks.map((block) => block.plainText), ['Chapter', 'Body text.']);
+  });
+
+  test('Talmud segment headings share the compact bold study style', () {
+    final blocks = HtmlBlockParser.parseSync('''
+      <section class="segment" id="s-berakhot-2a-1" data-ref="Berakhot 2a:1">
+        <div class="segment-heading"><span dir="ltr">Berakhot 2a:1</span></div>
+        <p class="hebrew" dir="rtl">מאימתי</p>
+        <p class="translation" dir="ltr">From when</p>
+        <aside class="commentary-note">
+          <p class="note-title">Rashi 2a:1</p>
+          <div class="note-he" dir="rtl">
+            <div class="comment-segment"><div class="note-paragraph">פירוש</div></div>
+          </div>
+        </aside>
+      </section>
+    ''');
+
+    final heading = blocks.firstWhere(
+      (block) => block.plainText == 'Berakhot 2a:1',
+    );
+    expect(heading.fontSizeMultiplier, 1.0);
+    expect(heading.forceBold, isTrue);
+    final hebrew = blocks.firstWhere((block) => block.plainText == 'מאימתי');
+    expect(hebrew.fontSizeMultiplier, 1.1);
+    expect(hebrew.lineHeight, 1.7);
+    final comment = blocks.firstWhere((block) => block.plainText == 'פירוש');
+    expect(comment.fontSizeMultiplier, 1.1);
+    expect(comment.spacingAfterEm, 0.6);
   });
 }

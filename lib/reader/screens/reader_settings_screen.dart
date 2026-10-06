@@ -53,10 +53,11 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
           .where((option) => option.label == _settings.studyTranslation)
           .firstOrNull;
       _settings = _settings.copyWith(
-        studyTranslation: legacy?.id ??
+        studyTranslation:
+            legacy?.id ??
             (primary != null && ids.contains(primary)
-            ? primary
-            : widget.studyTranslations.first.id),
+                ? primary
+                : widget.studyTranslations.first.id),
       );
     }
   }
@@ -87,122 +88,168 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
     );
   }
 
-  List<Widget> _textControls() => [
+  /// Study content first: what text is shown. Typography and display follow.
+  /// The headings switch appears whenever the book carries the Parshah
+  /// list, even if it has no commentary sources or translations.
+  List<Widget> _studyControls() => [
     if (widget.studySources.isNotEmpty ||
-        widget.studyTranslations.isNotEmpty) ...[
-      Text(
-        'Selected commentary appears after each '
-        '${_segmentUnit ? 'segment' : 'verse'}. If a language or translation is '
-        'missing, the available text is kept.',
-      ),
-      _StudySelector(
-        label: _segmentUnit ? 'Talmud language' : 'Verse language',
-        child: DropdownButtonFormField<String>(
-          key: const Key('reader-settings-verse-language'),
-          isExpanded: true,
-          initialValue: _settings.verseLanguage,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-          items: const [
-            DropdownMenuItem(value: 'both', child: Text('Hebrew and English')),
-            DropdownMenuItem(value: 'he', child: Text('Hebrew')),
-            DropdownMenuItem(value: 'en', child: Text('English')),
-          ],
-          onChanged: (value) => setState(
-            () => _settings = _settings.copyWith(verseLanguage: value),
-          ),
+        widget.studyTranslations.isNotEmpty ||
+        widget.hasParshaToc) ...[
+      if (widget.studySources.isNotEmpty || widget.studyTranslations.isNotEmpty)
+        Text(
+          'Selected commentary appears after each '
+          '${_segmentUnit ? 'segment' : 'verse'}. If a language or translation is '
+          'missing, the available text is kept.',
         ),
-      ),
-      _StudySelector(
-        label: 'Commentary language',
-        child: DropdownButtonFormField<String>(
-          isExpanded: true,
-          initialValue: _settings.commentaryLanguage,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-          items: const [
-            DropdownMenuItem(value: 'both', child: Text('Hebrew and English')),
-            DropdownMenuItem(value: 'he', child: Text('Hebrew')),
-            DropdownMenuItem(value: 'en', child: Text('English')),
-          ],
-          onChanged: (value) => setState(
-            () => _settings = _settings.copyWith(commentaryLanguage: value),
-          ),
-        ),
-      ),
-      if (widget.studyTranslations.isNotEmpty)
+      if (widget.studySources.isNotEmpty ||
+          widget.studyTranslations.isNotEmpty) ...[
         _StudySelector(
-          label: 'Main translation',
+          label: _segmentUnit ? 'Talmud language' : 'Verse language',
           child: DropdownButtonFormField<String>(
+            key: const Key('reader-settings-verse-language'),
             isExpanded: true,
-            initialValue: _settings.studyTranslation,
+            initialValue: _settings.verseLanguage,
             decoration: const InputDecoration(border: OutlineInputBorder()),
-            items: [
-              for (final option in widget.studyTranslations)
-                DropdownMenuItem(
-                  value: option.id,
-                  child: Text(option.label, overflow: TextOverflow.ellipsis),
-                ),
+            items: const [
+              DropdownMenuItem(
+                value: 'both',
+                child: Text('Hebrew and English'),
+              ),
+              DropdownMenuItem(value: 'he', child: Text('Hebrew')),
+              DropdownMenuItem(value: 'en', child: Text('English')),
             ],
             onChanged: (value) => setState(
-              () => _settings = _settings.copyWith(studyTranslation: value),
+              () => _settings = _settings.copyWith(verseLanguage: value),
             ),
           ),
         ),
-      ExpansionTile(
-        title: const Text('Commentary sources'),
-        subtitle: Text(
-          _settings.commentarySources.isEmpty
-              ? 'None selected'
-              : _settings.commentarySources.length == widget.studySources.length
-              ? 'All sources'
-              : '${_settings.commentarySources.length} selected',
+        _StudySelector(
+          label: 'Commentary language',
+          child: DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: _settings.commentaryLanguage,
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+            items: const [
+              DropdownMenuItem(
+                value: 'both',
+                child: Text('Hebrew and English'),
+              ),
+              DropdownMenuItem(value: 'he', child: Text('Hebrew')),
+              DropdownMenuItem(value: 'en', child: Text('English')),
+            ],
+            onChanged: (value) => setState(
+              () => _settings = _settings.copyWith(commentaryLanguage: value),
+            ),
+          ),
         ),
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () => setState(
-                    () => _settings = _settings.copyWith(
-                      commentarySources: List<String>.from(
-                        widget.studySources,
+        if (widget.studyTranslations.isNotEmpty)
+          _StudySelector(
+            label: 'Main translation',
+            child: DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: _settings.studyTranslation,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              items: [
+                for (final option in widget.studyTranslations)
+                  DropdownMenuItem(
+                    value: option.id,
+                    child: Text(option.label, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: (value) => setState(
+                () => _settings = _settings.copyWith(studyTranslation: value),
+              ),
+            ),
+          ),
+        ExpansionTile(
+          title: const Text('Commentary sources'),
+          subtitle: Text(
+            _settings.commentarySources.isEmpty
+                ? 'None selected'
+                : _settings.commentarySources.length ==
+                      widget.studySources.length
+                ? 'All sources'
+                : '${_settings.commentarySources.length} selected',
+          ),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => setState(
+                      () => _settings = _settings.copyWith(
+                        commentarySources: List<String>.from(
+                          widget.studySources,
+                        ),
                       ),
                     ),
+                    child: const Text('Select all'),
                   ),
-                  child: const Text('Select all'),
+                ),
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => setState(
+                      () => _settings = _settings.copyWith(
+                        commentarySources: const [],
+                      ),
+                    ),
+                    child: const Text('Deselect all'),
+                  ),
+                ),
+              ],
+            ),
+            for (final source in widget.studySources)
+              CheckboxListTile(
+                title: Text(source),
+                value: _settings.commentarySources.contains(source),
+                onChanged: (value) => setState(() {
+                  final selected = _settings.commentarySources.toSet();
+                  if (value == true) {
+                    selected.add(source);
+                  } else {
+                    selected.remove(source);
+                  }
+                  _settings = _settings.copyWith(
+                    commentarySources: selected.toList(),
+                  );
+                }),
+              ),
+          ],
+        ),
+      ],
+      if (widget.hasParshaToc)
+        _SettingsGroup(
+          label: 'Headings and table of contents',
+          child: GridActions(
+            minCellWidth: 120,
+            maxColumns: 2,
+            children: [
+              _ChoiceButton(
+                key: const Key('reader-settings-chapter-headings'),
+                label: 'Chapters',
+                selected: !_settings.showParshaAliyot,
+                onPressed: () => setState(
+                  () => _settings = _settings.copyWith(showParshaAliyot: false),
                 ),
               ),
-              Expanded(
-                child: TextButton(
-                  onPressed: () => setState(
-                    () => _settings = _settings.copyWith(
-                      commentarySources: const [],
-                    ),
-                  ),
-                  child: const Text('Deselect all'),
+              _ChoiceButton(
+                key: const Key('reader-settings-parsha-headings'),
+                label: 'Parshiyot and aliyot',
+                selected: _settings.showParshaAliyot,
+                onPressed: () => setState(
+                  () => _settings = _settings.copyWith(showParshaAliyot: true),
                 ),
               ),
             ],
           ),
-          for (final source in widget.studySources)
-            CheckboxListTile(
-              title: Text(source),
-              value: _settings.commentarySources.contains(source),
-              onChanged: (value) => setState(() {
-                final selected = _settings.commentarySources.toSet();
-                if (value == true) {
-                  selected.add(source);
-                } else {
-                  selected.remove(source);
-                }
-                _settings = _settings.copyWith(
-                  commentarySources: selected.toList(),
-                );
-              }),
-            ),
-        ],
-      ),
+        ),
       const SizedBox(height: 20),
     ],
+  ];
+
+  /// How the text looks. Each control is its own group so the label always
+  /// says what the choices mean.
+  List<Widget> _textControls() => [
     _SettingsGroup(
       label: 'Latin font',
       child: GridActions(
@@ -310,23 +357,31 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
       ),
     ),
     _SettingsGroup(
-      label: 'Text options',
+      label: 'Alignment',
       child: GridActions(
         minCellWidth: 96,
         children: [
           _ChoiceButton(
             key: const Key('reader-settings-justify'),
             toggle: true,
-            label: _settings.justify ? 'Justified' : 'Ragged edge',
+            label: _settings.justify ? 'Justified' : 'Left aligned',
             selected: _settings.justify,
             onPressed: () => setState(
               () => _settings = _settings.copyWith(justify: !_settings.justify),
             ),
           ),
+        ],
+      ),
+    ),
+    _SettingsGroup(
+      label: 'Hyphenation',
+      child: GridActions(
+        minCellWidth: 96,
+        children: [
           _ChoiceButton(
             key: const Key('reader-settings-hyphenation'),
             toggle: true,
-            label: _settings.hyphenate ? 'Hyphenation on' : 'Hyphenation off',
+            label: _settings.hyphenate ? 'On' : 'Off',
             selected: _settings.hyphenate,
             onPressed: () => setState(
               () => _settings = _settings.copyWith(
@@ -334,12 +389,18 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    ),
+    _SettingsGroup(
+      label: 'Publisher layout',
+      child: GridActions(
+        minCellWidth: 96,
+        children: [
           _ChoiceButton(
             key: const Key('reader-settings-publisher-css'),
             toggle: true,
-            label: _settings.honorPublisherCss
-                ? 'Publisher style on'
-                : 'Publisher style off',
+            label: _settings.honorPublisherCss ? 'On' : 'Off',
             selected: _settings.honorPublisherCss,
             onPressed: () => setState(
               () => _settings = _settings.copyWith(
@@ -350,63 +411,28 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
         ],
       ),
     ),
-    if (widget.hasParshaToc)
-      _SettingsGroup(
-        label: 'Headings and table of contents',
-        child: GridActions(
-          minCellWidth: 120,
-          maxColumns: 2,
-          children: [
-            _ChoiceButton(
-              key: const Key('reader-settings-chapter-headings'),
-              label: 'Chapters',
-              selected: !_settings.showParshaAliyot,
-              onPressed: () => setState(
-                () => _settings = _settings.copyWith(
-                  showParshaAliyot: false,
-                ),
-              ),
-            ),
-            _ChoiceButton(
-              key: const Key('reader-settings-parsha-headings'),
-              label: 'Parshiyot and aliyot',
-              selected: _settings.showParshaAliyot,
-              onPressed: () => setState(
-                () => _settings = _settings.copyWith(
-                  showParshaAliyot: true,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
   ];
 
-  /// Only the controls the active fit mode actually honours.
+  /// Only the controls the active fit mode actually honours. The mode itself
+  /// is chosen in the reader menu; its name heads this section.
   List<Widget> _pdfControls() {
     switch (_settings.fitMode) {
       case PdfFitMode.fitHeight:
         return [_cropControl()];
       case PdfFitMode.fitWidth:
-        return [
-          _cropControl(),
-          _overlapControl('Fit-width overlap'),
-          _overlapGuideControl(),
-        ];
+        return [_cropControl(), _overlapControl(), _overlapGuideControl()];
       case PdfFitMode.zoom:
         return [
-          _overlapControl('Scroll-step overlap'),
+          _overlapControl(),
           _overlapGuideControl(),
           _SettingsGroup(
-            label: 'Zoom out past the page',
+            label: 'Zoom out past page width',
             child: GridActions(
               children: [
                 _ChoiceButton(
                   key: const Key('reader-settings-zoom-out'),
                   toggle: true,
-                  label: _settings.allowZoomOutBeyondFit
-                      ? 'Enabled'
-                      : 'Disabled',
+                  label: _settings.allowZoomOutBeyondFit ? 'On' : 'Off',
                   selected: _settings.allowZoomOutBeyondFit,
                   onPressed: () => setState(
                     () => _settings = _settings.copyWith(
@@ -418,8 +444,8 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
             ),
           ),
           const Text(
-            'When enabled, pinching in can shrink pages below the screen '
-            'width so several can be skimmed at once. When disabled, the '
+            'When on, pinching in can shrink pages below the screen '
+            'width so several can be skimmed at once. When off, the '
             'page never gets smaller than the screen width.',
           ),
           const SizedBox(height: 20),
@@ -432,8 +458,10 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
     }
   }
 
-  Widget _overlapControl(String label) => _SettingsGroup(
-    label: label,
+  /// One name for the overlap in every mode: how much of the previous slice
+  /// stays on screen when paging through tall pages.
+  Widget _overlapControl() => _SettingsGroup(
+    label: 'Overlap',
     child: _StepControl(
       value: '${(_settings.splitOverlap * 100).round()}%',
       decreaseKey: const Key('reader-settings-overlap-decrease'),
@@ -448,13 +476,13 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
   );
 
   Widget _overlapGuideControl() => _SettingsGroup(
-    label: 'Reading continuation arrows',
+    label: 'Guide arrows',
     child: GridActions(
       children: [
         _ChoiceButton(
           key: const Key('reader-settings-overlap-guide'),
           toggle: true,
-          label: _settings.overlapGuideEnabled ? 'Enabled' : 'Disabled',
+          label: _settings.overlapGuideEnabled ? 'Show' : 'Hide',
           selected: _settings.overlapGuideEnabled,
           onPressed: () => setState(
             () => _settings = _settings.copyWith(
@@ -468,13 +496,13 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
 
   List<Widget> _navigationControls() => [
     _SettingsGroup(
-      label: 'Left / right page-turn tap zones',
+      label: 'Edge tap to turn pages',
       child: GridActions(
         children: [
           _ChoiceButton(
             key: const Key('reader-settings-tap-zones'),
             toggle: true,
-            label: _settings.pageTurnTapZonesEnabled ? 'Enabled' : 'Disabled',
+            label: _settings.pageTurnTapZonesEnabled ? 'On' : 'Off',
             selected: _settings.pageTurnTapZonesEnabled,
             onPressed: () => setState(
               () => _settings = _settings.copyWith(
@@ -486,13 +514,13 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
       ),
     ),
     _SettingsGroup(
-      label: 'Physical page buttons',
+      label: 'Device page buttons',
       child: GridActions(
         children: [
           _ChoiceButton(
             key: const Key('reader-settings-page-buttons'),
             toggle: true,
-            label: _settings.pageButtonsEnabled ? 'Enabled' : 'Disabled',
+            label: _settings.pageButtonsEnabled ? 'On' : 'Off',
             selected: _settings.pageButtonsEnabled,
             onPressed: () => setState(
               () => _settings = _settings.copyWith(
@@ -506,13 +534,13 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
   ];
 
   Widget _cropControl() => _SettingsGroup(
-    label: 'Automatic margin crop',
+    label: 'Trim margins',
     child: GridActions(
       children: [
         _ChoiceButton(
           key: const Key('reader-settings-crop'),
           toggle: true,
-          label: _settings.autoCrop ? 'Enabled' : 'Disabled',
+          label: _settings.autoCrop ? 'On' : 'Off',
           selected: _settings.autoCrop,
           onPressed: () => setState(
             () => _settings = _settings.copyWith(autoCrop: !_settings.autoCrop),
@@ -521,6 +549,78 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
       ],
     ),
   );
+
+  List<Widget> _displayControls({required bool textDocument}) => [
+    _SettingsGroup(
+      label: 'Page color',
+      child: GridActions(
+        children: [
+          _ChoiceButton(
+            key: const Key('reader-settings-color'),
+            toggle: true,
+            label: _settings.colorEnabled ? 'Color' : 'Black and white',
+            selected: _settings.colorEnabled,
+            onPressed: () => setState(
+              () => _settings = _settings.copyWith(
+                colorEnabled: !_settings.colorEnabled,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+    if (!textDocument) ...[
+      _SettingsGroup(
+        label: 'Image dithering',
+        child: GridActions(
+          children: [
+            _ChoiceButton(
+              key: const Key('reader-settings-dithering'),
+              toggle: true,
+              label: _settings.pdfDithering ? 'On' : 'Off',
+              selected: _settings.pdfDithering,
+              onPressed: () => setState(
+                () => _settings = _settings.copyWith(
+                  pdfDithering: !_settings.pdfDithering,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      const Padding(
+        padding: EdgeInsets.only(bottom: 20),
+        child: Text(
+          'Try dithering for scanned pages and photos with banded gradients. '
+          'It also works in color; leave it off if your device already smooths images well.',
+        ),
+      ),
+    ],
+    _SettingsGroup(
+      label: 'Orientation',
+      child: GridActions(
+        minCellWidth: 120,
+        maxColumns: 2,
+        children: [
+          _ChoiceButton(
+            key: const Key('reader-settings-portrait'),
+            label: 'Portrait',
+            selected: !_settings.landscape,
+            onPressed: () => setState(
+              () => _settings = _settings.copyWith(landscape: false),
+            ),
+          ),
+          _ChoiceButton(
+            key: const Key('reader-settings-landscape'),
+            label: 'Landscape',
+            selected: _settings.landscape,
+            onPressed: () =>
+                setState(() => _settings = _settings.copyWith(landscape: true)),
+          ),
+        ],
+      ),
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -553,55 +653,10 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
               physics: const ClampingScrollPhysics(),
               padding: const EdgeInsets.all(16),
               children: [
-                _SettingsGroup(
-                  label: 'Page color',
-                  child: GridActions(
-                    children: [
-                      _ChoiceButton(
-                        key: const Key('reader-settings-color'),
-                        toggle: true,
-                        label: _settings.colorEnabled
-                            ? 'Color'
-                            : 'Black and white',
-                        selected: _settings.colorEnabled,
-                        onPressed: () => setState(
-                          () => _settings = _settings.copyWith(
-                            colorEnabled: !_settings.colorEnabled,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!textDocument) ...[
-                  _SettingsGroup(
-                    label: 'Image dithering',
-                    child: GridActions(
-                      children: [
-                        _ChoiceButton(
-                          key: const Key('reader-settings-dithering'),
-                          toggle: true,
-                          label: _settings.pdfDithering
-                              ? 'Dithering on'
-                              : 'Dithering off',
-                          selected: _settings.pdfDithering,
-                          onPressed: () => setState(
-                            () => _settings = _settings.copyWith(
-                              pdfDithering: !_settings.pdfDithering,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 20),
-                    child: Text(
-                      'Try dithering for scanned pages and photos with banded gradients. '
-                      'It also works in color; leave it off if your device already smooths images well.',
-                    ),
-                  ),
-                ],
+                // Reading order: what is shown, how it looks, then how pages
+                // turn. Display controls sit with the format they affect.
+                if (textDocument) ..._studyControls(),
+                ..._displayControls(textDocument: textDocument),
                 ...textDocument ? _textControls() : _pdfControls(),
                 ..._navigationControls(),
               ],

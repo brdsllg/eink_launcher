@@ -20,7 +20,7 @@ class SelectionToolbar extends StatelessWidget {
     color: Colors.white,
     shape: const RoundedRectangleBorder(side: BorderSide(color: Colors.black)),
     child: SizedBox(
-      height: 48,
+      height: 56,
       child: Row(
         children: [
           _button('Copy', 'copy', onCopy),
@@ -43,11 +43,14 @@ class SelectionToolbar extends StatelessWidget {
         splashFactory: NoSplash.splashFactory,
         overlayColor: Colors.transparent,
         animationDuration: Duration.zero,
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        minimumSize: const Size(0, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        minimumSize: const Size(0, 56),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
-      child: FittedBox(fit: BoxFit.scaleDown, child: Text(label)),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(label, style: const TextStyle(fontSize: 15)),
+      ),
     ),
   );
 }

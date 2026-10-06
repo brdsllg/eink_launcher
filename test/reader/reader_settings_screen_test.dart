@@ -31,8 +31,8 @@ void main() {
     expect(find.text('Fit height'), findsNothing);
     expect(find.text('Zoom / scroll'), findsNothing);
 
-    expect(find.text('Automatic margin crop'), findsOneWidget);
-    expect(find.text('Fit-width overlap'), findsNothing);
+    expect(find.text('Trim margins'), findsOneWidget);
+    expect(find.text('Overlap'), findsNothing);
     expect(find.byKey(const Key('reader-settings-zoom-out')), findsNothing);
     expect(
       find.byKey(const Key('reader-settings-overlap-guide')),
@@ -44,7 +44,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const Key('reader-settings-crop')),
-        matching: find.text('Disabled'),
+        matching: find.text('Off'),
       ),
       findsOneWidget,
     );
@@ -53,8 +53,8 @@ void main() {
   testWidgets('fit width adds the overlap control', (tester) async {
     await pumpSettings(tester, PdfFitMode.fitWidth);
 
-    expect(find.text('Automatic margin crop'), findsOneWidget);
-    expect(find.text('Fit-width overlap'), findsOneWidget);
+    expect(find.text('Trim margins'), findsOneWidget);
+    expect(find.text('Overlap'), findsOneWidget);
     expect(find.text('6%'), findsOneWidget);
     expect(find.byKey(const Key('reader-settings-zoom-out')), findsNothing);
 
@@ -66,7 +66,7 @@ void main() {
     await tester.tap(guide);
     await tester.pump();
     expect(
-      find.descendant(of: guide, matching: find.text('Disabled')),
+      find.descendant(of: guide, matching: find.text('Hide')),
       findsOneWidget,
     );
   });
@@ -76,10 +76,9 @@ void main() {
   ) async {
     await pumpSettings(tester, PdfFitMode.zoom);
 
-    expect(find.text('Automatic margin crop'), findsNothing);
+    expect(find.text('Trim margins'), findsNothing);
     expect(find.byKey(const Key('reader-settings-crop')), findsNothing);
-    expect(find.text('Fit-width overlap'), findsNothing);
-    expect(find.text('Scroll-step overlap'), findsOneWidget);
+    expect(find.text('Overlap'), findsOneWidget);
     await tester.tap(find.byKey(const Key('reader-settings-overlap-increase')));
     await tester.pump();
     expect(find.text('7%'), findsOneWidget);
@@ -90,7 +89,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const Key('reader-settings-zoom-out')),
-        matching: find.text('Enabled'),
+        matching: find.text('On'),
       ),
       findsOneWidget,
     );
@@ -100,7 +99,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const Key('reader-settings-zoom-out')),
-        matching: find.text('Disabled'),
+        matching: find.text('Off'),
       ),
       findsOneWidget,
     );
@@ -162,7 +161,7 @@ void main() {
         final guide = find.byKey(const Key('reader-settings-overlap-guide'));
         await tester.scrollUntilVisible(guide, 150);
         expect(
-          find.descendant(of: guide, matching: find.text('Enabled')),
+          find.descendant(of: guide, matching: find.text('Show')),
           findsOneWidget,
         );
         await tester.tap(guide);
@@ -174,12 +173,12 @@ void main() {
       await tester.tap(taps);
       await tester.pump();
       expect(
-        find.descendant(of: taps, matching: find.text('Disabled')),
+        find.descendant(of: taps, matching: find.text('Off')),
         findsOneWidget,
       );
       await tester.scrollUntilVisible(buttons, 150);
       expect(
-        find.descendant(of: buttons, matching: find.text('Enabled')),
+        find.descendant(of: buttons, matching: find.text('On')),
         findsOneWidget,
       );
       await tester.tap(buttons);

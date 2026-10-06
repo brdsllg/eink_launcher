@@ -16,7 +16,8 @@ validation on the Bigme remains.
   `outputs/tanach-39-epubs.zip`. It holds 23,206 verses and 203,039 unique selected
   commentary notes, presented in 112,694 source/verse groups.
 - **Format:** presentation revision 5, with Hebrew verse and Hebrew commentary text at
-  1.1em.
+  1.1em (amended Oct 2026: study headings 1.0em bold, note titles 0.9em;
+  see Presentation).
 - **Checks passed:** EPUBCheck 5.3.0, internal links and anchors (every verse-to-index
   and index-to-note link resolves), database invariants, heading checks, and
   grouped-note content preservation. The reader's all-book import, reopen, first/last
@@ -74,8 +75,11 @@ Mizrachi; Rabbeinu Bahya; Siftei Chakhamim. Details, IDs, and exclusions are in
   text blocks stay right-to-left. Never infer page-turn direction from the first
   language being Hebrew.
 - No paragraph indentation and no inset commentary border.
-- **Sizes:** English bodies 1em; Hebrew verse and Hebrew commentary 1.1em; verse
-  heading 1.15em; note title 0.8em. Do not silently change body sizes.
+- **Sizes (amended Oct 2026):** English bodies 1em; Hebrew verse and Hebrew
+  commentary 1.1em; study headings (verse, parsha, aliyah) 1.0em bold; note
+  titles 0.9em bold. Hebrew line height 1.7, English 1.55. One black rule per
+  verse; commentary groups separate by spacing and their bold title, with no
+  extra rules. Do not silently change body sizes.
 - **Verse heading:** one compact bold line, "Verse 1" on the left and "פסוק א׳" on the
   right (Hebrew numerals such as ט״ו, ט״ז). It is a single `h2` with two independently
   directed spans, flex space-between, and a literal space between them. Earlier

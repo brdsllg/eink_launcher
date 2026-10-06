@@ -30,7 +30,9 @@ class StartupHealthService {
           .timeout(timeout);
       return response ?? true;
     } catch (_) {
-      // A missing/broken Android bridge must not trap the user at startup.
+      // No marker / broken bridge: fall back to the recovery screen, which
+      // still offers Retry, Use internal storage, and Open apps — so this
+      // never traps the user on a blank page.
       return true;
     }
   }

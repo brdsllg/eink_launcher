@@ -158,7 +158,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     final toolbarWidth = width.clamp(0.0, overlay.size.width);
     final top = desiredTop.clamp(
       0.0,
-      (overlay.size.height - 48).clamp(0.0, double.infinity),
+      (overlay.size.height - 56).clamp(0.0, double.infinity),
     );
     return Stack(
       children: [
@@ -286,7 +286,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     if (block.type == BlockType.horizontalRule) {
       return Align(
         alignment: Alignment.topCenter,
-        child: Container(height: 2, color: Colors.black),
+        child: Container(height: 1, color: Colors.black),
       );
     }
     if (block.type == BlockType.image) {

@@ -91,21 +91,19 @@ class ReaderMenuOverlay extends StatelessWidget {
         _MenuButton(
           key: const Key('reader-percent-jump-button'),
           icon: Icons.percent,
-          label: percent == null ? 'Jump' : '${(percent! * 100).round()}%',
+          label: percent == null ? '%' : '${(percent! * 100).round()}%',
           onPressed: controlsEnabled ? onJumpToPercent : null,
         ),
         _MenuButton(
           key: const Key('reader-toc-button'),
           icon: Icons.list_alt,
           label: 'Contents',
-          showLabel: false,
           onPressed: controlsEnabled ? onOpenToc : null,
         ),
         _MenuButton(
           key: const Key('reader-settings-button'),
           icon: Icons.tune,
           label: 'Settings',
-          showLabel: false,
           onPressed: controlsEnabled ? onOpenSettings : null,
         ),
       ],
@@ -177,11 +175,12 @@ class ReaderMenuOverlay extends StatelessWidget {
                             onPressed: controlsEnabled ? onOpenSearch : null,
                           ),
                         _MenuButton(
-                          // Rotation includes a word as well as an icon.
+                          // Rotation shows the current orientation; tapping
+                          // switches to the other one.
                           width: iconWidth + 40,
                           key: const Key('reader-orientation-button'),
                           icon: Icons.screen_rotation,
-                          label: settings.landscape ? 'Portrait' : 'Landscape',
+                          label: settings.landscape ? 'Landscape' : 'Portrait',
                           onPressed: controlsEnabled
                               ? onToggleOrientation
                               : null,
@@ -211,7 +210,7 @@ class ReaderMenuOverlay extends StatelessWidget {
                       _ModeButton(
                         key: const Key('reader-fit-height-button'),
                         icon: Icons.fit_screen,
-                        label: 'Height',
+                        label: 'Fit height',
                         selected: settings.fitMode == PdfFitMode.fitHeight,
                         onPressed: controlsEnabled
                             ? () => onSelectFitMode(PdfFitMode.fitHeight)
@@ -220,7 +219,7 @@ class ReaderMenuOverlay extends StatelessWidget {
                       _ModeButton(
                         key: const Key('reader-fit-width-button'),
                         icon: Icons.swap_horiz,
-                        label: 'Width',
+                        label: 'Fit width',
                         selected: settings.fitMode == PdfFitMode.fitWidth,
                         onPressed: controlsEnabled
                             ? () => onSelectFitMode(PdfFitMode.fitWidth)
@@ -262,7 +261,7 @@ class _StatusCell extends StatelessWidget {
     }
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
         child: FittedBox(fit: BoxFit.scaleDown, child: child),
       ),
     );
@@ -326,28 +325,35 @@ class _MenuButton extends StatelessWidget {
               onPressed: onPressed,
               icon: Icon(icon, size: kReaderChromeIconSize),
             )
-          : TextButton(
-              onPressed: onPressed,
-              style: TextButton.styleFrom(
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.zero,
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 2),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: kReaderChromeIconSize - 2),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      style: const TextStyle(fontSize: 12),
-                      maxLines: 1,
-                    ),
+          : Tooltip(
+              message: label,
+              child: TextButton(
+                onPressed: onPressed,
+                style: TextButton.styleFrom(
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero,
                   ),
-                ],
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 4,
+                  ),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: kReaderChromeIconSize - 6),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        style: const TextStyle(fontSize: 13),
+                        maxLines: 1,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
     );
@@ -370,41 +376,44 @@ class _ModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: onPressed,
-      style:
-          TextButton.styleFrom(
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.zero,
+    return Tooltip(
+      message: label,
+      child: TextButton(
+        onPressed: onPressed,
+        style:
+            TextButton.styleFrom(
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.zero,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ).copyWith(
+              foregroundColor: WidgetStateProperty.resolveWith(
+                (states) => selected || states.contains(WidgetState.pressed)
+                    ? Colors.white
+                    : Colors.black,
+              ),
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) => selected || states.contains(WidgetState.pressed)
+                    ? Colors.black
+                    : Colors.white,
+              ),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ).copyWith(
-            foregroundColor: WidgetStateProperty.resolveWith(
-              (states) => selected || states.contains(WidgetState.pressed)
-                  ? Colors.white
-                  : Colors.black,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: kReaderChromeIconSize),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14),
+              ),
             ),
-            backgroundColor: WidgetStateProperty.resolveWith(
-              (states) => selected || states.contains(WidgetState.pressed)
-                  ? Colors.black
-                  : Colors.white,
-            ),
-          ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: kReaderChromeIconSize),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

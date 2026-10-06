@@ -18,56 +18,111 @@ class FolderLoaderService {
 
   SendPort? _sendPort;
   Isolate? _isolate;
+  Future<void>? _starting;
 
   /// Ensures the background isolate is running. Idempotent.
+  /// Concurrent callers share one startup, and a failed startup never
+  /// leaves a half-ready isolate behind.
   Future<void> _ensureIsolate() async {
     if (_sendPort != null) return;
+    if (_starting != null) {
+      await _starting;
+      if (_sendPort != null) return;
+      throw StateError('Folder worker did not start.');
+    }
+    final startup = _startIsolate();
+    _starting = startup;
+    try {
+      await startup.timeout(const Duration(seconds: 5));
+    } finally {
+      _starting = null;
+    }
+    if (_sendPort == null) throw StateError('Folder worker did not start.');
+  }
 
+  Future<void> _startIsolate() async {
     final receivePort = ReceivePort();
-    _isolate = await Isolate.spawn(_isolateEntry, receivePort.sendPort);
+    Isolate? isolate;
+    try {
+      isolate = await Isolate.spawn(_isolateEntry, receivePort.sendPort);
+      final sendPort = await receivePort.first.timeout(
+        const Duration(seconds: 5),
+      );
+      if (sendPort is! SendPort) throw StateError('Bad worker handshake.');
+      _isolate = isolate;
+      _sendPort = sendPort;
+    } catch (_) {
+      isolate?.kill(priority: Isolate.immediate);
+      _isolate = null;
+      _sendPort = null;
+      rethrow;
+    } finally {
+      receivePort.close();
+    }
+  }
 
-    final completer = Completer<SendPort>();
-    receivePort.listen((message) {
-      if (message is SendPort) {
-        completer.complete(message);
-      }
-    });
-    _sendPort = await completer.future;
-    receivePort.close();
+  void _restartWorker() {
+    try {
+      _isolate?.kill(priority: Isolate.immediate);
+    } catch (_) {}
+    _isolate = null;
+    _sendPort = null;
+    _starting = null;
+  }
+
+  Future<T> _ask<T>(List<Object> message, {required Duration timeout}) async {
+    await _ensureIsolate();
+    final responsePort = ReceivePort();
+    try {
+      _sendPort!.send([...message, responsePort.sendPort]);
+      final result = await responsePort.first.timeout(timeout);
+      if (result is T) return result;
+      // Worker replies 'Error: ...' (String) for folder failures.
+      throw Exception(result.toString());
+    } on TimeoutException {
+      // A hung worker must not hang the browser forever; drop it so the
+      // next call starts a fresh one.
+      _restartWorker();
+      rethrow;
+    } catch (_) {
+      rethrow;
+    } finally {
+      responsePort.close();
+    }
   }
 
   /// Lists the folder at [path] on the background isolate and returns
   /// sorted FileEntry results (with stats initially null for fast initial render).
   Future<List<FileEntry>> loadFolder(String path) async {
-    await _ensureIsolate();
-
-    final responsePort = ReceivePort();
-    _sendPort!.send([path, responsePort.sendPort]);
-
-    final result = await responsePort.first;
-    responsePort.close();
-
-    if (result is List) {
+    try {
+      final result = await _ask<List>(
+        [path],
+        timeout: const Duration(seconds: 15),
+      );
+      return result.cast<FileEntry>();
+    } on TimeoutException {
+      // One retry on a fresh worker; a second hang is a real error.
+      final result = await _ask<List>(
+        [path],
+        timeout: const Duration(seconds: 15),
+      );
       return result.cast<FileEntry>();
     }
-    throw Exception(result.toString());
   }
 
   /// Stats a batch of file paths on the background isolate.
   /// Returns a map of path → FileStat for successful stats.
   Future<Map<String, FileStat>> loadStats(List<String> paths) async {
-    await _ensureIsolate();
-
-    final responsePort = ReceivePort();
-    _sendPort!.send(['stats', paths, responsePort.sendPort]);
-
-    final result = await responsePort.first;
-    responsePort.close();
-
-    if (result is Map) {
+    try {
+      final result = await _ask<Map>(
+        ['stats', paths],
+        timeout: const Duration(seconds: 15),
+      );
       return result.cast<String, FileStat>();
+    } catch (_) {
+      // File metadata is optional; an isolate hiccup must not break listing.
+      return {};
     }
-    return {};
   }
 
   /// The isolate's main loop.

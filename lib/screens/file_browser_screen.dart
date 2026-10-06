@@ -53,6 +53,7 @@ class FileBrowserScreen extends StatefulWidget {
 class _FileBrowserScreenState extends State<FileBrowserScreen>
     with WidgetsBindingObserver {
   late final FileBrowserController _controller;
+  bool get _ownsController => widget.controller == null;
   late final StartupHealthService _startupHealth;
   late final ReaderSessionRegistry _registry;
   bool _healthChecked = false;
@@ -84,7 +85,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _controller.dispose();
+    if (_ownsController) _controller.dispose();
     unawaited(SystemChrome.setPreferredOrientations(const []));
     super.dispose();
   }
@@ -360,7 +361,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   // meaningless to look at, so special-case it.
   String _displayName(String path) {
     if (_controller.ops.isTrashRoot(path)) return 'Recycle Bin';
-    if (path == kStorageRoot) return 'Internal Storage';
+    if (FileBrowserController.isDeviceRoot(path)) return 'Internal Storage';
     final segments = path.split('/').where((s) => s.isNotEmpty);
     return segments.isEmpty ? path : segments.last;
   }

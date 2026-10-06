@@ -182,7 +182,7 @@ class _TabCell extends StatelessWidget {
                 invertOnPress: !selected,
                 color: selected ? Colors.black : Colors.white,
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 5),
+                  padding: const EdgeInsets.only(left: 12),
                   child: Align(
                     alignment: AlignmentDirectional.centerStart,
                     child: Text(
@@ -192,8 +192,8 @@ class _TabCell extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: foreground,
-                        fontSize: 18,
-                        height: 1.15,
+                        fontSize: 17,
+                        height: 1.2,
                         fontWeight: selected
                             ? FontWeight.w600
                             : FontWeight.w400,
@@ -205,7 +205,7 @@ class _TabCell extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: 40,
+            width: 48,
             child: InvertingPressListener(
               color: selected ? Colors.black : Colors.white,
               child: IconButton(
@@ -226,12 +226,12 @@ class _TabCell extends StatelessWidget {
                 splashColor: Colors.transparent,
                 highlightColor: Colors.transparent,
                 icon: Container(
-                  width: 26,
-                  height: 26,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     border: Border.all(color: foreground),
                   ),
-                  child: const Icon(Icons.close, size: 22),
+                  child: const Icon(Icons.close, size: 24),
                 ),
               ),
             ),

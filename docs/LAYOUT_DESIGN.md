@@ -10,7 +10,7 @@ columns. Sizes are Flutter logical pixels; flexible tracks share the remaining w
 | --- | --- | --- |
 | Reader status row and PDF modes | Battery, clock, page count, percentage, Contents, Settings in **1:2:3:1:1:1**. Modes in **1:1:1**. | The one place ninths help: the page-count cell lines up with the middle third of the modes. |
 | Reader title bar | Home and Bookmarks **56px** each, flexible title, **96px** rotation. Below 360px: icons 48px, rotation 88px. Text search adds an icon cell. | Rotation has a word and an icon, so it needs more room. Fixed side cells keep targets usable on a phone and give landscape width to the title. |
-| Reader tabs | **56px** arrows (48px on narrow screens), three **equal** tabs in between. Close targets 40px. | Every book gets equal weight; fixed arrows and close targets leave the most room for titles. |
+| Reader tabs | **56px** arrows (48px on narrow screens), three **equal** tabs in between. Close targets 48px. | Every book gets equal weight; fixed arrows and close targets leave the most room for titles. |
 | Browser header | Home, battery, plus: 64px each. Clock 128px. Flexible folder name. On very narrow screens the four cells shrink **1:2:1:1**. | Matching edge actions balance the bar; the double-width clock fits large text. |
 | List paging | First, Previous, Next, Last: 64px each around a flexible page count. | Equal targets give the four actions equal weight. |
 | Browser file rows | Flexible name plus a 72px info column (88px on wide screens). | Names come first; sizes and folder markers stay aligned. |

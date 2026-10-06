@@ -275,33 +275,33 @@ def in_range(loc, start, end):
 
 # ─── CSS ─────────────────────────────────────────────────────────────────────
 
-CSS = '''body {font-family:serif; margin:5%; color:#111; background:#fff; line-height:1.5;}
+CSS = '''body {font-family:serif; margin:5%; color:#000; background:#fff; line-height:1.5;}
 h1 {font-size:1.25em; line-height:1.35; margin:1em 0;}
 h2 {font-size:1.1em; line-height:1.4;}
 .amud-heading {display:flex; justify-content:space-between; align-items:baseline;
-  margin:1em 0 .5em; font-size:1.15em; font-weight:bold; line-height:1.4;}
-.segment {margin:1.2em 0 1.7em; padding-bottom:1em; border-bottom:1px solid #ccc;}
+  margin:1em 0 .5em; font-size:1em; font-weight:bold; line-height:1.4;}
+.segment {margin:1em 0 1.2em; padding-bottom:1em; border-bottom:1px solid #000;}
 .segment-heading {display:flex; justify-content:space-between; align-items:baseline;
-  margin:.65em 0 .35em; font-size:1.05em; font-weight:bold; line-height:1.4;}
+  margin:.35em 0; font-size:1em; font-weight:bold; line-height:1.4;}
 .hebrew {font-family:"Noto Serif Hebrew","David","Times New Roman",serif;
-  font-size:1.1em; text-align:right; line-height:1.8; margin:.4em 0; direction:rtl;}
-.translation {font-size:1em; text-align:left; line-height:1.65; margin:.55em 0;}
-.comment-segment {margin:.7em 0;}
+  font-size:1.1em; text-align:right; line-height:1.7; margin:.45em 0; direction:rtl;}
+.translation {font-size:1em; text-align:left; line-height:1.55; margin:.5em 0;}
+.comment-segment {margin:.6em 0;}
 p, .translation, .note-he, .note-en {text-indent:0;}
 a {color:inherit; text-decoration:underline;}
-.note-links {font-family:sans-serif; font-size:.78em; line-height:1.8; text-align:left; margin:.65em 0 0;}
-.note-links a {display:inline-block; margin-right:.65em;}
-aside {margin:1.5em 0; border-top:1px solid #bbb; padding-top:.7em;}
-.commentary-note {margin:1.5em 0; padding:.6em 0; border-top:1px solid #bbb;}
-.note-title {font-family:sans-serif; font-size:.8em; font-weight:bold;
-  line-height:1.45; margin:0 0 .7em; text-align:left;}
+.note-links {font-size:.9em; line-height:1.8; text-align:left; margin:.6em 0 0;}
+.note-links a {display:inline-block; margin-right:.65em; text-decoration:none; border-bottom:1px solid #000;}
+aside {margin:1.2em 0;}
+.commentary-note {margin:1.2em 0; padding:0;}
+.note-title {font-size:.9em; font-weight:bold;
+  line-height:1.5; margin:0 0 .5em; text-align:left;}
 .note-he {font-family:"Noto Serif Hebrew","David","Times New Roman",serif;
-  text-align:right; font-size:1.1em; line-height:1.8; direction:rtl;}
-.note-en {text-align:left; font-size:1em; line-height:1.65;}
-.note-paragraph {margin:.65em 0;}
+  text-align:right; font-size:1.1em; line-height:1.7; direction:rtl;}
+.note-en {text-align:left; font-size:1em; line-height:1.55;}
+.note-paragraph {margin:.6em 0;}
 .embedded-footnote {font-size:1em;}
 .colophon {overflow-wrap:anywhere; font-size:.9em;}
-.backlinks {font-family:sans-serif; font-size:.75em; margin:1em 0 0;}
+.backlinks {font-size:.8em; margin:1em 0 0;}
 '''
 
 

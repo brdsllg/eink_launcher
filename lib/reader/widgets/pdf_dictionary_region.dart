@@ -42,6 +42,10 @@ class PdfDictionaryRegion extends StatefulWidget {
 }
 
 class _PdfDictionaryRegionState extends State<PdfDictionaryRegion> {
+  /// Selection handles match the text reader's 48 dp touch targets so they
+  /// stay grabbable on the e-ink panel; the small visible marker still points
+  /// precisely at the selected text boundary.
+  static const double _handleSize = 48;
   int _generation = 0;
   bool _busy = false;
   PdfWordSelection? _selection;
@@ -210,7 +214,7 @@ class _PdfDictionaryRegionState extends State<PdfDictionaryRegion> {
           left: origin.dx.clamp(0.0, overlay.size.width - toolbarWidth),
           top: desiredTop.clamp(
             0.0,
-            (overlay.size.height - 48).clamp(0.0, double.infinity),
+            (overlay.size.height - 56).clamp(0.0, double.infinity),
           ),
           width: toolbarWidth,
           child: SelectionToolbar(
@@ -223,13 +227,17 @@ class _PdfDictionaryRegionState extends State<PdfDictionaryRegion> {
         if (widget.adjustSelection != null)
           for (final start in [true, false])
             Positioned(
-              left: (start ? firstAnchor.dx - 24 : lastAnchor.dx).clamp(
-                0.0,
-                (overlay.size.width - 24).clamp(0.0, double.infinity),
-              ),
+              left: (start ? firstAnchor.dx - _handleSize : lastAnchor.dx)
+                  .clamp(
+                    0.0,
+                    (overlay.size.width - _handleSize).clamp(
+                      0.0,
+                      double.infinity,
+                    ),
+                  ),
               top: (start ? firstAnchor.dy : lastAnchor.dy).clamp(
                 0.0,
-                (overlay.size.height - 24).clamp(0.0, double.infinity),
+                (overlay.size.height - _handleSize).clamp(0.0, double.infinity),
               ),
               child: GestureDetector(
                 key: Key(
@@ -241,11 +249,15 @@ class _PdfDictionaryRegionState extends State<PdfDictionaryRegion> {
                 onPanUpdate: (details) =>
                     _moveHandle(start, details.globalPosition),
                 child: SizedBox(
-                  width: 24,
-                  height: 24,
+                  width: _handleSize,
+                  height: _handleSize,
                   child: Align(
                     alignment: start ? Alignment.topRight : Alignment.topLeft,
-                    child: Container(width: 8, height: 16, color: Colors.black),
+                    child: Container(
+                      width: 12,
+                      height: 24,
+                      color: Colors.black,
+                    ),
                   ),
                 ),
               ),

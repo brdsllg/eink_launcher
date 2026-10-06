@@ -468,7 +468,7 @@ def _build_heading_lookup(book):
         for n, (a_ch, a_v) in enumerate(parsha['aliyot'], 1):
             ah = (
                 f'<h2 class="aliyah-heading" id="aliyah-{ps}-{n}" dir="ltr" '
-                f'style="display:flex; justify-content:space-between; font-size:1.15em;">'
+                f'style="display:flex; justify-content:space-between;">'
                 f'<span lang="en" xml:lang="en" dir="ltr">{e(ALIYAH_NAMES_EN[n])}</span>'
                 f' <span lang="he" xml:lang="he" dir="rtl">{e(ALIYAH_NAMES_HE[n])}</span>'
                 f'</h2>'
@@ -492,28 +492,29 @@ def _build_parsha_nav(book):
         )
     return f'<nav id="parsha-toc" epub:type="other"><h1>Parashiyot</h1><ol>{"".join(items)}</ol></nav>'
 
-CSS='''body {font-family:serif; margin:5%; color:#111; background:#fff; line-height:1.5;}
+CSS='''body {font-family:serif; margin:5%; color:#000; background:#fff; line-height:1.5;}
 h1 {font-size:1.25em; line-height:1.35; margin:1em 0;}
 h2 {font-size:1.1em; line-height:1.4;}
-.verse {margin:1.2em 0 1.7em; padding-bottom:1em; border-bottom:1px solid #ccc;}
-.hebrew {font-family:"Noto Serif Hebrew","David","Times New Roman",serif; font-size:1.1em; text-align:right; line-height:1.8; margin:.4em 0;}
-.translation {font-size:1em; text-align:left; line-height:1.65; margin:.55em 0;}
-.verse-heading {display:flex; justify-content:space-between; align-items:baseline; margin:.65em 0 .35em; font-size:1.15em; font-weight:bold; line-height:1.4;}
-.comment-segment {margin:.7em 0;}
+.verse {margin:1em 0 1.2em; padding-bottom:1em; border-bottom:1px solid #000;}
+.hebrew {font-family:"Noto Serif Hebrew","David","Times New Roman",serif; font-size:1.1em; text-align:right; line-height:1.7; margin:.45em 0;}
+.translation {font-size:1em; text-align:left; line-height:1.55; margin:.5em 0;}
+.verse-heading {display:flex; justify-content:space-between; align-items:baseline; margin:.35em 0; font-size:1em; font-weight:bold; line-height:1.4;}
+.parsha-heading, .aliyah-heading {font-size:1em; font-weight:bold; line-height:1.4;}
+.comment-segment {margin:.6em 0;}
 p, .translation, .note-he, .note-en {text-indent:0;}
 a {color:inherit; text-decoration:underline;}
-.note-links {font-family:sans-serif; font-size:.78em; line-height:1.8; text-align:left; margin:.65em 0 0;}
-.note-links a {display:inline-block; margin-right:.65em;}
-aside {margin:1.5em 0; border-top:1px solid #bbb; padding-top:.7em;}
-.commentary-note {margin:1.5em 0; padding:.6em 0; border-top:1px solid #bbb;}
-.note-title {font-family:sans-serif; font-size:.8em; font-weight:bold; line-height:1.45; margin:0 0 .7em; text-align:left;}
-.note-he {font-family:"Noto Serif Hebrew","David","Times New Roman",serif; text-align:right; font-size:1.1em; line-height:1.8;}
-.note-en {text-align:left; font-size:1em; line-height:1.65;}
-.note-paragraph {margin:.65em 0;}
+.note-links {font-size:.9em; line-height:1.8; text-align:left; margin:.6em 0 0;}
+.note-links a {display:inline-block; margin-right:.65em; text-decoration:none; border-bottom:1px solid #000;}
+aside {margin:1.2em 0;}
+.commentary-note {margin:1.2em 0; padding:0;}
+.note-title {font-size:.9em; font-weight:bold; line-height:1.5; margin:0 0 .5em; text-align:left;}
+.note-he {font-family:"Noto Serif Hebrew","David","Times New Roman",serif; text-align:right; font-size:1.1em; line-height:1.7;}
+.note-en {text-align:left; font-size:1em; line-height:1.55;}
+.note-paragraph {margin:.6em 0;}
 .ketiv {font-size:1em;}
 .embedded-footnote {font-size:1em;}
 .colophon {overflow-wrap:anywhere; font-size:.9em;}
-.backlinks {font-family:sans-serif; font-size:.75em; margin:1em 0 0;}
+.backlinks {font-size:.8em; margin:1em 0 0;}
 '''
 
 def xhtml(title,body):
@@ -575,7 +576,7 @@ def generate(conn,editions,chapters_by_book=None,books=None):
             for row in conn.execute('SELECT * FROM verses WHERE book=? AND chapter=? ORDER BY verse',(book,ch)):
                 v=row['verse'];vid=f'v-{bs}-{ch}-{v}';used.add(row['hebrew_edition'])
                 body.extend(headings.get((ch, v), ()))
-                body.append(f'<section class="verse" id="{vid}" data-ref="{e(book)} {ch}:{v}"><h2 class="verse-heading" dir="ltr" style="display:flex; justify-content:space-between; font-size:1.15em;"><span lang="en" xml:lang="en" dir="ltr">Verse {v}</span> <span lang="he" xml:lang="he" dir="rtl">פסוק {hebrew_number(v)}</span></h2><p class="hebrew" lang="he" xml:lang="he" dir="rtl">{row["hebrew"]}</p>')
+                body.append(f'<section class="verse" id="{vid}" data-ref="{e(book)} {ch}:{v}"><h2 class="verse-heading" dir="ltr" style="display:flex; justify-content:space-between;"><span lang="en" xml:lang="en" dir="ltr">Verse {v}</span> <span lang="he" xml:lang="he" dir="rtl">פסוק {hebrew_number(v)}</span></h2><p class="hebrew" lang="he" xml:lang="he" dir="rtl">{row["hebrew"]}</p>')
                 translations=translations_by_verse[v]
                 primary=next((t for t in translations if t['is_primary']),None)
                 if primary is not None:

@@ -68,7 +68,21 @@ class FileBrowserController extends ChangeNotifier {
   bool get selecting => _selecting;
   Set<String> get selectedPaths => _selectedPaths;
   bool get hasSelection => _selectedPaths.isNotEmpty;
-  bool get atRoot => _currentPath == kStorageRoot;
+  // Some devices use /storage/emulated/10 (multi-user / work profile)
+  // instead of /storage/emulated/0. Treat any direct child of
+  // /storage/emulated as a device root so Up never climbs into
+  // /storage/emulated itself or jumps across users.
+  static bool isDeviceRoot(String path) {
+    if (path == kStorageRoot) return true;
+    final normalized = path.endsWith('/') && path.length > 1
+        ? path.substring(0, path.length - 1)
+        : path;
+    if (!normalized.startsWith('/storage/emulated/')) return false;
+    final rest = normalized.substring('/storage/emulated/'.length);
+    return rest.isNotEmpty && !rest.contains('/');
+  }
+
+  bool get atRoot => isDeviceRoot(_currentPath);
 
   /// True in the Recycle Bin or any folder inside it.
   bool get inTrash => _ops.isInTrash(_currentPath);
@@ -198,7 +212,15 @@ class FileBrowserController extends ChangeNotifier {
 
       // The bin's hidden folder is reached from the menu, not the listing.
       _entries = entries.where((e) => e.path != _ops.trashRoot).toList();
-      _trashDaysLeft = atTrashRoot ? _ops.trashDaysRemaining() : const {};
+      if (atTrashRoot) {
+        try {
+          _trashDaysLeft = await _ops.trashDaysRemaining();
+        } catch (_) {
+          _trashDaysLeft = const {};
+        }
+      } else {
+        _trashDaysLeft = const {};
+      }
       if (resetPage) {
         _currentPage = 0;
       } else if (_itemsPerPage > 0) {
@@ -307,7 +329,7 @@ class FileBrowserController extends ChangeNotifier {
   /// expired items are never shown.
   Future<void> openTrash() async {
     if (_disposed) return;
-    _ops.ensureTrashDir();
+    await _ops.ensureTrashDir();
     await _ops.purgeExpiredTrash();
     if (_disposed) return;
     await loadFolder(_ops.trashItemsDir);
@@ -471,10 +493,19 @@ class FileBrowserController extends ChangeNotifier {
   }
 
   String _parentPath(String path) {
-    if (path == kStorageRoot) return kStorageRoot;
-    final idx = path.lastIndexOf('/');
-    var parent = idx <= 0 ? kStorageRoot : path.substring(0, idx);
-    if (parent.length < kStorageRoot.length) parent = kStorageRoot;
+    if (isDeviceRoot(path)) return path;
+    final trimmed = path.endsWith('/') && path.length > 1
+        ? path.substring(0, path.length - 1)
+        : path;
+    final idx = trimmed.lastIndexOf('/');
+    if (idx <= 0) return kStorageRoot;
+    final parent = trimmed.substring(0, idx);
+    // Never climb above the device root (e.g. /storage/emulated).
+    if (parent == '/storage/emulated' || parent.length < kStorageRoot.length) {
+      return trimmed.startsWith('/storage/emulated/')
+          ? '/storage/emulated/${trimmed.split('/')[3]}'
+          : kStorageRoot;
+    }
     return parent;
   }
 

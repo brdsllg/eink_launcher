@@ -65,7 +65,7 @@ class _DictionaryDialogState extends State<DictionaryDialog> {
                 ),
                 Text(
                   entries[index].sourceDetail,
-                  style: const TextStyle(fontSize: 12),
+                  style: const TextStyle(fontSize: 13),
                 ),
                 if (entries[index].word.toLowerCase() !=
                     widget.word.toLowerCase())
@@ -105,7 +105,7 @@ class _DictionaryDialogState extends State<DictionaryDialog> {
             const SizedBox(height: 16),
             const Text(
               'English, modern Hebrew, rabbinic Hebrew & Aramaic • Offline',
-              style: TextStyle(fontSize: 12),
+              style: TextStyle(fontSize: 13),
             ),
             TextButton(
               onPressed: () => showDialog<void>(

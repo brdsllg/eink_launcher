@@ -47,10 +47,12 @@ void main() async {
   // process starts, and this keeps them hidden once Flutter takes over.
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   
-  // Initialize file intent service for opening files from file manager
+  // Start listening right away so no file-open is missed, but don't fetch
+  // the launch file yet — MyApp sets its callback first, then initialize()
+  // delivers it (or holds it until the callback exists).
   final fileIntentService = FileIntentService();
-  await fileIntentService.initialize();
-  
+  fileIntentService.startListening();
+
   runApp(MyApp(fileIntentService: fileIntentService));
 }
 

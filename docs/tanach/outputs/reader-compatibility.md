@@ -4,7 +4,7 @@ The format reference for the Tanach (and, by extension, Talmud) EPUBs, written f
 inspecting the actual files. The bundled reader implements this contract (see
 `../docs/tanach-epub.md`); this guide remains the reference for any other reader and
 for checking regressions. Current format: presentation revision 5, with Hebrew text at
-1.1em.
+1.1em (amended Oct 2026: study headings 1.0em bold, note titles 0.9em).
 
 ## 1. What the reader needs to do
 
@@ -109,7 +109,7 @@ support the `epub:type` form too.
 | Element or field | Meaning and handling |
 |---|---|
 | `section.verse` | One base verse; keep its anchor (`v-{book}-{chapter}-{verse}`) and `data-ref` |
-| Verse heading `h2` | One compact bold row with two independently directed spans (English left, Hebrew right) and a literal space between. Render as one horizontal row, not concatenated strings or two rows. 1.15em |
+| Verse heading `h2` | One compact bold row with two independently directed spans (English left, Hebrew right) and a literal space between. Render as one horizontal row, not concatenated strings or two rows. Body size (1.0em), bold |
 | `.hebrew` | Prepared source text; keep inline markup and Unicode. 1.1em |
 | `.translation` | Default English for this verse, with opaque `data-edition`, `data-primary="true"`, and a short `data-translation-label`. No `data-source`. Never add a visible source label |
 | `a` with `epub:type="noteref"` | Resolve `href`, then inspect the target's category |

@@ -104,7 +104,7 @@ void main() {
       (block) => block.plainText == 'Verse 1 פסוק א׳',
     );
     expect(heading.hasSplitLayout, isTrue);
-    expect(heading.fontSizeMultiplier, 1.15);
+    expect(heading.fontSizeMultiplier, 1.0);
     final hebrewVerse = book.spine.first.blocks.firstWhere(
       (block) => block.plainText == 'בְּרֵאשִׁית [כתיב]',
     );
@@ -223,9 +223,7 @@ void main() {
       original,
       const ReaderSettings(verseLanguage: 'both'),
     );
-    final bothText = both.spine.first.blocks
-        .map((b) => b.plainText)
-        .join('\n');
+    final bothText = both.spine.first.blocks.map((b) => b.plainText).join('\n');
     expect(bothText, contains('בְּרֵאשִׁית [כתיב]'));
     expect(bothText, contains('שֵׁנִי'));
     expect(bothText, contains('First verse'));
@@ -286,7 +284,7 @@ void main() {
           expect(
             headings.every(
               (block) =>
-                  block.hasSplitLayout && block.fontSizeMultiplier == 1.15,
+                  block.hasSplitLayout && block.fontSizeMultiplier == 1.0,
             ),
             isTrue,
             reason: file.path,

@@ -171,9 +171,9 @@ Settings show only the controls the current format and mode honor:
 
 | Control | Fit Height | Fit Width | Zoom / Scroll | Text |
 | --- | --- | --- | --- | --- |
-| Automatic crop | Yes | Yes | Forced uniform | — |
-| Slice overlap | — | Yes | — | — |
-| Zoom out beyond fit | — | — | Yes | — |
+| Trim margins | Yes | Yes | Forced uniform | — |
+| Overlap | — | Yes | Yes | — |
+| Zoom out past page width | — | — | Yes | — |
 | Typography | — | — | — | Yes |
 
 Reader errors show safe messages with **Retry** and **Home**. Raw parser errors,

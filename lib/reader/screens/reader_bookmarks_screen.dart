@@ -154,7 +154,7 @@ class _ReaderBookmarksScreenState extends State<ReaderBookmarksScreen> {
                             width: 56,
                             child: IconButton(
                               key: ValueKey('bookmark-delete-${bookmark.id}'),
-                              icon: const Icon(Icons.delete_outline),
+                              icon: const Icon(Icons.delete_outline, size: 28),
                               tooltip: 'Delete bookmark',
                               onPressed: () => _confirmRemove(bookmark),
                             ),

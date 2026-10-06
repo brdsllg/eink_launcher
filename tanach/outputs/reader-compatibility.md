@@ -240,3 +240,14 @@ Device acceptance checks: Ruth 3:1 initially shows Metsudah selected; Koren sele
 
 Hebrew verse text (`.hebrew`) and Hebrew commentary text (`.note-he`) render at 1.1em; the English translation and English commentary bodies stay 1em. The verse heading (1.15em) and the note title (.8em) are unchanged. A renderer that replaces the publisher stylesheet with class semantics must use the same 1.1 multiplier for those two classes, as the bundled reader does. No anchor, grouping, or metadata revision changed, so presentation revision 5 remains the current structure; the rebuilt EPUBs carry new file fingerprints and are re-imported by the normal cache-identity check.
 
+## Study heading and rule cleanup — October 2026
+
+Study headings (verse, parsha, aliyah, and the Talmud segment/amud equivalents)
+render at body size (1.0em) bold instead of 1.15em; note titles render at 0.9em
+instead of 0.8em. Hebrew line height is 1.7 and English is 1.55. Each verse or
+segment keeps one black bottom rule; commentary groups separate by spacing and
+their bold title, with no extra top rules, and all rules are pure black for the
+e-ink panel. Talmud `segment-heading`/`amud-heading` blocks get the same bold
+body-size treatment as Tanach verse headings. No anchor, grouping, or metadata
+changed, so presentation revision 5 remains the current structure.
+
