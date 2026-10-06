@@ -45,9 +45,19 @@ validation on the Bigme remains.
    stripped only top-level `body h1` in dual chapters; now hides chapter `h1`
    whenever any parsha/aliyah heading exists in the chapter. Want
    parsha/aliyah headings only in parsha mode. Needs recheck.
-4. **Escaped markup visible (TBD):** literal `span` / `class` / `nbsp` text in
-   places. Capture exact book/verse examples before assigning builder vs
-   reader.
+4. **Escaped markup visible (examples captured 6 Oct follow-up):** literal `span` /
+   `class` / `nbsp` words inside the Hebrew psukim at **Genesis 7:2, 7:11,
+   7:23, 8:14, 9:17** (owner listed 7:2 twice — likely two spots in the
+   verse; more expected elsewhere). Still needs the builder-vs-reader call.
+
+### Sidecar folder request (owner, 6 Oct follow-up)
+
+`.study.sqlite` sidecars currently must sit next to their EPUB
+(`berakhot.epub` → `berakhot.study.sqlite`). Owner asks for a separate folder
+for sidecars instead of one file per book beside the books. Open: decide folder
+location + lookup rule (check sidecar folder first, fall back to next-to-EPUB
+for existing pairs), then update `tool/build_study_index.dart`,
+`TanachSqliteCacheService.sidecarPathForEpub`, and the copy instructions.
 
 ### Source limits (kept, not filled in)
 

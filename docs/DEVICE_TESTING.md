@@ -15,11 +15,11 @@ refresh-mode name was never recorded.
 | Startup, recovery, app drawer, battery, file chooser | Confirmed |
 | EPUB/TXT/Markdown open, search, saved positions | Confirmed |
 | Physical page buttons | Confirmed (with the button assignment described below) |
-| Tabs, newer screen layouts | **Checked (Steps 1-4 passed successfully)** |
-| Selection, notes, underlines | **Partially checked (48 dp handles confirmed grabbable 6 Oct; bidirectional handles requested; multi-paragraph selection remains a planned feature)** |
+| Tabs, newer screen layouts | **Confirmed by owner (tested several times; skip future passes unless regression)** |
+| Selection, notes, underlines | **Partially checked (48 dp handles grabbable 6 Oct; follow-up: flip jumps stationary handle, Hebrew handles pull each other, mixed-dir weird; More button must extend selection across paragraphs)** |
 | Hebrew and English dictionaries | **Checked (Passed)** |
-| Tanach study books | **Partially checked (6 Oct: chapters/bilingual pass; parsha/aliyah builder data faulty — Miketz misordered, aliyah landings off, chapters retained in parsha mode, escaped markup visible)** |
-| Talmud study books | **Partially checked (6 Oct: Berakhot start/headings/links pass; commentary display order, Continuous crash, vowels explainer open)** |
+| Tanach study books | **Partially checked (6 Oct: chapters/bilingual pass; escaped-markup examples now Gen 7:2, 7:11, 7:23, 8:14, 9:17 + sidecar-folder request; parsha/aliyah still needs rebuilt EPUBs)** |
+| Talmud study books | **Partially checked (6 Oct: Berakhot start/headings/links pass; follow-up: commentary order good, Continuous does nothing — remove? vowels question answered in findings)** |
 | Renderer preference, preview/sharpen timing, unplugged idle battery drain | Optional measurements, never taken |
 
 ## Test history
@@ -154,6 +154,37 @@ next device pass.
   repeat were not re-run (already passed 5 Oct).
 - **Ghosting/refresh:** reported "all beautiful" — no ghosting or white
   flashes on this pass.
+
+### 6 Oct 2026: follow-up pass (owner, HiBreak, latest build)
+
+Config: latest build, defaults, fast refresh mode with increased contrast,
+side buttons assigned to D-pad Left/Right.
+
+- **Tabs/layouts (Step 1):** not re-run by owner request — already tested
+  several times, treated as confirmed. Drop from future passes unless a
+  regression appears.
+- **Selection (Step 2):** bidirectional handles still flawed:
+  - Flipping jumps the stationary handle a few letters or a whole word.
+  - In Hebrew, dragging the right handle pulls the left handle (and vice versa)
+    before flipping — feels wrong.
+  - Mixed Hebrew + English in one paragraph behaves strangely.
+  - **More button misunderstood:** owner did NOT ask for "underline the rest of
+    the current paragraph". The **More** button should let the selection itself
+    extend across multiple paragraphs (then Copy/Dictionary/Note/Underline the
+    whole range). Keep the button if useful, but fix what it does. See
+    [annotation_plan.md](annotation_plan.md).
+- **Tanach (Step 3):** otherwise "all beautiful". Escaped markup now has exact
+  examples — literal `span` / `class` / `nbsp` words inside the Hebrew psukim
+  at **Gen 7:2, 7:11, 7:23, 8:14, 9:17** (7:2 listed twice by owner, likely two
+  spots in the verse; more expected elsewhere). Owner request: let
+  `.study.sqlite` sidecars live in a separate folder instead of next to each
+  EPUB. See `docs/tanach/docs/tanach-epub.md`.
+- **Talmud (Step 4):** otherwise all good. Continuous mode no longer crashes
+  but visibly does nothing — owner asks what it is for and suggests removing
+  it. Vowels question: owner does not know what "pointed verse" means and asks
+  why vowels *and punctuation* do not show, whether Sefaria provides them and
+  whether we pull them. See `docs/talmud/docs/reader-device-findings.md`.
+- **PDF regression (Step 5):** all good.
 
 ## Measurements (version 1.0.2)
 

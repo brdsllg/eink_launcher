@@ -51,30 +51,38 @@ host-tested 6 Oct; device rechecks still needed.
 ## Not yet built/fixed (still open)
 
 - Direct drag-across-blocks gesture; multi-block Copy/Dictionary; cross-chapter
-  multi-ranges.
+  multi-ranges. Owner correction 6 Oct follow-up: the **More** button as built
+  ("underline the rest of this paragraph") is not what was asked — it should
+  let the *selection* extend across multiple paragraphs, then apply
+  Copy/Dictionary/Note/Underline to the whole range.
 - **Bidirectional selection handles:** built 6 Oct (either handle drags either
   direction with cross-flip, modern-phone style; 48 dp targets already
-  device-verified grabbable). Needs HiBreak recheck.
+  device-verified grabbable). Owner retest on latest build: flipping jumps the
+  stationary handle a few letters/word; Hebrew handles pull each other before
+  flipping; mixed Hebrew + English in one paragraph behaves strangely.
 - Picker grouping/search box for dozens of sources; auto-default to
   Rashi+Tosafot (left as opt-in); full per-source full-text index (current
   split is base vs all-commentary).
 - **Commentary display order:** fixed 6 Oct in code (sort by
   `orderedStudySources` rank). Needs HiBreak recheck with multi-source reading.
-- **Berakhot Continuous crash:** fixed 6 Oct in code (see item 3). Needs HiBreak
-  recheck + `adb logcat` if it recurs, plus regression coverage in
-  `test/reader/planned_features_test.dart`.
+- **Berakhot Continuous crash:** fixed 6 Oct in code (see item 3). Owner
+  follow-up: no longer crashes but visibly does nothing; owner suggests
+  removing the Paragraphs/Continuous setting. Open decision: keep/fix vs
+  remove.
 - **Tanach parsha/aliyah:** builder order fixed 6 Oct (Miketz before Vayigash/
   Vayechi; Leviticus restored to canonical Vayikra→Bechukotai; generator
   `derive_parshiyot.py` now sorts by start so it won't regress). Reader
   `_applyHeadingMode` now hides chapter `h1` whenever parsha/aliyah headings
   exist (was top-level `body h1` in dual chapters only). Rebuild EPUBs +
   sidecars, then recheck 5th-aliyah landing (want Gen 4:19), parsha-only
-  headings, Chapters/Parshiyot exclusivity. Escaped markup (`span`/`class`/
-  `nbsp`) still needs exact book/verse examples before builder-vs-reader call.
+  headings, Chapters/Parshiyot exclusivity. Escaped markup now has owner
+  examples: `span`/`class`/`nbsp` inside Hebrew psukim at Gen 7:2, 7:11, 7:23,
+  8:14, 9:17 (7:2 listed twice; more expected).
 - **Tanach sidecars:** `tool/build_study_index.dart` verified 6 Oct on
   `18-obadiah.epub` (wrote 0.3 MB `.study.sqlite`); works for Tanach. Still
   need to build + copy all `<book>.study.sqlite` pairs after the parsha-order
   rebuild, verify fingerprints (Genesis cold 1m 45s → ~2s warm expected).
+  Owner request: separate folder for sidecars instead of next-to-EPUB.
 - Talmud scale-up: other 31 tractates; builder one-tractate-at-a-time +
   per-source indexing; source-discovery audit fixed 6 Oct in code
   (`inventory.py` checked commentary markers before the Talmud+Bavli base-text
@@ -86,5 +94,6 @@ host-tested 6 Oct; device rechecks still needed.
 - Tanach tooling split + auto-checksum + Sefaria-change detection; EPUB
   page-list/publisher metadata.
 - Bigme refresh bridge (needs documented API); renderer/timing/battery
-  measurements; Item 6 logcat; browser-quirk repro; all device rechecks
-  (48 dp handles, vowels, continuous, search, study books, tabs/layouts).
+  measurements; Item 6 logcat; browser-quirk repro; remaining device rechecks
+  (selection fixes, vowels on Tanach, study books). Tabs/layouts skipped per
+  owner — already tested several times.

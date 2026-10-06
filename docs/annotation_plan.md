@@ -4,7 +4,8 @@ Long-pressing a word starts a selection with draggable handles. An action bar of
 **Copy**, **Dictionary**, **Add Note**, and **Underline**. Adding a note underlines
 its text automatically; tapping an underline shows its note, with Edit and Delete.
 
-**Status (6 Oct 2026):** implemented in code and covered by automated tests.
+**Status (6 Oct 2026, +owner follow-up on latest build):** implemented in code
+and covered by automated tests.
 Single-block drag selection remains; multi-paragraph is supported through the
 toolbar **More** button, which extends the current selection through the next
 readable paragraph and saves one multi-block annotation (underlines in every
@@ -12,7 +13,15 @@ covered paragraph, one note viewer). Direct drag across block boundaries is
 still not supported. The selection handles have a 48 dp touch target,
 device-verified grabbable 6 Oct on the HiBreak. Bidirectional handles (either
 handle drags either direction, modern-phone style with cross-flip) built 6 Oct,
-needs HiBreak recheck.
+retested by owner: flipping still jumps the stationary handle a few letters or
+a word; in Hebrew dragging one handle pulls the other before flipping; mixed
+Hebrew + English in one paragraph behaves strangely.
+
+**Owner correction on More:** the current More ("underline the rest of this
+paragraph") is not what was asked. The More button should let the *selection*
+itself extend across multiple paragraphs, so Copy / Dictionary / Add Note /
+Underline then apply to the whole multi-paragraph range. Keep the button if it
+helps, but change what it does.
 
 ## Scope
 
@@ -52,7 +61,9 @@ needs HiBreak recheck.
 ## Remaining check on the device
 
 On the Bigme: select text in an EPUB paragraph, try Copy, Dictionary, Add Note, and
-Underline, then try **More** to extend through the next paragraph and confirm both
-paragraphs underline together. Try dragging either handle either direction and
-confirm it flips past the anchor without jumping. Restart the app, and confirm the underline and note survived. Repeat in a
-text-layer PDF (PDFs remain single-block). This is the last item, and it needs Levi's confirmation.
+Underline, then try **More** — owner expects More to extend the *selection*
+across paragraphs (not just underline the rest of the current paragraph).
+Try dragging either handle either direction: the stationary handle must not
+jump letters/words, Hebrew handles must not pull each other, and mixed
+Hebrew + English must behave. Restart the app, and confirm the underline and note survived. Repeat in a
+text-layer PDF (PDFs remain single-block). Open: needs Levi's confirmation.
