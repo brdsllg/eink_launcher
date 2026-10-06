@@ -25,6 +25,7 @@ import '../services/pagination_cache_service.dart';
 import '../services/reader_error_service.dart';
 import '../services/text_block_parser.dart';
 import 'reader_session.dart';
+import 'text_chapter_layout.dart';
 
 typedef TextBookLoader = Future<ParsedBook> Function(
   DocRef doc,
@@ -143,7 +144,7 @@ class TextReaderSession extends ReaderSession {
   /// In-flight chapter layout per spine index for the current pagination
   /// generation. Requests sharing a chapter share one layout, so a page turn
   /// can never start a second, duplicate run of the chapter it is waiting for.
-  final Map<int, _ChapterLayout> _layouts = {};
+  final Map<int, ChapterLayout> _layouts = {};
 
   /// Chapters whose layout failed in the current pagination generation.
   final Set<int> _failedChapters = {};
@@ -500,7 +501,7 @@ class TextReaderSession extends ReaderSession {
       if (next < 0 || next >= _book!.spine.length) return;
       await _ensureChapterPages(
         next,
-        need: direction > 0 ? _PageNeed.any : _PageNeed.complete,
+        need: direction > 0 ? PageNeed.any : PageNeed.complete,
       );
       if (!_navigationCurrent(lifecycle, pagination)) return;
       final pages = _chapterPages[next];
@@ -825,7 +826,7 @@ class TextReaderSession extends ReaderSession {
   Future<void> _ensureChapterPages(
     int spineIndex, {
     TextReadingPosition? through,
-    _PageNeed need = _PageNeed.position,
+    PageNeed need = PageNeed.position,
   }) async {
     final book = _book;
     if (book == null || spineIndex < 0 || spineIndex >= book.spine.length) {
@@ -851,7 +852,7 @@ class TextReaderSession extends ReaderSession {
   /// demand. A chapter that already has the needed pages returns immediately.
   Future<void> _awaitPages(
     int spineIndex, {
-    required _PageNeed need,
+    required PageNeed need,
     required TextReadingPosition? through,
     required Size contentSize,
     required int generation,
@@ -874,20 +875,20 @@ class TextReaderSession extends ReaderSession {
   }
 
   bool _needSatisfied(
-    _PageNeed need,
+    PageNeed need,
     TextReadingPosition? through,
     int spineIndex,
   ) {
     if (_completedChapters.contains(spineIndex)) return true;
     final pages = _chapterPages[spineIndex];
     return switch (need) {
-      _PageNeed.any => pages != null && pages.isNotEmpty,
-      _PageNeed.position =>
+      PageNeed.any => pages != null && pages.isNotEmpty,
+      PageNeed.position =>
         pages != null &&
             pages.isNotEmpty &&
             through != null &&
             _comparePosition(through, pages.last.end) <= 0,
-      _PageNeed.complete => false,
+      PageNeed.complete => false,
     };
   }
 
@@ -918,14 +919,14 @@ class TextReaderSession extends ReaderSession {
     return true;
   }
 
-  _ChapterLayout? _layoutFor(int spineIndex) => _layouts[spineIndex];
+  ChapterLayout? _layoutFor(int spineIndex) => _layouts[spineIndex];
 
   /// Starts (or joins) the layout of one chapter.
   ///
   /// A turn that needs a chapter the background pass has not reached yet starts
   /// it here and shares the work with any request already in flight, so the
   /// same chapter is never laid out twice.
-  _ChapterLayout? _layoutChapter(
+  ChapterLayout? _layoutChapter(
     int spineIndex, {
     required Size contentSize,
     required int generation,
@@ -940,7 +941,7 @@ class TextReaderSession extends ReaderSession {
     }
     final existing = _layouts[spineIndex];
     if (existing != null) return existing;
-    final layout = _ChapterLayout(spineIndex);
+    final layout = ChapterLayout(spineIndex);
     _layouts[spineIndex] = layout;
     unawaited(
       _runChapterLayout(
@@ -953,7 +954,7 @@ class TextReaderSession extends ReaderSession {
   }
 
   Future<void> _runChapterLayout(
-    _ChapterLayout layout, {
+    ChapterLayout layout, {
     required Size contentSize,
     required int generation,
   }) async {
@@ -1311,74 +1312,5 @@ class TextReaderSession extends ReaderSession {
     final block = a.blockIndex.compareTo(b.blockIndex);
     if (block != 0) return block;
     return a.charOffset.compareTo(b.charOffset);
-  }
-}
-
-/// What a navigation needs before it can show a chapter's page.
-enum _PageNeed {
-  /// At least one page exists (crossing forward into a chapter).
-  any,
-
-  /// The pages cover the position the reader is going to (turning a page, or
-  /// jumping to a TOC entry, search match, or bookmark).
-  position,
-
-  /// The chapter is finished. Crossing backwards needs its last page, and page
-  /// breaks are only known once the whole chapter has been measured.
-  complete,
-}
-
-/// Layout work for one spine item within one pagination generation.
-///
-/// Both the background pass and page turns ask for chapters through this
-/// object, so a chapter is laid out once and every waiter is woken by the same
-/// publication. [done] completes even when the work is abandoned (suspension,
-/// memory pressure, or a newer layout), which keeps pending navigations from
-/// waiting forever.
-class _ChapterLayout {
-  _ChapterLayout(this.spineIndex);
-
-  final int spineIndex;
-  final Completer<void> _done = Completer<void>();
-  final List<Completer<void>> _publications = [];
-  bool _finished = false;
-  Object? _error;
-
-  /// Set when the chapter was laid out but the layout failed.
-  Object? get error => _error;
-
-  Future<void> get done => _done.future;
-
-  /// Resolves when more pages become available, or immediately when no more
-  /// will (the chapter finished or the work was abandoned).
-  Future<void> nextPublication() {
-    if (_finished) return Future<void>.value();
-    final completer = Completer<void>();
-    _publications.add(completer);
-    return completer.future;
-  }
-
-  void published() => _releaseWaiters();
-
-  void fail(Object error) {
-    _error = error;
-    _finish();
-  }
-
-  /// Releases waiters and lets the background pass move on, whatever the
-  /// outcome. Safe to call more than once.
-  void finish() => _finish();
-
-  void _finish() {
-    _finished = true;
-    if (!_done.isCompleted) _done.complete();
-    _releaseWaiters();
-  }
-
-  void _releaseWaiters() {
-    for (final waiter in _publications) {
-      if (!waiter.isCompleted) waiter.complete();
-    }
-    _publications.clear();
   }
 }

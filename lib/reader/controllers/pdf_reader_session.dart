@@ -22,6 +22,7 @@ import '../services/book_store_service.dart';
 import '../services/page_bitmap_cache.dart';
 import '../services/pdf_crop_service.dart';
 import '../services/pdf_document_service.dart';
+import '../services/pdf_fit_geometry.dart';
 import '../services/pdf_memory_service.dart';
 import '../services/pdf_render_scheduler.dart';
 import '../services/pdf_thumbnail_cache_service.dart';
@@ -1478,6 +1479,8 @@ class PdfReaderSession extends ReaderSession {
 
   /// Computes output pixel size and the (possibly sub-screen-sliced) crop
   /// rect to render, for the current [ReaderSettings.fitMode].
+  /// Pure math lives in `pdf_fit_geometry.dart`; kept here as a thin wrapper
+  /// so existing callers don't change.
   ({int pixelWidth, int pixelHeight, PdfCropRect crop}) _geometryFor(
     PdfPageInfo info,
     PdfCropRect crop,
@@ -1485,55 +1488,14 @@ class PdfReaderSession extends ReaderSession {
     double withinPage,
     double devicePixelRatio,
   ) {
-    final croppedWidth = info.width * crop.width;
-    final croppedHeight = info.height * crop.height;
-
-    switch (_settings.fitMode) {
-      case PdfFitMode.fitHeight:
-        final pixelHeight = (viewport.height * devicePixelRatio).round();
-        final pixelWidth =
-            (viewport.height * croppedWidth / croppedHeight * devicePixelRatio)
-                .round();
-        return (pixelWidth: pixelWidth, pixelHeight: pixelHeight, crop: crop);
-
-      case PdfFitMode.fitWidth:
-        final scale = viewport.width / croppedWidth;
-        final scaledHeight = croppedHeight * scale;
-        final subFracHeight = scaledHeight <= 0
-            ? 1.0
-            : clampDouble(viewport.height / scaledHeight, 0.0, 1.0);
-        final top = clampDouble(
-          crop.top + withinPage * crop.height,
-          crop.top,
-          crop.bottom - 0.0001,
-        );
-        final bottom = clampDouble(
-          top + subFracHeight * crop.height,
-          top + 0.0001,
-          crop.bottom,
-        );
-        final subCrop = PdfCropRect(
-          left: crop.left,
-          top: top,
-          right: crop.right,
-          bottom: bottom,
-        );
-        return (
-          pixelWidth: (viewport.width * devicePixelRatio).round(),
-          pixelHeight: (info.height * subCrop.height * scale * devicePixelRatio)
-              .round()
-              .clamp(1, 2147483647),
-          crop: subCrop,
-        );
-
-      case PdfFitMode.zoom:
-        // Zoom / Scroll is exclusively continuous. Rendering a whole page
-        // here and letting a transform magnify it is what used to make
-        // zoomed vector PDFs blurry, so there is no such path any more.
-        throw StateError(
-          'Zoom / Scroll geometry is owned by PdfContinuousLayout',
-        );
-    }
+    return pdfFitGeometry(
+      info: info,
+      crop: crop,
+      viewport: viewport,
+      withinPage: withinPage,
+      devicePixelRatio: devicePixelRatio,
+      fitMode: _settings.fitMode,
+    );
   }
 
   /// The vertical start fractions (of the *cropped* page) for each
@@ -1547,47 +1509,16 @@ class PdfReaderSession extends ReaderSession {
     final crop = await _resolveCropRect(pageIndex, request);
     request.throwIfCancelled();
     final info = _documentService!.pageInfo(pageIndex);
-    final croppedWidth = info.width * crop.width;
-    final croppedHeight = info.height * crop.height;
-    if (croppedWidth <= 0 ||
-        croppedHeight <= 0 ||
-        viewport.width <= 0 ||
-        viewport.height <= 0) {
-      return const [0.0];
-    }
-
-    final scale = viewport.width / croppedWidth;
-    final scaledHeight = croppedHeight * scale;
-    if (scaledHeight <= viewport.height) return const [0.0];
-
-    final overlap = clampDouble(_settings.splitOverlap, 0.0, 0.9);
-    final step = viewport.height * (1 - overlap);
-    final starts = <double>[0.0];
-    var offset = step;
-    while (offset < scaledHeight - viewport.height) {
-      starts.add(offset / scaledHeight);
-      offset += step;
-    }
-    // Anchor the final sub-screen to the bottom of the page so nothing past
-    // the last line is ever left off-screen.
-    starts.add(
-      clampDouble((scaledHeight - viewport.height) / scaledHeight, 0.0, 1.0),
+    return pdfSubScreenStarts(
+      croppedWidth: info.width * crop.width,
+      croppedHeight: info.height * crop.height,
+      viewport: viewport,
+      overlap: _settings.splitOverlap,
     );
-    return starts;
   }
 
-  static int _nearestIndex(List<double> values, double target) {
-    var bestIndex = 0;
-    var bestDelta = double.infinity;
-    for (var i = 0; i < values.length; i++) {
-      final delta = (values[i] - target).abs();
-      if (delta < bestDelta) {
-        bestDelta = delta;
-        bestIndex = i;
-      }
-    }
-    return bestIndex;
-  }
+  static int _nearestIndex(List<double> values, double target) =>
+      pdfNearestIndex(values, target);
 
   Future<PdfCropRect> _resolveCropRect(
     int pageIndex,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../constants.dart';
+import '../../services/orientation_service.dart';
 import '../../widgets/adaptive_grid.dart';
 import '../../widgets/page_button_scope.dart';
 import '../controllers/pdf_reader_session.dart';
@@ -267,7 +268,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     final session = _session ?? widget.registry.sessionFor(_doc.id);
     if (session is PdfReaderSession) session.cancelPendingWork();
     unawaited(BookStoreService.instance.flush());
-    unawaited(SystemChrome.setPreferredOrientations(const []));
+    unawaited(OrientationService.unlock());
     super.dispose();
   }
 
@@ -296,11 +297,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   }
 
   Future<void> _applyOrientation(bool landscape) {
-    return SystemChrome.setPreferredOrientations(
-      landscape
-          ? const [DeviceOrientation.landscapeLeft]
-          : const [DeviceOrientation.portraitUp],
-    );
+    return OrientationService.applyLandscape(landscape);
   }
 
   Future<void> _applySettings(ReaderSettings settings) async {

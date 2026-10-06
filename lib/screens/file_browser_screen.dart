@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 
@@ -14,6 +13,7 @@ import '../reader/screens/reader_screen.dart';
 import '../reader/services/doc_identity_service.dart';
 import '../services/file_mime_type_service.dart';
 import '../services/open_with_service.dart';
+import '../services/orientation_service.dart';
 import '../services/startup_health_service.dart';
 import '../widgets/adaptive_grid.dart';
 import '../widgets/battery_status.dart';
@@ -86,7 +86,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     if (_ownsController) _controller.dispose();
-    unawaited(SystemChrome.setPreferredOrientations(const []));
+    unawaited(OrientationService.unlock());
     super.dispose();
   }
 
@@ -99,11 +99,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
   }
 
   Future<void> _applyBrowserOrientation(bool landscape) {
-    return SystemChrome.setPreferredOrientations(
-      landscape
-          ? const [DeviceOrientation.landscapeLeft]
-          : const [DeviceOrientation.portraitUp],
-    );
+    return OrientationService.applyLandscape(landscape);
   }
 
   Future<void> _restoreBrowserOrientation() async {
