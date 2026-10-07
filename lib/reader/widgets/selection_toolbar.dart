@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Four instant, monochrome actions for a block-local text selection.
+/// Instant, monochrome actions for a text selection. **More** extends the
+/// selection through the next readable paragraph (repeatable); Copy,
+/// Dictionary, Add Note and Underline then apply to the whole range.
 class SelectionToolbar extends StatelessWidget {
   final VoidCallback onCopy;
   final VoidCallback onDictionary;

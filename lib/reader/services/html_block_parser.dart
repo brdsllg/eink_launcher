@@ -250,6 +250,7 @@ class _HtmlWalker {
     if (element.classes.contains('verse-heading') ||
         element.classes.contains('parsha-heading') ||
         element.classes.contains('aliyah-heading') ||
+        element.classes.contains('tehillim-day-heading') ||
         element.classes.contains('segment-heading') ||
         element.classes.contains('amud-heading')) {
       final spans = element.children
@@ -521,6 +522,7 @@ class _HtmlWalker {
         element.classes.contains('verse-heading') ||
         element.classes.contains('parsha-heading') ||
         element.classes.contains('aliyah-heading') ||
+        element.classes.contains('tehillim-day-heading') ||
         element.classes.contains('segment-heading') ||
         element.classes.contains('amud-heading');
     final isNoteTitle = element.classes.contains('note-title');
@@ -632,6 +634,7 @@ class _HtmlWalker {
 
   BlockType? _studyHeadingType(Element element) {
     if (element.classes.contains('parsha-heading') ||
+        element.classes.contains('tehillim-day-heading') ||
         element.classes.contains('amud-heading')) {
       return BlockType.heading1;
     }

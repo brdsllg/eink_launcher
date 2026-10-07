@@ -6,7 +6,9 @@ import 'package:eink_launcher/reader/models/doc_ref.dart';
 import 'package:eink_launcher/reader/models/parsed_book.dart';
 import 'package:eink_launcher/reader/models/reader_settings.dart';
 import 'package:eink_launcher/reader/models/reading_position.dart';
+import 'package:eink_launcher/reader/models/toc_entry.dart';
 import 'package:eink_launcher/reader/screens/reader_settings_screen.dart';
+import 'package:eink_launcher/reader/screens/reader_toc_screen.dart';
 import 'package:eink_launcher/reader/services/epub_parser_service.dart';
 import 'package:eink_launcher/reader/services/tanach_layout_service.dart';
 import 'package:flutter/material.dart';
@@ -288,6 +290,51 @@ void main() {
         settings.copyWith(showParshaAliyot: false).showParshaAliyot,
         isFalse,
       );
+    });
+  });
+
+  group('expandable table of contents', () {
+    testWidgets('parsha parents collapse and aliyot expand on tap', (
+      tester,
+    ) async {
+      final book = EpubParserService.parseBytesSync(
+        _fixture(parshaList: true),
+      );
+      expect(book.hasParshaToc, isTrue);
+      TocEntry? selected;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                selected = await Navigator.of(context).push<TocEntry>(
+                  MaterialPageRoute(
+                    builder: (_) => ReaderTocScreen(
+                      entries: book.parshaTableOfContents,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      // Collapsed by default: parsha visible, aliyot hidden.
+      expect(find.textContaining('בְּרֵאשִׁית'), findsOneWidget);
+      expect(find.text('ראשון'), findsNothing);
+
+      await tester.tap(find.textContaining('בְּרֵאשִׁית'));
+      await tester.pumpAndSettle();
+      expect(find.text('ראשון'), findsOneWidget);
+      expect(selected, isNull);
+
+      await tester.tap(find.text('ראשון'));
+      await tester.pumpAndSettle();
+      expect(selected, isNotNull);
     });
   });
 }

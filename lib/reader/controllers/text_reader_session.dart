@@ -239,10 +239,12 @@ class TextReaderSession extends ReaderSession {
     return book == null ? _retainedToc : _activeToc(book);
   }
 
-  /// The table of contents the current heading mode follows: the Parshah and
-  /// Aliyah list of a Torah book while that toggle is on, the chapter list
-  /// otherwise.
+  /// The table of contents the current heading mode follows: the daily
+  /// Tehillim list while that toggle is on, then the Parshah and Aliyah list
+  /// of a Torah book while its toggle is on, the chapter list otherwise.
   List<TocEntry> _activeToc(ParsedBook book) {
+    final daily = book.tehillimDailyTableOfContents;
+    if (_settings.showDailyTehillim && daily.isNotEmpty) return daily;
     final parsha = book.parshaTableOfContents;
     return _settings.showParshaAliyot && parsha.isNotEmpty
         ? parsha
@@ -644,6 +646,7 @@ class TextReaderSession extends ReaderSession {
         settings.verseLanguage != previousSettings.verseLanguage ||
         settings.studyTranslation != previousSettings.studyTranslation ||
         settings.showParshaAliyot != previousSettings.showParshaAliyot ||
+        settings.showDailyTehillim != previousSettings.showDailyTehillim ||
         previousSources.length != nextSources.length ||
         !previousSources.containsAll(nextSources);
     _paginationGeneration++;
@@ -1155,6 +1158,7 @@ class TextReaderSession extends ReaderSession {
         resources: book.resources,
         tableOfContents: book.tableOfContents,
         parshaTableOfContents: book.parshaTableOfContents,
+        tehillimDailyTableOfContents: book.tehillimDailyTableOfContents,
         tanachDatabasePath: book.tanachDatabasePath,
       );
 

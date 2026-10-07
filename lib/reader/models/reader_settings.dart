@@ -23,14 +23,14 @@ class ReaderSettings implements StudyProjectionSettings {
   @override
   final bool showParshaAliyot;
 
+  /// Psalms only: show the 30-day Tehillim headings and table of contents
+  /// instead of the chapter ones.
+  @override
+  final bool showDailyTehillim;
+
   /// Talmud: hide Hebrew vowel points at display time. One build only.
   @override
   final bool hideVowelPoints;
-
-  /// Talmud: no paragraphs, breaks only at amud boundaries. Keeps the
-  /// `Berakhot 2a:1` style segment headings.
-  @override
-  final bool studyContinuous;
 
   /// Empty means no sources are selected, so no commentary is shown.
   /// Exact EPUB source names are preserved.
@@ -83,8 +83,8 @@ class ReaderSettings implements StudyProjectionSettings {
     this.paragraphMode = ParagraphMode.blankLine,
     this.honorPublisherCss = true,
     this.showParshaAliyot = false,
+    this.showDailyTehillim = false,
     this.hideVowelPoints = false,
-    this.studyContinuous = false,
     this.fitMode = PdfFitMode.fitHeight,
     this.autoCrop = true,
     this.splitOverlap = kPdfDefaultSplitOverlap,
@@ -127,8 +127,8 @@ class ReaderSettings implements StudyProjectionSettings {
     ParagraphMode? paragraphMode,
     bool? honorPublisherCss,
     bool? showParshaAliyot,
+    bool? showDailyTehillim,
     bool? hideVowelPoints,
-    bool? studyContinuous,
     PdfFitMode? fitMode,
     bool? autoCrop,
     double? splitOverlap,
@@ -155,8 +155,8 @@ class ReaderSettings implements StudyProjectionSettings {
       paragraphMode: paragraphMode ?? this.paragraphMode,
       honorPublisherCss: honorPublisherCss ?? this.honorPublisherCss,
       showParshaAliyot: showParshaAliyot ?? this.showParshaAliyot,
+      showDailyTehillim: showDailyTehillim ?? this.showDailyTehillim,
       hideVowelPoints: hideVowelPoints ?? this.hideVowelPoints,
-      studyContinuous: studyContinuous ?? this.studyContinuous,
       fitMode: fitMode ?? this.fitMode,
       autoCrop: autoCrop ?? this.autoCrop,
       splitOverlap: splitOverlap ?? this.splitOverlap,
@@ -187,8 +187,8 @@ class ReaderSettings implements StudyProjectionSettings {
     'paragraphMode': paragraphMode.name,
     'honorPublisherCss': honorPublisherCss,
     'showParshaAliyot': showParshaAliyot,
+    'showDailyTehillim': showDailyTehillim,
     'hideVowelPoints': hideVowelPoints,
-    'studyContinuous': studyContinuous,
     'fitMode': fitMode.name,
     'autoCrop': autoCrop,
     'splitOverlap': splitOverlap,
@@ -228,8 +228,8 @@ class ReaderSettings implements StudyProjectionSettings {
           : ParagraphMode.blankLine,
       honorPublisherCss: json['honorPublisherCss'] as bool? ?? true,
       showParshaAliyot: json['showParshaAliyot'] as bool? ?? false,
+      showDailyTehillim: json['showDailyTehillim'] as bool? ?? false,
       hideVowelPoints: json['hideVowelPoints'] as bool? ?? false,
-      studyContinuous: json['studyContinuous'] as bool? ?? false,
       fitMode: fitMode,
       autoCrop: json['autoCrop'] as bool? ?? true,
       splitOverlap:

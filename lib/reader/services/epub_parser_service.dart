@@ -7,6 +7,7 @@ import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 
 import '../models/reader_settings.dart';
+import '../models/tehillim_daily.dart';
 import 'tanach_layout_service.dart';
 
 import 'package:html/dom.dart' as html_dom;
@@ -236,19 +237,38 @@ class EpubParserService {
       }
     }
 
+    var tehillimToc = const <TocEntry>[];
+    if (navItem != null) {
+      try {
+        tehillimToc = _parseTehillimNavigation(archive, navItem, spine);
+      } on FormatException {
+        // A missing alternate navigation only removes the toggle.
+      }
+    }
+    final title = _metadataText(package, 'title') ?? 'Untitled';
+    if (tehillimToc.isEmpty) {
+      tehillimToc = _synthesizedTehillimToc(
+        toc,
+        spine,
+        title: title,
+        studySources: hasStudy ? xhtmlDocuments : const {},
+      );
+    }
+
     final parsed = ParsedBook(
       studyDocuments: hasStudy ? xhtmlDocuments : const {},
       contentFingerprint: sha256.convert(bytes).toString(),
       studyUnit: studyUnit,
       rightToLeft:
           _attribute(spineElement, 'page-progression-direction') == 'rtl',
-      title: _metadataText(package, 'title') ?? 'Untitled',
+      title: title,
       author: _metadataText(package, 'creator'),
       language: _metadataText(package, 'language'),
       spine: List<ParsedSpineItem>.unmodifiable(spine),
       resources: Map<String, Uint8List>.unmodifiable(resources),
       tableOfContents: List<TocEntry>.unmodifiable(toc),
       parshaTableOfContents: List<TocEntry>.unmodifiable(parshaToc),
+      tehillimDailyTableOfContents: List<TocEntry>.unmodifiable(tehillimToc),
     );
     return hasStudy && projectStudy
         ? TanachLayoutService.layout(
@@ -466,6 +486,252 @@ List<TocEntry> _parseParshaNavigation(
     spine: spine,
     level: 0,
   );
+}
+
+/// The 30-day Tehillim navigation list of Psalms.
+///
+/// Only Psalms carries this second list, and EPUB allows exactly one nav
+/// with the `toc` semantic, so it ships as `epub:type="other"`.
+List<TocEntry> _parseTehillimNavigation(
+  Archive archive,
+  _ManifestItem item,
+  List<ParsedSpineItem> spine,
+) {
+  final source = _readText(
+    archive,
+    item.resolvedPath,
+    description: 'EPUB navigation document',
+  );
+  final document = html_parser.parse(source);
+  final nav = document.querySelector('nav#tehillim-toc');
+  if (nav == null) return const [];
+  final rootList = nav.children
+      .where((child) => child.localName == 'ol')
+      .firstOrNull;
+  if (rootList == null) return const [];
+  return _parseNavList(
+    rootList,
+    navDocumentPath: item.resolvedPath,
+    spine: spine,
+    level: 0,
+  );
+}
+
+/// Builds Day parents from the chapter table of contents when the nav
+/// document carries no `tehillim-toc` but the book looks like Psalms with
+/// 150 chapters. Old EPUBs and sidecars still get Days this way; the reader
+/// injects matching day headings at layout time.
+List<TocEntry> _synthesizedTehillimToc(
+  List<TocEntry> chapterToc,
+  List<ParsedSpineItem> spine, {
+  required String title,
+  required Map<String, String> studySources,
+}) {
+  final flat = <TocEntry>[];
+  void collect(TocEntry entry) {
+    flat.add(entry);
+    for (final child in entry.children) {
+      collect(child);
+    }
+  }
+
+  for (final entry in chapterToc) {
+    collect(entry);
+  }
+  final chapterPattern = RegExp(r'chapter-(\d+)\.xhtml');
+  final byChapter = <int, TocEntry>{};
+  for (final entry in flat) {
+    final target = entry.targetHref ?? '';
+    final match = chapterPattern.firstMatch(target);
+    var chapter = match == null ? null : int.tryParse(match.group(1)!);
+    chapter ??= _chapterFromTitle(entry.title);
+    if (chapter != null &&
+        chapter >= 1 &&
+        chapter <= 150 &&
+        !byChapter.containsKey(chapter)) {
+      byChapter[chapter] = entry;
+    }
+  }
+  // Also try the spine when the TOC itself is a fallback without hrefs.
+  if (byChapter.length < 150) {
+    for (final item in spine) {
+      final match = chapterPattern.firstMatch(item.href);
+      if (match == null) continue;
+      final chapter = int.tryParse(match.group(1)!);
+      if (chapter == null ||
+          chapter < 1 ||
+          chapter > 150 ||
+          byChapter.containsKey(chapter)) {
+        continue;
+      }
+      byChapter[chapter] = TocEntry(
+        title: '$title $chapter',
+        level: 0,
+        targetHref: item.href,
+        position: _positionFor(item.href, spine),
+      );
+    }
+  }
+  if (byChapter.length < 150) return const [];
+  for (var chapter = 1; chapter <= 150; chapter++) {
+    if (!byChapter.containsKey(chapter)) return const [];
+  }
+  final lower = title.toLowerCase();
+  final titleLooksLikePsalms =
+      lower.contains('psalm') || lower.contains('tehill') || lower.contains('תהל');
+  var refsLookLikePsalms = false;
+  for (final source in studySources.values) {
+    final probe = source.toLowerCase();
+    if (probe.contains('psalm') ||
+        probe.contains('tehill') ||
+        probe.contains('תהל')) {
+      refsLookLikePsalms = true;
+      break;
+    }
+    if (source.contains('data-ref')) {
+      refsLookLikePsalms = true;
+      break;
+    }
+  }
+  if (!titleLooksLikePsalms && !refsLookLikePsalms && studySources.isNotEmpty) {
+    // A non-Psalms 150-chapter book must not gain a daily schedule.
+    // When there are no study sources to inspect (plain EPUB fallback),
+    // still require the title to look like Psalms.
+    if (studySources.isEmpty) return const [];
+  }
+  if (!titleLooksLikePsalms && byChapter.values.every(
+    (entry) =>
+        !_chapterTitleLooksLikePsalms(entry.title) &&
+        !((entry.targetHref ?? '').toLowerCase().contains('psalm')),
+  )) {
+    // Without any Psalms signal in titles, only synthesize when the book
+    // title itself says Psalms/Tehillim.
+    return const [];
+  }
+
+  final days = <TocEntry>[];
+  for (var day = 1; day <= 30; day++) {
+    final chapters = TehillimDaily.dayChapters[day - 1];
+    final firstChapter = day == 26
+        ? 119
+        : chapters.first;
+    final firstEntry = byChapter[firstChapter]!;
+    final base = (firstEntry.targetHref ?? '').split('#').first;
+    final parentTarget = base.isEmpty ? null : '$base#tehillim-day-$day';
+    final children = <TocEntry>[];
+    for (final chapter in chapters) {
+      final chapterEntry = byChapter[chapter]!;
+      final chapterBase =
+          (chapterEntry.targetHref ?? '').split('#').first;
+      String? childTarget = chapterEntry.targetHref;
+      TextReadingPosition? childPosition = chapterEntry.position
+          is TextReadingPosition
+          ? chapterEntry.position as TextReadingPosition
+          : null;
+      if (day == 25 && chapter == 119) {
+        // Day 25 opens Psalm 119 at verse 1 (chapter start).
+        childTarget = chapterBase.isEmpty
+            ? null
+            : '$chapterBase#tehillim-day-25';
+        childPosition = childTarget == null
+            ? childPosition
+            : _positionFor(childTarget, spine) ?? childPosition;
+      } else if (day == 26 && chapter == 119) {
+        // Day 26 opens Psalm 119 at verse 97. Prefer the verse anchor when
+        // the study source reveals its id; otherwise the injected day anchor
+        // (which the layout places before verse 97) still navigates there.
+        final verseAnchor = _verseAnchorFor(
+          studySources,
+          chapterBase,
+          chapter: 119,
+          verse: 97,
+        );
+        childTarget = chapterBase.isEmpty
+            ? null
+            : '$chapterBase#${verseAnchor ?? 'tehillim-day-26'}';
+        childPosition = childTarget == null
+            ? childPosition
+            : _positionFor(childTarget, spine) ?? childPosition;
+      }
+      children.add(
+        TocEntry(
+          title: chapterEntry.title,
+          level: 1,
+          position: childPosition,
+          targetHref: childTarget,
+          children: const [],
+        ),
+      );
+    }
+    final parentPosition = parentTarget == null
+        ? firstEntry.position
+        : _positionFor(parentTarget, spine) ?? firstEntry.position;
+    days.add(
+      TocEntry(
+        title: 'Day $day',
+        level: 0,
+        position: parentPosition,
+        targetHref: parentTarget,
+        children: children,
+      ),
+    );
+  }
+  return days;
+}
+
+int? _chapterFromTitle(String title) {
+  final match = RegExp(r'(\d+)\s*$').firstMatch(title.trim());
+  if (match == null) return null;
+  return int.tryParse(match.group(1)!);
+}
+
+bool _chapterTitleLooksLikePsalms(String title) {
+  final lower = title.toLowerCase();
+  return lower.contains('psalm') ||
+      lower.contains('tehill') ||
+      lower.contains('תהל');
+}
+
+/// Finds the element id of `chapter:verse` inside the study XHTML for
+/// [chapterBase], so Day 26 can point at Psalm 119:97 even in legacy EPUBs
+/// whose verse id scheme differs from the current builder.
+String? _verseAnchorFor(
+  Map<String, String> studySources,
+  String chapterBase, {
+  required int chapter,
+  required int verse,
+}) {
+  String? key;
+  for (final entry in studySources.keys) {
+    if (entry == chapterBase || entry.endsWith('/$chapterBase')) {
+      key = entry;
+      break;
+    }
+  }
+  key ??= studySources.keys
+      .where((entry) => entry.endsWith('chapter-$chapter.xhtml'))
+      .cast<String?>()
+      .firstOrNull;
+  if (key == null) return null;
+  final source = studySources[key]!;
+  final document = html_parser.parse(source);
+  for (final section in document.querySelectorAll(
+    'section.verse[data-ref], section.segment[data-ref]',
+  )) {
+    final ref = section.attributes['data-ref'] ?? '';
+    final refMatch = RegExp(r':(\d+)\s*$').firstMatch(ref.trim());
+    if (refMatch != null &&
+        int.tryParse(refMatch.group(1)!) == verse &&
+        section.id.isNotEmpty) {
+      return section.id;
+    }
+  }
+  // Fall back to the builder's conventional verse id when the source uses
+  // it (new EPUBs): v-psalms-119-97.
+  final conventional = RegExp(
+    'id="(v-[a-z0-9-]+-$chapter-$verse)"',
+  ).firstMatch(source);
+  return conventional?.group(1);
 }
 
 List<TocEntry> _parseNcx(

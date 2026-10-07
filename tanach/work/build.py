@@ -492,6 +492,108 @@ def _build_parsha_nav(book):
         )
     return f'<nav id="parsha-toc" epub:type="other"><h1>Parashiyot</h1><ol>{"".join(items)}</ol></nav>'
 
+# ─── Daily Tehillim data (standard 30-day division) ─────────────────────────
+# Days 25/26 split Psalm 119 at verse 97; every other day covers whole chapters.
+# Standard division:
+# 1:1-9, 2:10-17, 3:18-22, 4:23-28, 5:29-34, 6:35-38, 7:39-43, 8:44-48,
+# 9:49-54, 10:55-59, 11:60-65, 12:66-68, 13:69-71, 14:72-76, 15:77-78,
+# 16:79-82, 17:83-87, 18:88-89, 19:90-96, 20:97-103, 21:104-105, 22:106-107,
+# 23:108-112, 24:113-118, 25:119:1-96, 26:119:97-176, 27:120-134, 28:135-139,
+# 29:140-144, 30:145-150
+DAY_NAMES_EN = [f'Day {n}' for n in range(1, 31)]
+DAY_NAMES_HE = [
+    'יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'יום ז׳',
+    'יום ח׳', 'יום ט׳', 'יום י׳', 'יום י״א', 'יום י״ב', 'יום י״ג', 'יום י״ד',
+    'יום ט״ו', 'יום ט״ז', 'יום י״ז', 'יום י״ח', 'יום י״ט', 'יום כ׳',
+    'יום כ״א', 'יום כ״ב', 'יום כ״ג', 'יום כ״ד', 'יום כ״ה', 'יום כ״ו',
+    'יום כ״ז', 'יום כ״ח', 'יום כ״ט', 'יום ל׳',
+]
+# Transliterated Yom names for documentation: Yom Aleph … Yom Shloshim.
+DAY_NAMES_YOM = [
+    'Yom Aleph', 'Yom Bet', 'Yom Gimel', 'Yom Dalet', 'Yom He', 'Yom Vav',
+    'Yom Zayin', 'Yom Chet', 'Yom Tet', 'Yom Yud', 'Yom Yud-Aleph',
+    'Yom Yud-Bet', 'Yom Yud-Gimel', 'Yom Yud-Dalet', 'Yom Tet-Vav',
+    'Yom Tet-Zayin', 'Yom Yud-Zayin', 'Yom Yud-Chet', 'Yom Yud-Tet',
+    'Yom Kaf', 'Yom Kaf-Aleph', 'Yom Kaf-Bet', 'Yom Kaf-Gimel',
+    'Yom Kaf-Dalet', 'Yom Kaf-He', 'Yom Kaf-Vav', 'Yom Kaf-Zayin',
+    'Yom Kaf-Chet', 'Yom Kaf-Tet', 'Yom Shloshim',
+]
+TEHILLIM_DAILY = [
+    {'start': (1, 1), 'end': (9, 999), 'chapters': [1, 2, 3, 4, 5, 6, 7, 8, 9]},
+    {'start': (10, 1), 'end': (17, 999), 'chapters': [10, 11, 12, 13, 14, 15, 16, 17]},
+    {'start': (18, 1), 'end': (22, 999), 'chapters': [18, 19, 20, 21, 22]},
+    {'start': (23, 1), 'end': (28, 999), 'chapters': [23, 24, 25, 26, 27, 28]},
+    {'start': (29, 1), 'end': (34, 999), 'chapters': [29, 30, 31, 32, 33, 34]},
+    {'start': (35, 1), 'end': (38, 999), 'chapters': [35, 36, 37, 38]},
+    {'start': (39, 1), 'end': (43, 999), 'chapters': [39, 40, 41, 42, 43]},
+    {'start': (44, 1), 'end': (48, 999), 'chapters': [44, 45, 46, 47, 48]},
+    {'start': (49, 1), 'end': (54, 999), 'chapters': [49, 50, 51, 52, 53, 54]},
+    {'start': (55, 1), 'end': (59, 999), 'chapters': [55, 56, 57, 58, 59]},
+    {'start': (60, 1), 'end': (65, 999), 'chapters': [60, 61, 62, 63, 64, 65]},
+    {'start': (66, 1), 'end': (68, 999), 'chapters': [66, 67, 68]},
+    {'start': (69, 1), 'end': (71, 999), 'chapters': [69, 70, 71]},
+    {'start': (72, 1), 'end': (76, 999), 'chapters': [72, 73, 74, 75, 76]},
+    {'start': (77, 1), 'end': (78, 999), 'chapters': [77, 78]},
+    {'start': (79, 1), 'end': (82, 999), 'chapters': [79, 80, 81, 82]},
+    {'start': (83, 1), 'end': (87, 999), 'chapters': [83, 84, 85, 86, 87]},
+    {'start': (88, 1), 'end': (89, 999), 'chapters': [88, 89]},
+    {'start': (90, 1), 'end': (96, 999), 'chapters': [90, 91, 92, 93, 94, 95, 96]},
+    {'start': (97, 1), 'end': (103, 999), 'chapters': [97, 98, 99, 100, 101, 102, 103]},
+    {'start': (104, 1), 'end': (105, 999), 'chapters': [104, 105]},
+    {'start': (106, 1), 'end': (107, 999), 'chapters': [106, 107]},
+    {'start': (108, 1), 'end': (112, 999), 'chapters': [108, 109, 110, 111, 112]},
+    {'start': (113, 1), 'end': (118, 999), 'chapters': [113, 114, 115, 116, 117, 118]},
+    {'start': (119, 1), 'end': (119, 96), 'chapters': [119]},
+    {'start': (119, 97), 'end': (119, 176), 'chapters': [119]},
+    {'start': (120, 1), 'end': (134, 999), 'chapters': [120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134]},
+    {'start': (135, 1), 'end': (139, 999), 'chapters': [135, 136, 137, 138, 139]},
+    {'start': (140, 1), 'end': (144, 999), 'chapters': [140, 141, 142, 143, 144]},
+    {'start': (145, 1), 'end': (150, 999), 'chapters': [145, 146, 147, 148, 149, 150]},
+]
+
+def _build_tehillim_heading_lookup():
+    """Return {(ch, v): [html, ...]} — bilingual Day headings for Psalms."""
+    lookup = {}
+    for n, day in enumerate(TEHILLIM_DAILY, 1):
+        ch, v = day['start']
+        dh = (
+            f'<h1 class="tehillim-day-heading" id="tehillim-day-{n}" dir="ltr" '
+            f'style="display:flex; justify-content:space-between;">'
+            f'<span lang="en" xml:lang="en" dir="ltr">{e(DAY_NAMES_EN[n-1])}</span>'
+            f' <span lang="he" xml:lang="he" dir="rtl">{e(DAY_NAMES_HE[n-1])}</span>'
+            f'</h1>'
+        )
+        lookup.setdefault((ch, v), []).append(dh)
+    return lookup
+
+def _build_tehillim_nav(book):
+    """Return <nav id="tehillim-toc"> for Psalms (Day parents + chapters).
+
+    Days 25/26 share chapter-119.xhtml, so their children point to verse
+    anchors (v-psalms-119-1 and v-psalms-119-97); every other child points
+    to its whole chapter. Parents point to the tehillim-day-N day headings.
+    """
+    bs = slug(book)
+    items = []
+    for n, day in enumerate(TEHILLIM_DAILY, 1):
+        first_ch = day['start'][0]
+        child_lis = []
+        for ch in day['chapters']:
+            if len(day['chapters']) == 1 and day['start'][0] == 119:
+                v = day['start'][1]
+                child_lis.append(
+                    f'<li><a href="chapter-{ch}.xhtml#v-{bs}-{ch}-{v}">{e(book)} {ch}</a></li>'
+                )
+            else:
+                child_lis.append(
+                    f'<li><a href="chapter-{ch}.xhtml">{e(book)} {ch}</a></li>'
+                )
+        items.append(
+            f'<li><a href="chapter-{first_ch}.xhtml#tehillim-day-{n}">{e(DAY_NAMES_EN[n-1])}</a>'
+            f'<ol>{"".join(child_lis)}</ol></li>'
+        )
+    return f'<nav id="tehillim-toc" epub:type="other"><h1>Daily Tehillim</h1><ol>{"".join(items)}</ol></nav>'
+
 CSS='''body {font-family:serif; margin:5%; color:#000; background:#fff; line-height:1.5;}
 h1 {font-size:1.25em; line-height:1.35; margin:1em 0;}
 h2 {font-size:1.1em; line-height:1.4;}
@@ -499,7 +601,7 @@ h2 {font-size:1.1em; line-height:1.4;}
 .hebrew {font-family:"Noto Serif Hebrew","David","Times New Roman",serif; font-size:1.1em; text-align:right; line-height:1.7; margin:.45em 0;}
 .translation {font-size:1em; text-align:left; line-height:1.55; margin:.5em 0;}
 .verse-heading {display:flex; justify-content:space-between; align-items:baseline; margin:.35em 0; font-size:1em; font-weight:bold; line-height:1.4;}
-.parsha-heading, .aliyah-heading {font-size:1em; font-weight:bold; line-height:1.4;}
+.parsha-heading, .aliyah-heading, .tehillim-day-heading {font-size:1em; font-weight:bold; line-height:1.4;}
 .comment-segment {margin:.6em 0;}
 p, .translation, .note-he, .note-en {text-indent:0;}
 a {color:inherit; text-decoration:underline;}
@@ -562,7 +664,12 @@ def generate(conn,editions,chapters_by_book=None,books=None):
         title=book
         intro=f'<h1>{e(book)}</h1><p>Complete book · {len(chapters)} chapters</p><p><a href="nav.xhtml">Contents</a></p>'
         files['title.xhtml']=xhtml(title,intro)
-        headings=_build_heading_lookup(book) if book in PARSHIYOT else {}
+        if book in PARSHIYOT:
+            headings=_build_heading_lookup(book)
+        elif book == 'Psalms':
+            headings=_build_tehillim_heading_lookup()
+        else:
+            headings={}
         for ch in chapters:
             body=[f'<h1>{e(book)} {ch}</h1>'];aside=[]
             chapter_notes={r['id']:r for r in conn.execute('SELECT DISTINCT n.* FROM notes n JOIN note_refs r ON r.note_id=n.id WHERE r.book=? AND r.chapter=? ORDER BY n.sort_order,n.ref',(book,ch))}
@@ -627,7 +734,8 @@ def generate(conn,editions,chapters_by_book=None,books=None):
         credits.append('</div>');files['credits.xhtml']=xhtml('Sources and credits',''.join(credits))
         toc=''.join(f'<li><a href="chapter-{ch}.xhtml">{e(book)} {ch}</a></li>' for ch in chapters)
         parsha_nav=_build_parsha_nav(book) if book in PARSHIYOT else ''
-        files['nav.xhtml']=xhtml('Contents',f'<nav epub:type="toc" id="toc"><h1>Contents</h1><ol>{toc}</ol></nav>'+parsha_nav)
+        tehillim_nav=_build_tehillim_nav(book) if book == 'Psalms' else ''
+        files['nav.xhtml']=xhtml('Contents',f'<nav epub:type="toc" id="toc"><h1>Contents</h1><ol>{toc}</ol></nav>'+parsha_nav+tehillim_nav)
         uid='urn:tanach:book:'+bs+':'+hashlib.sha256(json.dumps(CONFIG['preferences'],sort_keys=True).encode()).hexdigest()[:12]
         navpoints=''.join(f'<navPoint id="ch-{ch}" playOrder="{i+1}"><navLabel><text>{e(book)} {ch}</text></navLabel><content src="chapter-{ch}.xhtml"/></navPoint>' for i,ch in enumerate(chapters))
         files['toc.ncx']=f'<?xml version="1.0" encoding="UTF-8"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="{uid}"/></head><docTitle><text>{e(title)}</text></docTitle><navMap>{navpoints}</navMap></ncx>'

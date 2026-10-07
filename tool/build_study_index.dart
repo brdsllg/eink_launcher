@@ -155,7 +155,7 @@ class _DefaultProjection implements StudyProjectionSettings {
   @override
   bool get showParshaAliyot => false;
   @override
-  bool get hideVowelPoints => false;
+  bool get showDailyTehillim => false;
   @override
-  bool get studyContinuous => false;
+  bool get hideVowelPoints => false;
 }

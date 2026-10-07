@@ -19,6 +19,10 @@ class ReaderSettingsScreen extends StatefulWidget {
   /// so only Torah readers are offered the switch.
   final bool hasParshaToc;
 
+  /// True when the publication carries the 30-day Tehillim table of contents,
+  /// so only Psalms readers are offered the switch.
+  final bool hasTehillimToc;
+
   /// The unit of a recognized study book: `'verse'` (Tanach) or `'segment'`
   /// (Talmud). Only used to word the study controls; null reads as verse.
   final String? studyUnit;
@@ -31,6 +35,7 @@ class ReaderSettingsScreen extends StatefulWidget {
     this.studyTranslations = const [],
     this.primaryStudyTranslationId,
     this.hasParshaToc = false,
+    this.hasTehillimToc = false,
     this.studyUnit,
   });
 
@@ -89,12 +94,13 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
   }
 
   /// Study content first: what text is shown. Typography and display follow.
-  /// The headings switch appears whenever the book carries the Parshah
-  /// list, even if it has no commentary sources or translations.
+  /// The headings switches appear whenever the book carries the Parshah or
+  /// daily list, even if it has no commentary sources or translations.
   List<Widget> _studyControls() => [
     if (widget.studySources.isNotEmpty ||
         widget.studyTranslations.isNotEmpty ||
-        widget.hasParshaToc) ...[
+        widget.hasParshaToc ||
+        widget.hasTehillimToc) ...[
       if (widget.studySources.isNotEmpty || widget.studyTranslations.isNotEmpty)
         Text(
           'Selected commentary appears after each '
@@ -180,35 +186,6 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
               ],
             ),
           ),
-          _SettingsGroup(
-            label: 'Talmud layout',
-            child: GridActions(
-              minCellWidth: 120,
-              maxColumns: 2,
-              children: [
-                _ChoiceButton(
-                  key: const Key('reader-settings-paragraphs'),
-                  label: 'Paragraphs',
-                  selected: !_settings.studyContinuous,
-                  onPressed: () => setState(
-                    () => _settings = _settings.copyWith(
-                      studyContinuous: false,
-                    ),
-                  ),
-                ),
-                _ChoiceButton(
-                  key: const Key('reader-settings-continuous'),
-                  label: 'Continuous',
-                  selected: _settings.studyContinuous,
-                  onPressed: () => setState(
-                    () => _settings = _settings.copyWith(
-                      studyContinuous: true,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
         ExpansionTile(
           title: const Text('Commentary sources'),
@@ -287,6 +264,34 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
                 selected: _settings.showParshaAliyot,
                 onPressed: () => setState(
                   () => _settings = _settings.copyWith(showParshaAliyot: true),
+                ),
+              ),
+            ],
+          ),
+        ),
+      if (widget.hasTehillimToc)
+        _SettingsGroup(
+          label: 'Daily Tehillim',
+          child: GridActions(
+            minCellWidth: 120,
+            maxColumns: 2,
+            children: [
+              _ChoiceButton(
+                key: const Key('reader-settings-tehillim-chapters'),
+                label: 'Chapters',
+                selected: !_settings.showDailyTehillim,
+                onPressed: () => setState(
+                  () => _settings = _settings.copyWith(
+                    showDailyTehillim: false,
+                  ),
+                ),
+              ),
+              _ChoiceButton(
+                key: const Key('reader-settings-tehillim-days'),
+                label: 'Days',
+                selected: _settings.showDailyTehillim,
+                onPressed: () => setState(
+                  () => _settings = _settings.copyWith(showDailyTehillim: true),
                 ),
               ),
             ],

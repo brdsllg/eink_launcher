@@ -60,6 +60,13 @@ class ParsedBook {
   /// Empty for every other book, which is what lets the reader show the
   /// toggle only where the publication actually carries one.
   final List<TocEntry> parshaTableOfContents;
+
+  /// The alternate 30-day Tehillim navigation of Psalms.
+  ///
+  /// Empty for every other book, which is what lets the reader show the
+  /// toggle only where the publication actually carries one (or where the
+  /// reader can synthesize it for a 150-chapter Psalms).
+  final List<TocEntry> tehillimDailyTableOfContents;
   final List<int> cumulativeCharacterCounts;
 
   /// Path to a disposable, fingerprinted Tanach content cache. When present,
@@ -83,12 +90,15 @@ class ParsedBook {
     this.resources = const {},
     this.tableOfContents = const [],
     this.parshaTableOfContents = const [],
+    this.tehillimDailyTableOfContents = const [],
     this.tanachDatabasePath,
   }) : cumulativeCharacterCounts = _buildCumulativeCounts(spine);
 
   bool get hasLazyTanachContent => tanachDatabasePath != null;
 
   bool get hasParshaToc => parshaTableOfContents.isNotEmpty;
+
+  bool get hasTehillimToc => tehillimDailyTableOfContents.isNotEmpty;
 
   int get characterCount =>
       cumulativeCharacterCounts.isEmpty ? 0 : cumulativeCharacterCounts.last;

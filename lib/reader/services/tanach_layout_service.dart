@@ -1,9 +1,9 @@
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html;
 
-import '../models/content_block.dart';
 import '../models/parsed_book.dart';
 import '../models/reading_position.dart';
+import '../models/tehillim_daily.dart';
 import '../models/toc_entry.dart';
 import 'html_block_parser.dart';
 
@@ -17,8 +17,8 @@ abstract class StudyProjectionSettings {
   String get studyTranslation;
   bool get honorPublisherCss;
   bool get showParshaAliyot;
+  bool get showDailyTehillim;
   bool get hideVowelPoints;
-  bool get studyContinuous;
 }
 
 /// Projects recognized verse/index/footnote relationships into reading order.
@@ -283,9 +283,18 @@ class TanachLayoutService {
       }
     }
     // The dual-structure Torah books carry both heading families; show only
-    // the one the reader's table of contents currently follows.
+    // the one the reader's table of contents currently follows. Psalms
+    // carries chapter + daily headings; legacy Psalms without day headings
+    // get them synthesized so old EPUBs/sidecars still page by day.
+    if (settings.showDailyTehillim) {
+      _injectFallbackDailyHeadings(documents);
+    }
     for (final document in documents.values) {
-      _applyHeadingMode(document, showParshaAliyot: settings.showParshaAliyot);
+      _applyHeadingMode(
+        document,
+        showParshaAliyot: settings.showParshaAliyot,
+        showDailyTehillim: settings.showDailyTehillim,
+      );
     }
     // A chosen verse language drops the other side of every verse, in every
     // chapter, whether or not the chapter needed a note or heading change.
@@ -305,7 +314,7 @@ class TanachLayoutService {
       final document = documents[item.href];
       if (document == null) return item;
       final anchors = <String, int>{};
-      var blocks = HtmlBlockParser.parseSync(
+      final blocks = HtmlBlockParser.parseSync(
         document.outerHtml,
         anchors: anchors,
         honorPublisherCss: settings.honorPublisherCss,
@@ -313,14 +322,6 @@ class TanachLayoutService {
             ? item.href.substring(0, item.href.lastIndexOf('/'))
             : '',
       );
-      if (settings.studyContinuous) {
-        blocks = mergeContinuousBlocks(blocks);
-        // Repair anchors for ids that were merged away: map every pre-merge
-        // id to its post-merge block index instead of leaving stale indices.
-        for (final entry in TanachLayoutService._lastMergeRemap.entries) {
-          anchors[entry.key] = entry.value;
-        }
-      }
       return ParsedSpineItem(
         id: item.id,
         href: item.href,
@@ -369,6 +370,9 @@ class TanachLayoutService {
       resources: book.resources,
       tableOfContents: book.tableOfContents.map(remap).toList(),
       parshaTableOfContents: book.parshaTableOfContents.map(remap).toList(),
+      tehillimDailyTableOfContents: book.tehillimDailyTableOfContents
+          .map(remap)
+          .toList(),
       studyDocuments: book.studyDocuments,
       studySources: orderedStudySources(sources),
       studyTranslations: List<StudyTranslationOption>.unmodifiable(
@@ -391,18 +395,38 @@ class TanachLayoutService {
     'commentary',
   };
 
-  /// Keeps only one heading family in a dual-structure Torah chapter.
+  /// Keeps only one heading family in a dual-structure chapter.
   ///
   /// The builder emits the chapter heading next to the Parshah/Aliyah
-  /// headings, so a reader that follows one table of contents must not also
-  /// page through the other's headings. In parsha mode chapter headings are
-  /// hidden whenever the chapter carries any parsha or aliyah heading, so
-  /// only parsha/aliyah headings page (device finding 6 Oct: chapter headings
-  /// survived because only top-level `body h1` in dual chapters were stripped).
+  /// headings (Torah) or the daily Tehillim heading (Psalms), so a reader
+  /// that follows one table of contents must not also page through the
+  /// other's headings. In parsha/daily mode chapter headings are hidden
+  /// whenever the chapter carries any parsha/aliyah/day heading, so only
+  /// the followed headings page (device finding 6 Oct: chapter headings
+  /// survived because only top-level `body h1` in dual chapters were
+  /// stripped).
   static void _applyHeadingMode(
     Document document, {
     required bool showParshaAliyot,
+    required bool showDailyTehillim,
   }) {
+    if (showDailyTehillim) {
+      final hasDaily =
+          document.querySelector('.tehillim-day-heading') != null;
+      if (hasDaily) {
+        for (final heading in document.querySelectorAll('h1')) {
+          if (!heading.classes.contains('tehillim-day-heading')) {
+            heading.remove();
+          }
+        }
+        for (final heading in document.querySelectorAll(
+          '.parsha-heading, .aliyah-heading',
+        )) {
+          heading.remove();
+        }
+        return;
+      }
+    }
     if (showParshaAliyot) {
       final hasParshaOrAliyah =
           document.querySelector('.parsha-heading, .aliyah-heading') != null;
@@ -413,12 +437,107 @@ class TanachLayoutService {
         return;
       }
     }
-    for (final heading
-        in document.querySelectorAll('.parsha-heading, .aliyah-heading')) {
+    for (final heading in document.querySelectorAll(
+      '.parsha-heading, .aliyah-heading, .tehillim-day-heading',
+    )) {
       heading.remove();
     }
   }
 
+  /// Inserts bilingual Day headings into legacy Psalms documents that carry
+  /// none, so old EPUBs and sidecars still page by day.
+  ///
+  /// No-op when any document already carries a `.tehillim-day-heading`, or
+  /// when no document looks like Psalms (verse `data-ref` mentioning Psalms,
+  /// Tehillim, or תהלים). Otherwise inserts one `<h1
+  /// class="tehillim-day-heading" id="tehillim-day-N">` before the first verse
+  /// of each day present in [documents], plus before Ps 119:97 for Day 26.
+  static void _injectFallbackDailyHeadings(Map<String, Document> documents) {
+    var hasDaily = false;
+    for (final document in documents.values) {
+      if (document.querySelector('.tehillim-day-heading') != null) {
+        hasDaily = true;
+        break;
+      }
+    }
+    if (hasDaily) return;
+    var looksLikePsalms = false;
+    for (final document in documents.values) {
+      for (final verse in document.querySelectorAll(_studySectionSelector)) {
+        final ref = (verse.attributes['data-ref'] ?? '').toLowerCase();
+        if (ref.contains('psalm') ||
+            ref.contains('tehill') ||
+            ref.contains('תהל')) {
+          looksLikePsalms = true;
+          break;
+        }
+      }
+      if (looksLikePsalms) break;
+    }
+    if (!looksLikePsalms) return;
+    final chapterPaths = <int, String>{};
+    final chapterPattern = RegExp(r'chapter-(\d+)\.xhtml$');
+    for (final key in documents.keys) {
+      final match = chapterPattern.firstMatch(key);
+      if (match != null) {
+        chapterPaths[int.parse(match.group(1)!)] = key;
+      }
+    }
+    if (chapterPaths.isEmpty) return;
+    for (var day = 1; day <= 30; day++) {
+      final start = TehillimDaily.dayStarts[day - 1];
+      final chapter = start[0];
+      final verseNumber = start[1];
+      final path = chapterPaths[chapter];
+      if (path == null) continue;
+      final document = documents[path]!;
+      if (document.querySelector('#tehillim-day-$day') != null) continue;
+      final verses = document.querySelectorAll(_studySectionSelector).toList();
+      if (verses.isEmpty) continue;
+      Element? target;
+      if (verseNumber <= 1) {
+        target = verses.first;
+      } else {
+        for (final verse in verses) {
+          final ref = verse.attributes['data-ref'] ?? '';
+          final parsed = _verseNumberFromRef(ref);
+          if (parsed == verseNumber) {
+            target = verse;
+            break;
+          }
+        }
+        target ??= verseNumber <= verses.length
+            ? verses[verseNumber - 1]
+            : verses.first;
+      }
+      final heading = _dailyHeadingElement(day);
+      if (heading == null) continue;
+      target.parent?.insertBefore(heading, target);
+    }
+  }
+
+  static int? _verseNumberFromRef(String ref) {
+    final match = RegExp(r':(\d+)\s*$').firstMatch(ref.trim());
+    if (match == null) return null;
+    return int.tryParse(match.group(1)!);
+  }
+
+  static Element? _dailyHeadingElement(int day) {
+    if (day < 1 || day > 30) return null;
+    final en = 'Day $day';
+    final he = TehillimDaily.dayNamesHe[day - 1];
+    final fragment = html.parseFragment(
+      '<h1 class="tehillim-day-heading" id="tehillim-day-$day" dir="ltr" '
+      'style="display:flex; justify-content:space-between;">'
+      '<span lang="en" xml:lang="en" dir="ltr">$en</span> '
+      '<span lang="he" xml:lang="he" dir="rtl">$he</span>'
+      '</h1>',
+    );
+    for (final node in fragment.nodes) {
+      if (node is Element) return node;
+    }
+    return null;
+  }
 
   /// Keeps only the requested side of one verse: Hebrew, English, or both.
   ///
@@ -467,8 +586,8 @@ class TanachLayoutService {
       settings.studyTranslation,
       settings.honorPublisherCss,
       settings.showParshaAliyot,
+      settings.showDailyTehillim,
       settings.hideVowelPoints,
-      settings.studyContinuous,
     ].join('\u001e');
   }
 
@@ -564,112 +683,6 @@ class TanachLayoutService {
       });
     return sorted;
   }
-
-  /// Talmud continuous mode: join consecutive body paragraphs so breaks fall
-  /// only at headings (segment headings like `Berakhot 2a:1`) and amud/file
-  /// boundaries. Headings, lists, quotes, images and rules stay as separators.
-  /// Merges break on direction/style change and are chunked so one amud can
-  /// never become a single giant TextPainter (the Berakhot Continuous crash).
-  static List<ContentBlock> mergeContinuousBlocks(List<ContentBlock> blocks) {
-    const maxChars = 4000;
-    const maxRuns = 200;
-    final merged = <ContentBlock>[];
-    // Maps every pre-merge block id to its post-merge index so anchors survive.
-    final idRemap = <String, int>{};
-    var pending = <InlineRun>[];
-    var pendingDirection = BlockTextDirection.ltr;
-    String? pendingId;
-    double? pendingFontSize;
-    double? pendingLineHeight;
-    int pendingChars = 0;
-    final pendingIds = <String>[];
-
-    void flush() {
-      if (pending.isEmpty) return;
-      final index = merged.length;
-      merged.add(
-        ContentBlock(
-          type: BlockType.paragraph,
-          runs: List<InlineRun>.unmodifiable(pending),
-          direction: pendingDirection,
-          id: pendingId,
-          fontSizeMultiplier: pendingFontSize,
-          lineHeight: pendingLineHeight,
-        ),
-      );
-      for (final id in pendingIds) {
-        idRemap[id] = index;
-      }
-      pending = <InlineRun>[];
-      pendingId = null;
-      pendingFontSize = null;
-      pendingLineHeight = null;
-      pendingChars = 0;
-      pendingIds.clear();
-    }
-
-    bool compatible(ContentBlock block) {
-      if (pending.isEmpty) return true;
-      if (block.direction != pendingDirection) return false;
-      if (block.fontSizeMultiplier != pendingFontSize) return false;
-      if (block.lineHeight != pendingLineHeight) return false;
-      if (block.alignment != BlockAlignment.start) return false;
-      if (pendingChars + block.characterCount > maxChars) return false;
-      if (pending.length + block.runs.length > maxRuns) return false;
-      return true;
-    }
-
-    for (var i = 0; i < blocks.length; i++) {
-      final block = blocks[i];
-      if (block.id != null) {
-        // Record pre-merge index; remapped to merged index on flush.
-        // Non-merged blocks map to themselves below.
-        if (block.type != BlockType.paragraph ||
-            block.resourcePath != null ||
-            block.trailingRuns.isNotEmpty) {
-          idRemap[block.id!] = merged.length;
-        }
-      }
-      if (block.type == BlockType.paragraph &&
-          block.resourcePath == null &&
-          block.trailingRuns.isEmpty &&
-          block.alignment == BlockAlignment.start) {
-        if (!compatible(block)) {
-          flush();
-        }
-        if (pending.isEmpty) {
-          pendingDirection = block.direction;
-          pendingId = block.id;
-          pendingFontSize = block.fontSizeMultiplier;
-          pendingLineHeight = block.lineHeight;
-        }
-        if (pending.isNotEmpty) {
-          pending.add(const InlineRun(text: ' '));
-          pendingChars += 1;
-        }
-        pending.addAll(block.runs);
-        pendingChars += block.characterCount;
-        if (block.id != null) pendingIds.add(block.id!);
-        // Chunk huge runs so no single block overwhelms TextPainter.
-        if (pendingChars >= maxChars || pending.length >= maxRuns) {
-          flush();
-        }
-      } else {
-        flush();
-        merged.add(block);
-      }
-    }
-    flush();
-    // Stash remap on merged blocks via id lookup done by caller.
-    _lastMergeRemap
-      ..clear()
-      ..addAll(idRemap);
-    return List<ContentBlock>.unmodifiable(merged);
-  }
-
-  /// Remap from pre-merge block ids to post-merge indices for the last call.
-  /// Used to repair anchors that would otherwise point at stale indices.
-  static final Map<String, int> _lastMergeRemap = <String, int>{};
 
   static int _sourceRank(String source) {
     final lower = source.toLowerCase();

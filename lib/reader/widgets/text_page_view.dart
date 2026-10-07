@@ -23,6 +23,9 @@ class TextPageView extends StatefulWidget {
 class _TextPageViewState extends State<TextPageView> {
   Size? _reportedSize;
   bool _contentReported = false;
+  // One iterative More-chain per selection start: repeated More presses walk
+  // the end block forward one readable paragraph at a time.
+  final Map<String, int> _extensionEnds = {};
 
   Future<void> _addAnnotation(
     int spineIndex,
@@ -73,28 +76,58 @@ class _TextPageViewState extends State<TextPageView> {
     setState(() {});
   }
 
-  Future<void> _extendToNextParagraph(
+  Future<ExtendedSelection?> _extendToNextParagraph(
     int spineIndex,
     int blockIndex,
     TextSelection sourceRange,
   ) async {
     final book = widget.session.book;
-    if (book == null) return;
+    if (book == null) return null;
     final chapter = book.spine[spineIndex];
-    var nextIndex = blockIndex + 1;
+    final key = '$spineIndex:$blockIndex:${sourceRange.start}';
+    final currentEnd = _extensionEnds[key] ?? blockIndex;
+    var nextIndex = currentEnd + 1;
     while (nextIndex < chapter.blocks.length &&
         chapter.blocks[nextIndex].plainText.trim().isEmpty) {
       nextIndex++;
     }
-    if (nextIndex >= chapter.blocks.length) return;
+    if (nextIndex >= chapter.blocks.length) return null;
     final first = chapter.blocks[blockIndex];
+    final start = sourceRange.start.clamp(0, first.plainText.length);
+    final firstPart = first.plainText.substring(start);
+    final parts = <String>[firstPart];
+    for (var i = blockIndex + 1; i <= nextIndex; i++) {
+      final text = chapter.blocks[i].plainText;
+      if (text.trim().isEmpty) continue;
+      parts.add(text);
+    }
+    final combined = parts.join('\n\n');
+    _extensionEnds[key] = nextIndex;
     final next = chapter.blocks[nextIndex];
-    final firstPart = first.plainText.substring(
-      sourceRange.start.clamp(0, first.plainText.length),
-      sourceRange.end.clamp(0, first.plainText.length),
+    return ExtendedSelection(
+      endBlockIndex: nextIndex,
+      endBlockId: next.id,
+      endBlockOffset: next.plainText.length,
+      combinedText: combined,
     );
-    final combined = '$firstPart\n\n${next.plainText}';
+  }
+
+  Future<void> _addMultiBlockAnnotation(
+    int spineIndex,
+    int blockIndex,
+    TextSelection range,
+    ExtendedSelection extended,
+    bool addNote,
+  ) async {
     final docId = widget.session.doc.id;
+    final chapter = widget.session.book!.spine[spineIndex];
+    final blockId = chapter.blocks[blockIndex].id;
+    final note = addNote ? await showAnnotationEditor(context) : null;
+    if (!mounted ||
+        widget.session.doc.id != docId ||
+        (addNote && note == null)) {
+      return;
+    }
     final session = widget.session;
     final store = BookStoreService.instance;
     final state =
@@ -115,18 +148,20 @@ class _TextPageViewState extends State<TextPageView> {
       spineIndex: spineIndex,
       blockIndex: blockIndex,
       documentPath: chapter.href,
-      blockId: first.id,
-      startOffset: sourceRange.start,
-      endOffset: first.plainText.length,
-      endBlockIndex: nextIndex,
-      endBlockId: next.id,
+      blockId: blockId,
+      startOffset: range.start,
+      endOffset: chapter.blocks[blockIndex].plainText.length,
+      endBlockIndex: extended.endBlockIndex,
+      endBlockId: extended.endBlockId,
       endDocumentPath: chapter.href,
-      endBlockOffset: next.plainText.length,
-      text: combined,
+      endBlockOffset: extended.endBlockOffset,
+      text: extended.combinedText,
+      note: note,
     );
     store.saveBookState(
       state.copyWith(annotations: [...state.annotations, annotation]),
     );
+    _extensionEnds.remove('$spineIndex:$blockIndex:${range.start}');
     if (mounted) setState(() {});
   }
 
@@ -230,6 +265,14 @@ class _TextPageViewState extends State<TextPageView> {
                       slice.blockIndex,
                       sourceRange,
                     ),
+                    onAnnotateExtended: (range, extended, addNote) =>
+                        _addMultiBlockAnnotation(
+                          page.start.spineIndex,
+                          slice.blockIndex,
+                          range,
+                          extended,
+                          addNote,
+                        ),
                     onOpenLink: (href) async {
                       final opened = await widget.session.openLink(href);
                       if (!opened && context.mounted) {

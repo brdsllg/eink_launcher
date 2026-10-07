@@ -23,30 +23,25 @@ void main() {
     expect(offsets.last, block.plainText.length);
   });
 
-  test('studyContinuous merges consecutive paragraphs', () {
-    final blocks = [
-      const ContentBlock(
-        type: BlockType.paragraph,
-        runs: [InlineRun(text: 'first')],
-      ),
-      const ContentBlock(
-        type: BlockType.paragraph,
-        runs: [InlineRun(text: 'second')],
-      ),
-      const ContentBlock(
-        type: BlockType.heading2,
-        runs: [InlineRun(text: 'Berakhot 2a:1')],
-      ),
-      const ContentBlock(
-        type: BlockType.paragraph,
-        runs: [InlineRun(text: 'third')],
-      ),
-    ];
-    final merged = TanachLayoutService.mergeContinuousBlocks(blocks);
-    expect(merged.length, 3);
-    expect(merged.first.plainText, 'first second');
-    expect(merged[1].plainText, 'Berakhot 2a:1');
-    expect(merged[2].plainText, 'third');
+  test('study paragraphs stay separate (continuous removed)', () {
+    final book = ParsedBook(
+      title: 'T',
+      spine: [
+        ParsedSpineItem(id: 'c', href: 'c.xhtml', title: 'C', blocks: []),
+      ],
+      studyDocuments: {
+        'c.xhtml': '''
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body>
+<section class="segment" id="s-1" data-ref="Berakhot 2a:1"><div class="segment-heading"><span>Berakhot 2a:1</span></div><p class="hebrew" dir="rtl">טקסט</p></section>
+<section class="segment" id="s-2" data-ref="Berakhot 2a:2"><div class="segment-heading"><span>Berakhot 2a:2</span></div><p class="hebrew" dir="rtl">המשך</p></section>
+</body></html>''',
+      },
+    );
+    final projected = TanachLayoutService.layout(book, const ReaderSettings());
+    final headings = projected.spine.single.blocks
+        .where((b) => b.type == BlockType.heading2)
+        .toList();
+    expect(headings.length, 2);
   });
 
   test('commentary sources order Rashi, Tosafot, then rest', () {
@@ -105,17 +100,19 @@ void main() {
   });
 
   test('new study settings persist through JSON', () {
-    const settings = ReaderSettings(
-      hideVowelPoints: true,
-      studyContinuous: true,
-    );
+    const settings = ReaderSettings(hideVowelPoints: true);
     final restored = ReaderSettings.fromJson(settings.toJson());
     expect(restored.hideVowelPoints, isTrue);
-    expect(restored.studyContinuous, isTrue);
     expect(
       restored.copyWith(hideVowelPoints: false).hideVowelPoints,
       isFalse,
     );
+    // Legacy studyContinuous keys are ignored (feature removed).
+    final legacy = ReaderSettings.fromJson({
+      ...settings.toJson(),
+      'studyContinuous': true,
+    });
+    expect(legacy.hideVowelPoints, isTrue);
   });
 
   test('projected commentary drops reader-stripped backlinks', () {
@@ -142,48 +139,6 @@ void main() {
         .join('\n');
     expect(text, contains('פירוש'));
     expect(text, isNot(contains('back')));
-  });
-
-  test('continuous breaks at single-span segment headings, chunks huge merges', () {
-    final blocks = [
-      const ContentBlock(
-        type: BlockType.paragraph,
-        runs: [InlineRun(text: 'hebrew body')],
-        direction: BlockTextDirection.rtl,
-      ),
-      const ContentBlock(
-        type: BlockType.heading2,
-        runs: [InlineRun(text: 'Berakhot 2a:2')],
-      ),
-      const ContentBlock(
-        type: BlockType.paragraph,
-        runs: [InlineRun(text: 'next segment')],
-        direction: BlockTextDirection.rtl,
-      ),
-    ];
-    final merged = TanachLayoutService.mergeContinuousBlocks(blocks);
-    // Heading stays a separator so one amud never becomes one giant block.
-    expect(merged.length, 3);
-    expect(merged[1].type, BlockType.heading2);
-  });
-
-  test('continuous breaks on direction change and preserves anchors', () {
-    final blocks = [
-      const ContentBlock(
-        type: BlockType.paragraph,
-        runs: [InlineRun(text: 'עברית')],
-        direction: BlockTextDirection.rtl,
-        id: 'a',
-      ),
-      const ContentBlock(
-        type: BlockType.paragraph,
-        runs: [InlineRun(text: 'english')],
-        direction: BlockTextDirection.ltr,
-        id: 'b',
-      ),
-    ];
-    final merged = TanachLayoutService.mergeContinuousBlocks(blocks);
-    expect(merged.length, 2);
   });
 
   test('projected commentary follows picker rank, not builder order', () {

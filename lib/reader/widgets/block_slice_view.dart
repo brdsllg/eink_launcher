@@ -13,6 +13,23 @@ import '../services/annotation_text_mapping.dart';
 import 'selection_toolbar.dart';
 import 'tap_zone_layer.dart';
 
+/// A multi-paragraph range built by repeated **More** presses: the local
+/// block keeps its start offset, the range covers through [endBlockIndex],
+/// and [combinedText] joins every covered paragraph with blank lines.
+class ExtendedSelection {
+  final int endBlockIndex;
+  final String? endBlockId;
+  final int endBlockOffset;
+  final String combinedText;
+
+  const ExtendedSelection({
+    required this.endBlockIndex,
+    required this.endBlockId,
+    required this.endBlockOffset,
+    required this.combinedText,
+  });
+}
+
 class BlockSliceView extends StatefulWidget {
   final ContentBlock block;
   final BlockSlice slice;
@@ -26,7 +43,14 @@ class BlockSliceView extends StatefulWidget {
   final void Function(Annotation annotation)? onOpenAnnotation;
   final Future<void> Function(TextSelection range, String text, bool addNote)?
   onAnnotate;
-  final Future<void> Function(TextSelection sourceRange)? onExtendSelection;
+  final Future<ExtendedSelection?> Function(TextSelection sourceRange)?
+  onExtendSelection;
+  final Future<void> Function(
+    TextSelection range,
+    ExtendedSelection extended,
+    bool addNote,
+  )?
+  onAnnotateExtended;
 
   const BlockSliceView({
     super.key,
@@ -42,6 +66,7 @@ class BlockSliceView extends StatefulWidget {
     this.onOpenAnnotation,
     this.onAnnotate,
     this.onExtendSelection,
+    this.onAnnotateExtended,
   });
 
   @override
@@ -57,6 +82,10 @@ class _BlockSliceViewState extends State<BlockSliceView> {
   final _surfaceKey = GlobalKey();
   Offset? _dragPosition;
   bool? _draggingStart;
+  // Pending multi-paragraph extension owned by the parent page view: the
+  // local handle still shows the first block, while copy/dictionary/note
+  // apply to the whole range. Cleared with the selection.
+  ExtendedSelection? _extended;
   ContentBlock get block => widget.block;
   BlockSlice get slice => widget.slice;
   ReaderSettings get settings => widget.settings;
@@ -70,6 +99,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
         oldWidget.slice != slice ||
         oldWidget.settings != settings) {
       _selection = null;
+      _extended = null;
       // Updates arrive during layout; OverlayPortal cannot be hidden there.
       // The null selection immediately removes its controls from this frame.
       if (_overlay.isShowing) {
@@ -95,7 +125,12 @@ class _BlockSliceViewState extends State<BlockSliceView> {
 
   void _clearSelection() {
     _overlay.hide();
-    if (mounted) setState(() => _selection = null);
+    if (mounted) {
+      setState(() {
+        _selection = null;
+        _extended = null;
+      });
+    }
   }
 
   Future<void> _act(String action) async {
@@ -106,10 +141,46 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     if (action == 'extend') {
       final extend = widget.onExtendSelection;
       if (extend == null) return;
-      final current = range;
-      _clearSelection();
-      await extend(current);
+      final extended = await extend(range);
+      if (!mounted || extended == null) return;
+      // Keep the toolbar open: the local handle grows to the end of this
+      // paragraph so the rest looks selected, while copy/dictionary/note
+      // below apply to the whole multi-paragraph range.
+      final displayEnd =
+          TextBlockLayout.prefixFor(block, settings).length +
+          TextBlockLayout.displayedPlainText(block, settings).length;
+      final toEnd = TextSelection(
+        baseOffset: selection.start,
+        extentOffset: displayEnd,
+      );
+      setState(() {
+        _selection = toEnd.start == toEnd.end ? selection : toEnd;
+        _extended = extended;
+      });
+      _overlay.show();
       return;
+    }
+    final extended = _extended;
+    if (extended != null) {
+      final combined = extended.combinedText;
+      final multi = widget.onAnnotateExtended;
+      switch (action) {
+        case 'copy':
+          await Clipboard.setData(ClipboardData(text: combined));
+          _clearSelection();
+          return;
+        case 'dictionary':
+          final word = combined.replaceAll(RegExp('[\u200b\u00ad]'), '');
+          _clearSelection();
+          await widget.onDefineWord?.call(word);
+          return;
+        default:
+          if (multi != null) {
+            _clearSelection();
+            await multi(range, extended, action == 'note');
+            return;
+          }
+      }
     }
     final text = block.plainText.substring(range.start, range.end);
     _clearSelection();
@@ -125,6 +196,12 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     }
   }
 
+  // Logical-offset hysteresis before a cross-flip: caret affinity at a
+  // line/word edge can snap 1-2 chars at the exact crossing moment, which
+  // used to move the supposed-stationary edge. The dragged edge must pass
+  // the anchor by more than this before the handles swap roles.
+  static const int _flipHysteresis = 2;
+
   void _dragHandle(bool start, Offset global, double width) {
     final surface = _surfaceKey.currentContext!.findRenderObject() as RenderBox;
     final painter = TextBlockLayout.createPainter(block, settings, width);
@@ -136,21 +213,40 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     painter.dispose();
     final clamped = offset.clamp(min, max);
     // Bidirectional handles (modern-phone style): either handle drags either
-    // direction. When the dragged edge crosses the anchor, flip which edge
-    // the finger controls so the handle stays under the finger.
+    // direction. When the dragged edge crosses the anchor by more than the
+    // hysteresis, flip which edge the finger controls so the handle stays
+    // under the finger. The anchor itself is never recomputed, so the
+    // stationary handle cannot jump letters on flip.
     final anchor = start ? selection.extentOffset : selection.baseOffset;
     TextSelection next;
     var nextStart = start;
-    if ((start && clamped <= anchor) || (!start && clamped >= anchor)) {
-      next = start
-          ? selection.copyWith(baseOffset: clamped)
-          : selection.copyWith(extentOffset: clamped);
+    if (start) {
+      if (clamped <= anchor + _flipHysteresis) {
+        next = selection.copyWith(
+          baseOffset: clamped.clamp(min, anchor),
+        );
+      } else {
+        // Crossed: anchor becomes the new start, finger takes the far edge.
+        next = TextSelection(baseOffset: anchor, extentOffset: clamped);
+        nextStart = !start;
+        _draggingStart = nextStart;
+        _dragPosition = global;
+      }
     } else {
-      // Crossed: anchor becomes the new start, finger takes the far edge.
-      next = TextSelection(baseOffset: anchor, extentOffset: clamped);
-      nextStart = !start;
-      _draggingStart = nextStart;
+      if (clamped >= anchor - _flipHysteresis) {
+        next = selection.copyWith(
+          extentOffset: clamped.clamp(anchor, max),
+        );
+      } else {
+        next = TextSelection(baseOffset: clamped, extentOffset: anchor);
+        nextStart = !start;
+        _draggingStart = nextStart;
+        _dragPosition = global;
+      }
     }
+    // Any extension across paragraphs is rebuilt by the next More press;
+    // a handle drag stays inside this block.
+    if (_extended != null) _extended = null;
     // Keep at least one char selected.
     if (next.start == next.end) {
       return;
@@ -164,13 +260,23 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     final boxes = painter.getBoxesForSelection(_selection!);
     painter.dispose();
     if (boxes.isEmpty) return const SizedBox.shrink();
+    final isRtl =
+        TextBlockLayout.directionFor(block) == TextDirection.rtl;
     final surface = _surfaceKey.currentContext!.findRenderObject() as RenderBox;
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final origin = overlay.globalToLocal(surface.localToGlobal(Offset.zero));
+    // Visual edges, not logical start/end: for RTL the logical start sits
+    // on the right. Using left/right keeps the 48dp targets from overlapping
+    // and stops one handle from grabbing the other.
+    double edgeX(TextBox box, bool isStartEdge) {
+      if (isRtl) return isStartEdge ? box.right : box.left;
+      return isStartEdge ? box.left : box.right;
+    }
+
     Offset anchor(TextBox box, bool start) =>
         origin +
         Offset(
-          start ? box.start : box.end,
+          edgeX(box, start),
           (box.bottom - slice.sourceTop).clamp(0.0, slice.height),
         );
     final first = anchor(boxes.first, true);
@@ -211,10 +317,16 @@ class _BlockSliceViewState extends State<BlockSliceView> {
         ),
         for (final start in [true, false])
           Positioned(
-            left: (start ? first.dx - _selectionHandleSize : last.dx).clamp(
-              0.0,
-              overlay.size.width - _selectionHandleSize,
-            ),
+            left:
+                (start
+                        ? (isRtl ? first.dx : first.dx - _selectionHandleSize)
+                        : (isRtl
+                              ? last.dx - _selectionHandleSize
+                              : last.dx))
+                    .clamp(
+                      0.0,
+                      overlay.size.width - _selectionHandleSize,
+                    ),
             top: (start ? first.dy : last.dy).clamp(
               0.0,
               overlay.size.height - _selectionHandleSize,
@@ -224,18 +336,14 @@ class _BlockSliceViewState extends State<BlockSliceView> {
                 start ? 'selection-start-handle' : 'selection-end-handle',
               ),
               behavior: HitTestBehavior.opaque,
-              onPanStart: (_) {
-                final box = start ? boxes.first : boxes.last;
+              onPanStart: (details) {
                 _draggingStart = start;
-                _dragPosition = surface.localToGlobal(
-                  Offset(
-                    start ? box.start : box.end,
-                    (box.top + box.bottom) / 2 - slice.sourceTop,
-                  ),
-                );
+                // Seed from the finger, not the handle center, so slow e-ink
+                // frames cannot accumulate delta drift.
+                _dragPosition = details.globalPosition;
               },
               onPanUpdate: (details) {
-                _dragPosition = _dragPosition! + details.delta;
+                _dragPosition = details.globalPosition;
                 _dragHandle(_draggingStart ?? start, _dragPosition!, width);
               },
               onPanEnd: (_) {
@@ -245,7 +353,9 @@ class _BlockSliceViewState extends State<BlockSliceView> {
                 width: _selectionHandleSize,
                 height: _selectionHandleSize,
                 child: Align(
-                  alignment: start ? Alignment.topRight : Alignment.topLeft,
+                  alignment: start
+                      ? (isRtl ? Alignment.topLeft : Alignment.topRight)
+                      : (isRtl ? Alignment.topRight : Alignment.topLeft),
                   child: Container(width: 12, height: 24, color: Colors.black),
                 ),
               ),

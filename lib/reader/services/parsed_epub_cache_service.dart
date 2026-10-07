@@ -21,7 +21,9 @@ class ParsedEpubCacheService {
   // `section.segment` dialect, so books first cached as plain EPUBs re-parse
   // into study text instead of returning a stale non-study parse. Bumped to 8
   // when ParsedBook gained `studyUnit`, so the settings labels pick it up.
-  static const version = 8;
+  // Bumped to 9 when ParsedBook gained `tehillimDailyTableOfContents`, so
+  // Psalms re-parses and the daily schedule toggle appears.
+  static const version = 9;
   static const maxBytes = 64 * 1024 * 1024;
   final Directory? cacheDirectory;
   const ParsedEpubCacheService({this.cacheDirectory});
@@ -178,6 +180,9 @@ class ParsedEpubCacheService {
     'parshaToc': [
       for (final entry in book.parshaTableOfContents) entry.toJson(),
     ],
+    'tehillimToc': [
+      for (final entry in book.tehillimDailyTableOfContents) entry.toJson(),
+    ],
     'resources': book.resources.map(
       (key, value) => MapEntry(key, base64Encode(value)),
     ),
@@ -260,6 +265,10 @@ class ParsedEpubCacheService {
     ],
     parshaTableOfContents: [
       for (final entry in json['parshaToc'] as List? ?? const [])
+        TocEntry.fromJson(entry as Map<String, dynamic>),
+    ],
+    tehillimDailyTableOfContents: [
+      for (final entry in json['tehillimToc'] as List? ?? const [])
         TocEntry.fromJson(entry as Map<String, dynamic>),
     ],
     resources: (json['resources'] as Map<String, dynamic>).map(

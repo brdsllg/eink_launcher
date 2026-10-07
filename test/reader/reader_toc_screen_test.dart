@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('flattens nested entries and returns the selected target', (
+  testWidgets('collapses parents and expands on tap, leaf navigates', (
     tester,
   ) async {
     TocEntry? selected;
@@ -49,11 +49,58 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Chapter'), findsOneWidget);
+    // Collapsed by default: parent visible with affordance, child hidden.
+    expect(find.textContaining('Chapter'), findsOneWidget);
+    expect(find.text('Section'), findsNothing);
+
+    // Whole-row parent tap expands instead of navigating.
+    await tester.tap(find.textContaining('Chapter'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Section'), findsOneWidget);
+    expect(selected, isNull);
+
     await tester.tap(find.text('Section'));
     await tester.pumpAndSettle();
 
     expect(selected?.position, child.position);
+  });
+
+  testWidgets('collapsing hides children again', (tester) async {
+    const child = TocEntry(
+      title: 'Section',
+      level: 1,
+      position: TextReadingPosition(
+        spineIndex: 0,
+        blockIndex: 4,
+        charOffset: 0,
+      ),
+    );
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ReaderTocScreen(
+          entries: [
+            TocEntry(
+              title: 'Chapter',
+              position: TextReadingPosition(
+                spineIndex: 0,
+                blockIndex: 0,
+                charOffset: 0,
+              ),
+              children: [child],
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Chapter'));
+    await tester.pumpAndSettle();
+    expect(find.text('Section'), findsOneWidget);
+
+    await tester.tap(find.textContaining('Chapter'));
+    await tester.pumpAndSettle();
+    expect(find.text('Section'), findsNothing);
   });
 }

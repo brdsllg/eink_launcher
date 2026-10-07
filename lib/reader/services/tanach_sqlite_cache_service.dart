@@ -24,7 +24,9 @@ import 'tanach_layout_service.dart';
 class TanachSqliteCacheService {
   // Bumped to 5 when the skeleton began recording `study_unit`, so an older
   // cache re-imports and the study controls keep the right labels.
-  static const schemaVersion = 6;
+  // Bumped to 7 when the skeleton began recording `tehillim_toc`, so Psalms
+  // books re-import and the daily schedule toggle appears.
+  static const schemaVersion = 7;
   static const maxCacheBytes = 768 * 1024 * 1024;
 
   static final Map<String, int> _pins = {};
@@ -274,6 +276,7 @@ class TanachSqliteCacheService {
         resources: book.resources,
         tableOfContents: book.tableOfContents,
         parshaTableOfContents: book.parshaTableOfContents,
+        tehillimDailyTableOfContents: book.tehillimDailyTableOfContents,
         tanachDatabasePath: path,
       );
 
@@ -347,6 +350,11 @@ class TanachSqliteCacheService {
         ],
         parshaTableOfContents: [
           for (final value in jsonDecode(meta['parsha_toc'] ?? '[]') as List)
+            TocEntry.fromJson(value as Map<String, dynamic>),
+        ],
+        tehillimDailyTableOfContents: [
+          for (final value
+              in jsonDecode(meta['tehillim_toc'] ?? '[]') as List)
             TocEntry.fromJson(value as Map<String, dynamic>),
         ],
         tanachDatabasePath: path,
@@ -564,6 +572,12 @@ class TanachSqliteCacheService {
           'parsha_toc': jsonEncode(
             [
               for (final entry in book.parshaTableOfContents)
+                entry.toJson(),
+            ],
+          ),
+          'tehillim_toc': jsonEncode(
+            [
+              for (final entry in book.tehillimDailyTableOfContents)
                 entry.toJson(),
             ],
           ),
