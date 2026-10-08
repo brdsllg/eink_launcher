@@ -16,10 +16,10 @@ refresh-mode name was never recorded.
 | EPUB/TXT/Markdown open, search, saved positions | Confirmed |
 | Physical page buttons | Confirmed (with the button assignment described below) |
 | Tabs, newer screen layouts | **Confirmed by owner (tested several times; skip future passes unless regression)** |
-| Selection, notes, underlines | **Partially checked (48 dp handles grabbable 6 Oct; follow-up: flip jumps stationary handle, Hebrew handles pull each other, mixed-dir weird; More button must extend selection across paragraphs)** |
+| Selection, notes, underlines | **Partially checked (48 dp handles grabbable; open: flip jumps stationary handle, Hebrew handles pull each other, mixed-direction weird; More button must extend selection across paragraphs)** |
 | Hebrew and English dictionaries | **Checked (Passed)** |
-| Tanach study books | **Partially checked (6 Oct: chapters/bilingual pass; escaped-markup examples now Gen 7:2, 7:11, 7:23, 8:14, 9:17 + sidecar-folder request; parsha/aliyah still needs rebuilt EPUBs)** |
-| Talmud study books | **Partially checked (6 Oct: Berakhot start/headings/links pass; follow-up: commentary order good, Continuous does nothing — remove? vowels question answered in findings)** |
+| Tanach study books | **Partially checked (parsha order, aliyah landings, parsha-only headings pass; open: markup words in verses — `span` search 202 matches in Genesis, all books affected; fixed in source, needs rebuilt books + recheck)** |
+| Talmud study books | **Partially checked (Berakhot start/headings/links pass, commentary order good; open: Continuous does nothing — remove? vowels question answered in findings)** |
 | Renderer preference, preview/sharpen timing, unplugged idle battery drain | Optional measurements, never taken |
 
 ## Test history
@@ -100,11 +100,10 @@ bidirectional handles, inventory Finding F. Rebuild EPUBs + sidecars before the
 next device pass.
 
 - **Tanach (Genesis):**
-  - Cold open after install showed "loading" for over a minute. There is currently
-    **no prebuilt sidecar workflow for Tanach**: `tool/build_study_index.dart`
-    works for any study EPUB (Tanach included), but no Tanach sidecars were
-    built/copied, so the device imports on first open. Follow-up: build Tanach
-    sidecars on the laptop and copy each `<book>.study.sqlite` next to its EPUB.
+  - Cold open after install showed "loading" for over a minute: no Tanach sidecars
+    were built/copied, so the device imported on first open. Follow-up: build Tanach
+    sidecars on the laptop (`dart run tool/build_study_index.dart outputs/books
+    --out outputs/books/study`) and copy the EPUBs plus the `study` folder.
   - Parshiyot/aliyot toggle enables successfully, but **chapter headings remain
     visible in parsha mode** (want parsha/aliyah headings only). Reader cause:
     `_applyHeadingMode` (`lib/reader/services/tanach_layout_service.dart`)
@@ -176,7 +175,8 @@ side buttons assigned to D-pad Left/Right.
 - **Tanach (Step 3):** otherwise "all beautiful". Escaped markup now has exact
   examples — literal `span` / `class` / `nbsp` words inside the Hebrew psukim
   at **Gen 7:2, 7:11, 7:23, 8:14, 9:17** (7:2 listed twice by owner, likely two
-  spots in the verse; more expected elsewhere). Owner request: let
+  spots in the verse; more expected elsewhere). Owner request (done — `study/`
+  subfolder, checked first with next-to-EPUB fallback): let
   `.study.sqlite` sidecars live in a separate folder instead of next to each
   EPUB. See `docs/tanach/docs/tanach-epub.md`.
 - **Talmud (Step 4):** otherwise all good. Continuous mode no longer crashes
@@ -185,6 +185,14 @@ side buttons assigned to D-pad Left/Right.
   why vowels *and punctuation* do not show, whether Sefaria provides them and
   whether we pull them. See `docs/talmud/docs/reader-device-findings.md`.
 - **PDF regression (Step 5):** all good.
+
+### Latest owner retest (rebuilt books, HiBreak)
+
+- **Result:** everything passes except the Bible books.
+- **Bible markup failure:** searching `span` in Genesis returns **202 matches**; not just Genesis.
+- Visible words like `span` / `class` / `nbsp` inside Hebrew verses (e.g. Gen 7:2, 7:11, 7:23, 8:14, 9:17).
+- Cause and fix recorded in `docs/tanach/docs/tanach-epub.md`; host-verified over 23,206 verses.
+- Next: rebuild EPUBs + sidecars, then verify verses render clean, `span` search returns 0, section markers kept.
 
 ## Measurements (version 1.0.2)
 
@@ -220,16 +228,17 @@ Legacy-renderer scanned-PDF pass (fresh process, so not comparable): 214,545 tot
 First full page of each PDF type was visible by the second sample (about 2 s after
 the tap). Screenshot capture slows sampling, so this is coarse.
 
-## Measurements (study books, 6 Oct 2026, owner stopwatch, HiBreak release)
+## Measurements (study books, owner stopwatch, HiBreak release)
 
 | Book | Cold (after cache clear / first open) | Warm reopen |
 | --- | --- | --- |
 | Genesis (Tanach, no sidecar — on-device import) | **1m 45s** | **~2s** |
 | Berakhot (Talmud pilot; sidecar likely stale/missing — verify) | **21s** | **1–2s** |
 
-Sidecar workflow: `dart run tool/build_study_index.dart <book.epub|books-dir>`
-builds a `<book>.study.sqlite` that must sit next to its EPUB; a stale sidecar
-falls back to on-device import. Applies to Tanach books too, not just Talmud.
+Sidecar workflow: `dart run tool/build_study_index.dart <books-dir> --out <books-dir>/study`
+builds `<book>.study.sqlite` files into the `study` subfolder (the reader also
+accepts a sidecar sitting next to its EPUB); a stale sidecar falls back to
+on-device import. Applies to Tanach books too, not just Talmud.
 
 ## Limits of the evidence
 
@@ -256,21 +265,19 @@ deleted; copies, generators, and raw timings are kept locally in
 1. Tabs: open and close mixed formats, switch while one is loading, restart and
    confirm tabs return, check portrait and landscape.
 2. Layouts: browser, Apps, settings, dialogs, search, recovery.
-3. Text selection: bidirectional handles (either handle drags either way) are built
-   6 Oct and need a device recheck; then copy, look up, add a note, and underline in English,
+3. Text selection: bidirectional handles (either handle drags either way) need a
+   device recheck; then copy, look up, add a note, and underline in English,
    Hebrew, and Aramaic on the new-handle code. Restart and confirm notes and
    underlines remain; repeat in a text-layer PDF. Multi-paragraph selection
    via **More** is expected to work; direct drag-across-blocks is not yet expected.
-4. Study books (details live here; builders/trackers own the fixes):
-   - Tanach: needs rebuilt EPUBs (parsha order, aliyah mapping, escaped
-     markup) — see `docs/tanach/docs/tanach-epub.md` — plus Tanach sidecars,
-     then recheck 5th-aliyah landing (want Gen 4:19 heading), parsha-only
-     headings, and Chapters/Parshiyot exclusivity.
-   - Talmud: needs commentary display-order fix + Continuous-crash diagnosis —
+4. Study books (details live in the Tanach/Talmud briefs):
+   - Tanach: needs rebuilt EPUBs + sidecars in the `study` subfolder — see
+     `docs/tanach/docs/tanach-epub.md` — then recheck verses render clean
+     (`span` search 0, section markers kept).
+   - Talmud: needs the Continuous decision (remove?) —
      see `docs/talmud/docs/reader-device-findings.md` — then recheck
-     multi-source order (Rashi → Tosafot), Continuous layout, and sidecar
-     fingerprints. Capture `adb logcat` for any crash and exact book/verse
-     for any escaped markup.
+     multi-source order (Rashi → Tosafot) and sidecar fingerprints.
+     Capture `adb logcat` for any crash.
 
 **PDF regression (after future PDF changes).** Use one text/vector PDF and one scanned
 PDF, with the same renderer and refresh mode:

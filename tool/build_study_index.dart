@@ -2,12 +2,16 @@
 //
 // Mirrors what TanachSqliteCacheService._writeDatabase produces on the device,
 // so the reader can open the sidecar with zero import work. The pipeline runs
-// this once per book on the laptop; you copy the .epub + .study.sqlite pair
+// this once per book on the laptop; you copy the EPUBs plus the sidecar folder
 // onto the device.
 //
 // Usage:
 //   dart run tool/build_study_index.dart <book.epub> [--out <dir>]
 //   dart run tool/build_study_index.dart <books-dir> [--out <dir>]
+//
+// To keep sidecars in a separate subfolder (the layout the reader prefers):
+//   dart run tool/build_study_index.dart <books-dir> --out <books-dir>/study
+// then copy <books-dir> (EPUBs plus its study/ folder) onto the device.
 //
 // Fingerprint rule: the reader accepts a cached database only when its stored
 // `fingerprint` equals the SHA-256 of the EPUB file bytes

@@ -43,10 +43,12 @@ cause is known.
 
 ## Bigme checklist for the pilot books
 
-1. **Copy the pilot EPUBs** from `talmud/outputs/` onto the device.
-2. **Copy each `.study.sqlite` next to its EPUB** (built with
-   `dart run tool/build_study_index.dart talmud/outputs/books`). First opens
-   should be instant with no import wait; if a sidecar is stale the reader
+1. **Copy the pilot EPUBs** from `talmud/outputs/` onto the device:
+   `/sdcard/books/3. nigleh/talmud/talmud w meforshim HE/`.
+2. **Copy the `study` folder with them** (built with
+   `dart run tool/build_study_index.dart talmud/outputs/books --out talmud/outputs/books/study`,
+   so the device has `.../talmud w meforshim HE/study/<tractate>.study.sqlite`).
+   First opens should be instant with no import wait; if a sidecar is stale the reader
    falls back to importing on the device. (Verify fingerprints if a first
    open still takes ~20s.)
 3. **Berakhot start and headings:** open Berakhot. It should begin at **Daf 2a**
@@ -155,7 +157,8 @@ answer to Levi's question below: the heavy work would happen on the computer, on
   Options, best first:
   1. **Ready-made SQLite index (best).** The pipeline on the laptop builds a
      small database per book (chapters + commentary + search index) and you copy
-     it next to the EPUB; the reader opens it instantly with no import step.
+     it into the `study` subfolder beside the EPUBs; the reader opens it
+     instantly with no import step.
      This is exactly how Tanach already works on the device
      (`tanach_sqlite_cache_service.dart`, `instr`-based search, no FTS5 needed),
      so Talmud would reuse a proven path. Cost: the reader gains a second

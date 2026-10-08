@@ -1,8 +1,7 @@
-# Planned-features status (Oct 2026 pass + 6 Oct fix pass)
+# Planned-features status
 
-Source: full `docs/` sweep. Items 1–21 from that sweep; this file records what
-this pass built and what remains. Fixes below are code-complete and
-host-tested 6 Oct; device rechecks still needed.
+Current status: this file records what is built and what remains. Fixes below
+are code-complete and host-tested; device rechecks are noted per item.
 
 ## Built in this pass
 
@@ -16,25 +15,25 @@ host-tested 6 Oct; device rechecks still needed.
 2. **Hide vowel points** — `ReaderSettings.hideVowelPoints` (+
    `StudyProjectionSettings`), persisted JSON, pagination v8 and projection keys
    include it, display strips U+0591–05C7 with source-offset mapping so
-   annotations stay anchored, Talmud settings show Hidden/Shown. Device 6 Oct:
-   no visible change on Talmud text (likely unpointed — inconclusive, recheck
-   on a pointed Tanach verse).
+   annotations stay anchored, Talmud settings show Hidden/Shown. On device the
+   toggle shows no change on Talmud text (likely unpointed — inconclusive);
+   recheck on a pointed Tanach verse before calling it a bug.
 3. **Paragraph-vs-continuous** — `ReaderSettings.studyContinuous`, persisted,
    projection/pagination keys include it, `mergeContinuousBlocks` joins
    consecutive body paragraphs (headings/amud boundaries stay), Talmud settings
-   show Paragraphs/Continuous with the `Berakhot 2a:1` heading kept. Fix 6 Oct:
-   single-span Talmud `segment-heading` divs are now parsed as headings (not
-   paragraphs), merges break on direction/style change and chunk at 4000 chars
-   / 200 runs, anchors remapped after merge. Root cause of the Berakhot
-   Continuous crash (entire amud merged into one TextPainter). Needs HiBreak
-   recheck; `adb logcat` still wanted if it recurs.
+   show Paragraphs/Continuous with the `Berakhot 2a:1` heading kept. Single-span Talmud `segment-heading` divs are
+   parsed as headings (not paragraphs), merges break on direction/style change
+   and chunk at 4000 chars / 200 runs, anchors remapped after merge — this was
+   the root cause of the Berakhot Continuous crash (entire amud merged into one
+   TextPainter). Continuous no longer crashes but visibly does nothing; open
+   decision below (owner suggests removing the setting).
 5. **Search respects selection + picker ordering** — SQLite v6 adds
    `base_search_text`/`commentary_search_text` (translations stay in base;
    only commentary asides split out); with no source selected only base is
    scanned, otherwise full text with exact projection filter. Picker order is
    Rashi/Rashbam/Mefaresh, Tosafot, then rest
-   (`TanachLayoutService.orderedStudySources`), device-verified 6 Oct for the
-   picker. Fix 6 Oct: projected reading order now sorts by the same rank, so
+   (`TanachLayoutService.orderedStudySources`); the picker order is verified on
+   device and the projected reading order sorts by the same rank, so
    Rashi → Tosafot → rest in the text (was builder index-link order with
    Steinsaltz before Tosafot). Picker grouping/search box for
    dozens of sources still to do. Old caches re-import automatically.
@@ -51,40 +50,45 @@ host-tested 6 Oct; device rechecks still needed.
 ## Not yet built/fixed (still open)
 
 - Direct drag-across-blocks gesture; multi-block Copy/Dictionary; cross-chapter
-  multi-ranges. Owner correction 6 Oct follow-up: the **More** button as built
+  multi-ranges. Owner correction: the **More** button as built
   ("underline the rest of this paragraph") is not what was asked — it should
   let the *selection* extend across multiple paragraphs, then apply
   Copy/Dictionary/Note/Underline to the whole range.
-- **Bidirectional selection handles:** built 6 Oct (either handle drags either
-  direction with cross-flip, modern-phone style; 48 dp targets already
-  device-verified grabbable). Owner retest on latest build: flipping jumps the
-  stationary handle a few letters/word; Hebrew handles pull each other before
-  flipping; mixed Hebrew + English in one paragraph behaves strangely.
+- **Bidirectional selection handles (open):** either handle drags either
+  direction with cross-flip, modern-phone style; 48 dp targets grabbable on
+  device. Retest findings: flipping jumps the stationary handle a few
+  letters/word; Hebrew handles pull each other before flipping; mixed
+  Hebrew + English in one paragraph behaves strangely.
 - Picker grouping/search box for dozens of sources; auto-default to
   Rashi+Tosafot (left as opt-in); full per-source full-text index (current
   split is base vs all-commentary).
-- **Commentary display order:** fixed 6 Oct in code (sort by
-  `orderedStudySources` rank). Needs HiBreak recheck with multi-source reading.
-- **Berakhot Continuous crash:** fixed 6 Oct in code (see item 3). Owner
-  follow-up: no longer crashes but visibly does nothing; owner suggests
-  removing the Paragraphs/Continuous setting. Open decision: keep/fix vs
-  remove.
-- **Tanach parsha/aliyah:** builder order fixed 6 Oct (Miketz before Vayigash/
-  Vayechi; Leviticus restored to canonical Vayikra→Bechukotai; generator
-  `derive_parshiyot.py` now sorts by start so it won't regress). Reader
-  `_applyHeadingMode` now hides chapter `h1` whenever parsha/aliyah headings
-  exist (was top-level `body h1` in dual chapters only). Rebuild EPUBs +
-  sidecars, then recheck 5th-aliyah landing (want Gen 4:19), parsha-only
-  headings, Chapters/Parshiyot exclusivity. Escaped markup now has owner
-  examples: `span`/`class`/`nbsp` inside Hebrew psukim at Gen 7:2, 7:11, 7:23,
-  8:14, 9:17 (7:2 listed twice; more expected).
-- **Tanach sidecars:** `tool/build_study_index.dart` verified 6 Oct on
-  `18-obadiah.epub` (wrote 0.3 MB `.study.sqlite`); works for Tanach. Still
-  need to build + copy all `<book>.study.sqlite` pairs after the parsha-order
-  rebuild, verify fingerprints (Genesis cold 1m 45s → ~2s warm expected).
-  Owner request: separate folder for sidecars instead of next-to-EPUB.
+- **Commentary display order (open — fixed in code):** projected reading order
+  sorts by `orderedStudySources` rank. Needs device recheck with multi-source
+  reading.
+- **Berakhot Continuous (open decision):** crash fixed (see item 3) but the mode
+  visibly does nothing; owner suggests removing the Paragraphs/Continuous
+  setting. Open decision: keep/fix vs remove.
+- **Tanach parsha/aliyah (done — verified on device):** parsha order
+  (Miketz before Vayigash/Vayechi; Leviticus Vayikra→Bechukotai;
+  `derive_parshiyot.py` sorts by start), reader `_applyHeadingMode` hides
+  chapter `h1` whenever parsha/aliyah headings exist, 5th-aliyah landing
+  (Gen 4:19), parsha-only headings, Chapters/Parshiyot exclusivity.
+- **Tanach markup words (open — fixed in source, needs rebuilt books):**
+  `span`/`class`/`nbsp` words visible in Hebrew verses (`span` search returns
+  **202 matches** in Genesis, all books affected). `hebrew()` in
+  `tanach/work/build.py` escaped raw source markup; now strips to clean text
+  (section markers kept), host-verified over 23,206 verses. Rebuild EPUBs +
+  sidecars, then recheck verses clean and `span` search 0.
+- **Tanach sidecars (separate `study` subfolder):** the reader checks
+  `<books-dir>/study/<book>.study.sqlite` first and falls back to a sidecar
+  next to its EPUB. Build with
+  `dart run tool/build_study_index.dart <books-dir> --out <books-dir>/study`.
+  Device (Tanach): EPUBs at
+  `/sdcard/books/3. nigleh/tanach/tanach w meforshim HE/`, sidecars in its
+  `study/` subfolder. Genesis cold import 1m 45s → ~2s warm expected once the
+  sidecar matches.
 - Talmud scale-up: other 31 tractates; builder one-tractate-at-a-time +
-  per-source indexing; source-discovery audit fixed 6 Oct in code
+  per-source indexing; source-discovery audit fixed in code
   (`inventory.py` checked commentary markers before the Talmud+Bavli base-text
   skip — was dropping most commentaries filed under Talmud/Bavli; do NOT rerun
   `inventory.py` over an edited `source-selection.json`, run `plan.py`/

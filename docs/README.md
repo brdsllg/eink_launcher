@@ -13,18 +13,18 @@ sideloading. It has been tested on a Bigme HiBreak (model B751C, Android 14).
 
 - **Current release:** version 1.0.10 (build 11). APK:
   `build/app/outputs/flutter-apk/app-release.apk`
-  (SHA-256 `01D04659FC1BEB73F5A7F8767A357ACAA1E7078E82CA8701E9C1A4C80958706E`).
+  (SHA-256 `3154AEABFA2F3205110FABF1B7527FE99E4118CAEE6063BB8975A123AE5182AF`).
   Earlier trial APKs stay in the same folder for comparison.
-- **Latest source checks (6 Oct 2026):** The focused reader, selection, browser, and
-  study-book tests pass including new Continuous/commentary-order/vowel-range
-  regressions. `flutter analyze` is clean. Rebuild EPUBs (parsha-order fix) and
-  sidecars before the next HiBreak pass. See
+- **Latest source checks:** study sidecar tests pass, including the new
+  `study/` subfolder lookup with next-to-EPUB fallback
+  (`test/reader/study_sidecar_test.dart`). Rebuild EPUBs (markup-word fix) and
+  sidecars into `study/` before the next HiBreak pass. See
   [DEVICE_TESTING.md](DEVICE_TESTING.md).
-- **Current device status:** several areas are confirmed on the Bigme, but the
-  remaining work is still concentrated in tabs, newer layouts, selection and
-  annotations, dictionaries, and study books. This project does not treat any of
-  those partial checks as complete. The latest source fixes for study-book navigation,
-  bilingual headings, and selection-handle size still need a HiBreak recheck. See
+- **Current device status:** tabs, newer layouts, and dictionaries are confirmed
+  on the Bigme. The remaining work is selection and annotations (bidirectional
+  handles, **More** extends selection) and the study-books recheck (markup
+  words gone, sidecars in `study/`). This project does not treat any of
+  those partial checks as complete. See
   [DEVICE_TESTING.md](DEVICE_TESTING.md).
 - **Confirmed on the device:** PDF page turns, scrolling and zooming with no
   ghosting or white flashes; startup, recovery, app drawer, and battery behavior
@@ -150,7 +150,8 @@ until the app has its own `FileProvider`; the file chooser relies on it.
 
 ## Next
 
-1. Run a device pass on the HiBreak (B751C) covering tabs, layouts, annotations,
-   and the dictionaries. The checklist is in [DEVICE_TESTING.md](DEVICE_TESTING.md).
+1. Run a device pass on the HiBreak (B751C) covering selection/annotations and
+   the study-books recheck (markup words gone, sidecars in `study/`). The
+   checklist is in [DEVICE_TESTING.md](DEVICE_TESTING.md).
 2. Test the largest Tanach books on the device: first-open time, memory, search.
 3. Finish Talmud device checks and scale-up work (see `docs/talmud/README.md`).

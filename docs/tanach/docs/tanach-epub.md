@@ -1,6 +1,6 @@
 # Tanach EPUB project: current brief
 
-Last updated 6 Oct 2026 (parsha-order + heading-mode fix; Hebrew-size amendment 28 Sept). Later decisions here
+Last updated 8 Oct 2026. Later decisions here
 supersede earlier experiments. Read this before changing the project, and do not
 re-ask settled preference questions.
 
@@ -12,7 +12,7 @@ pipeline stays independent of the reader. The Flutter reader now implements the
 format described here, with a lazy SQLite import and search index; physical
 validation on the Bigme remains.
 
-- **Collection:** 39 books rebuilt 22 Sept 2026, in `outputs/books/`, packaged as
+- **Collection:** 39 books in `outputs/books/`, packaged as
   `outputs/tanach-39-epubs.zip`. It holds 23,206 verses and 203,039 unique selected
   commentary notes, presented in 112,694 source/verse groups.
 - **Format:** presentation revision 5, with Hebrew verse and Hebrew commentary text at
@@ -22,42 +22,52 @@ validation on the Bigme remains.
   and index-to-note link resolves), database invariants, heading checks, and
   grouped-note content preservation. The reader's all-book import, reopen, first/last
   chapter, and search test passed on 24 Sept.
-- **Device status 6 Oct 2026 (HiBreak, release):** chapters mode, bilingual
-  headings, and chapter contents pass; cold import after cache clear **1m 45s**,
-  warm reopen **~2s** (no Tanach sidecars built — on-device import). Parsha mode
-  has open builder/reader issues, tracked below; full log in
-  `docs/DEVICE_TESTING.md`.
+- **Current device status (Bigme HiBreak, rebuilt books):** everything passes
+  except the markup-word finding below. Pass: chapters mode, bilingual
+  headings, chapter contents, parsha order, aliyah landings (5th aliyah lands
+  on Gen 4:19 with its heading), parsha-only headings, Chapters/Parshiyot
+  exclusivity. Cold import after cache clear **1m 45s**, warm reopen **~2s**.
+  Full log in `docs/DEVICE_TESTING.md`.
 
-### Device findings (6 Oct 2026, owner pass) — code-fixed, needs rebuilt EPUBs + recheck
+### Device findings
 
-1. **Parsha order (Builder, fixed in source 6 Oct):** the Miketz entry (Gen
-   41:1–44:17) was listed after Vayechi (Gen 47:28–50:26) in
-   `tanach/work/build.py`; Leviticus was also out of canonical order. Fixed to
+1. **Parsha order (Builder, resolved — verified on device):** the Miketz entry
+   (Gen 41:1–44:17) was listed after Vayechi (Gen 47:28–50:26) in
+   `tanach/work/build.py` and Leviticus was out of canonical order. Now
    Vayeshev → Miketz → Vayigash → Vayechi and Vayikra → Bechukotai;
-   `derive_parshiyot.py` now sorts by start so regeneration won't regress.
-   Rebuild EPUBs + sidecars, then recheck contents order.
-2. **Aliyah landings (Builder + Reader):** Bereishit 5th aliyah lands on Gen
-   4:1 with no heading (want 4:19); the 4th lands on Gen 3 (reported want
-   2:20); Noach portions also misbehave. Builder mapping and reader
-   lazy-anchor resolution both suspect. Retest after rebuild.
-3. **Chapters retained in parsha mode (Reader, fixed in source 6 Oct):**
-   `_applyHeadingMode` (`lib/reader/services/tanach_layout_service.dart`)
-   stripped only top-level `body h1` in dual chapters; now hides chapter `h1`
-   whenever any parsha/aliyah heading exists in the chapter. Want
-   parsha/aliyah headings only in parsha mode. Needs recheck.
-4. **Escaped markup visible (examples captured 6 Oct follow-up):** literal `span` /
-   `class` / `nbsp` words inside the Hebrew psukim at **Genesis 7:2, 7:11,
-   7:23, 8:14, 9:17** (owner listed 7:2 twice — likely two spots in the
-   verse; more expected elsewhere). Still needs the builder-vs-reader call.
+   `derive_parshiyot.py` sorts by start so regeneration won't regress.
+2. **Aliyah landings (Builder + Reader, resolved — verified on device):**
+   Bereishit 5th aliyah landed on Gen 4:1 with no heading (want 4:19), the 4th
+   landed on Gen 3, Noach portions misbehaved. Builder mapping and reader
+   lazy-anchor resolution corrected.
+3. **Chapters retained in parsha mode (Reader, resolved — verified on device):**
+   `_applyHeadingMode` (`lib/reader/services/tanach_layout_service.dart`) now
+   hides chapter `h1` whenever any parsha/aliyah heading exists in the chapter,
+   so parsha mode shows parsha/aliyah headings only.
+4. **Markup words visible in Hebrew verses (open — fixed in source, needs rebuilt books):**
+   literal `span` / `class` / `nbsp` words inside Hebrew psukim (e.g. Genesis 7:2,
+   7:11, 7:23, 8:14, 9:17; searching `span` in Genesis returns **202 matches**,
+   all books affected). Cause: `hebrew()` in `tanach/work/build.py` ran
+   `html.escape()` over raw source markup, so tags rendered as visible words and
+   polluted search. Fix: convert qere/ketiv markers first, then drop footnote
+   variants, unwrap inline marks keeping text (section markers `{ס}`/`{פ}` kept),
+   unescape entities to spaces, strip leftover tags, collapse whitespace — before
+   the ketiv/qere swap and escape. Host-verified over all 23,206 verses (0 leaks).
+   Recheck after rebuild: verses render clean, `span` search returns 0, section
+   markers preserved.
 
-### Sidecar folder request (owner, 6 Oct follow-up)
+### Sidecars (separate folder)
 
-`.study.sqlite` sidecars currently must sit next to their EPUB
-(`berakhot.epub` → `berakhot.study.sqlite`). Owner asks for a separate folder
-for sidecars instead of one file per book beside the books. Open: decide folder
-location + lookup rule (check sidecar folder first, fall back to next-to-EPUB
-for existing pairs), then update `tool/build_study_index.dart`,
-`TanachSqliteCacheService.sidecarPathForEpub`, and the copy instructions.
+Sidecar indexes live in a `study` subfolder beside the books, not mixed in with
+them. The reader checks the subfolder first and falls back to a sidecar sitting
+next to its EPUB, so old pairs keep working.
+
+- Laptop: `dart run tool/build_study_index.dart <books-dir> --out <books-dir>/study`
+  writes `<books-dir>/study/<book>.study.sqlite` per book.
+- Device (Tanach): EPUBs at `/sdcard/books/3. nigleh/tanach/tanach w meforshim HE/`,
+  sidecars in `/sdcard/books/3. nigleh/tanach/tanach w meforshim HE/study/`.
+- First opens are instant when the sidecar matches the EPUB; a stale sidecar is
+  ignored and the device imports on its own.
 
 ### Source limits (kept, not filled in)
 
@@ -148,10 +158,10 @@ The native reader:
 Import, cache, and search behavior are described in `READER_PLAN.md` (study books).
 The exact EPUB format is in `outputs/reader-compatibility.md`.
 
-Device confirmation 6 Oct 2026: translation selector (Metsudah default, no generic
-option), bilingual one-row headings, and grouped commentary titles are confirmed
-on the Bigme in chapters mode. Parsha-mode headings/labels are not confirmed
-(open device findings above).
+Device confirmation: translation selector (Metsudah default, no generic option),
+bilingual one-row headings, grouped commentary titles, and parsha-mode
+headings/labels are confirmed on the Bigme. Only the markup-word recheck above
+remains.
 
 ## EPUB package limits (not blockers for the reader)
 
@@ -234,13 +244,12 @@ should come back to Levi. The authoritative list is `outputs/source-selection.js
 
 ## Next work
 
-1. Rebuild EPUBs after the parsha-order fix (`python -X utf8 work/build.py`,
-   then `validate.py`, `package_full.py`), build Tanach
-   `.study.sqlite` sidecars (`dart run tool/build_study_index.dart`
-   verified 6 Oct on Obadiah), copy pairs to the device, then
-   re-run the device pass: cold import, warm reopen, 5th-aliyah landing (want
-   Gen 4:19 heading), parsha-only headings, Chapters/Parshiyot exclusivity.
-   Then extend to the other largest books (Exodus, Leviticus, Deuteronomy,
+1. Rebuild EPUBs (`python -X utf8 work/build.py`, then `validate.py`,
+   `package_full.py`), build sidecars into `outputs/books/study/`
+   (`dart run tool/build_study_index.dart outputs/books --out outputs/books/study`),
+   copy EPUBs plus the `study` folder to the device, then re-run the device pass:
+   cold import, warm reopen, markup words gone (`span` search 0, section markers
+   kept). Then extend to the other largest books (Exodus, Leviticus, Deuteronomy,
    Numbers, Psalms): pagination, memory pressure, search, and note navigation.
 2. Have the owner check the latest formatting on the device before treating the
    presentation as final. Do not revert settled preferences while troubleshooting.

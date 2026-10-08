@@ -83,13 +83,18 @@ checks structure. Results go to `talmud/work/validation/` and
 **6. Prebuild the on-device index (recommended)**
 
 ```powershell
-dart run tool/build_study_index.dart talmud/outputs/books
+dart run tool/build_study_index.dart talmud/outputs/books --out talmud/outputs/books/study
 ```
 
-Writes one `<tractate>.study.sqlite` file next to each EPUB (the same index the
-reader would otherwise build on first open, so opening on the Bigme is instant).
-Copy each `.epub` together with its `.study.sqlite` onto the device. Rebuild the
-sidecars whenever the EPUBs change; a stale sidecar is ignored automatically.
+Writes one `<tractate>.study.sqlite` file into the `study` subfolder (the same
+index the reader would otherwise build on first open, so opening on the Bigme
+is instant). Copy the EPUBs plus the `study` folder onto the device:
+
+- Device (Talmud): EPUBs at `/sdcard/books/3. nigleh/talmud/talmud w meforshim HE/`,
+  sidecars in its `study/` subfolder.
+
+Rebuild the sidecars whenever the EPUBs change; a stale sidecar is ignored
+automatically. The reader also accepts a sidecar sitting next to its EPUB.
 
 ## Rebuilding one tractate
 
