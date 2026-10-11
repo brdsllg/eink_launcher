@@ -137,7 +137,9 @@ def main():
     # That is acceptable; we rely on editions_by_title for the download plan.
 
     # ── Build sources list (commentaries) ───────────────────────────────────
-    # Find all commentary and supercommentary titles linked to Bavli.
+    # Blacklist policy (Oct 2026): include every Bavli commentary Sefaria
+    # offers in Hebrew or English. Only the edition-level language filter
+    # below excludes anything.
     # Sefaria files most commentaries UNDER Talmud/Bavli (e.g. categories
     # ['Talmud','Bavli','Rishonim on Talmud',...]), so the commentary check
     # must come before the base-text skip. Only true base-text nodes
@@ -150,11 +152,31 @@ def main():
             for c in ('Rishonim on Talmud', 'Acharonim on Talmud', 'Modern Commentary on Talmud')
         )
         if is_commentary:
-            commentary_titles.add(n['title'])
+            # TOC also lists Yerushalmi/Mishnah commentaries under similar
+            # markers — keep only Bavli here; the books.json scan below
+            # enforces the same rule.
+            if 'Bavli' in cats or 'Yerushalmi' not in cats and 'Mishnah' not in cats:
+                commentary_titles.add(n['title'])
             continue
         if 'Talmud' in cats and 'Bavli' in cats:
             continue  # base text, guides, minor tractates
-    # Also add explicitly required pilot sources.
+    # books.json scan: the TOC walk above only found ~124 titles (mostly
+    # Rashi/Tosafot/Steinsaltz). Sefaria actually ships ~1000+ Bavli
+    # commentaries (Maharsha, Pnei Yehoshua, etc.). Catch them by title
+    # suffix + Bavli category. Requires 'Bavli' in categories so
+    # Yerushalmi ("... on Jerusalem Talmud X") and Mishnah ("... on Mishnah
+    # X") titles are excluded even though they share the masechta name.
+    for b in books:
+        title = b.get('title', '')
+        if title in MASECHTA_ORDER:
+            continue  # base text itself
+        cats = b.get('categories', [])
+        if 'Talmud' not in cats or 'Bavli' not in cats:
+            continue
+        if not any(title.endswith(f' on {m}') for m in MASECHTA_ORDER):
+            continue
+        commentary_titles.add(title)
+    # Also add explicitly required pilot sources (in case a spelling drifts).
     for m in MASECHTA_ORDER:
         for prefix in ('Rashi on', 'Tosafot on', 'Steinsaltz on'):
             t = f'{prefix} {m}'
@@ -166,17 +188,13 @@ def main():
             commentary_titles.add(alias)
 
     def _commentary_status(title, cats):
-        """Pilot policy: include the three pilot sources; mark everything else 'review'."""
-        for m in MASECHTA_ORDER:
-            if title in (f'Rashi on {m}', f'Tosafot on {m}', f'Steinsaltz on {m}'):
-                return 'include', 'Pilot commentary set.'
-            alias = RASHI_SLOT_ALIASES.get(m)
-            if alias and title == alias:
-                return 'include', 'Rashi-slot substitute for this masechta (pilot set).'
-        return 'review', (
-            'Not in pilot set. Include after measuring pilot EPUB sizes and load times. '
-            'See docs/talmud/docs/talmud-epub-plan.md commentary-policy section.'
-        )
+        """Blacklist policy: include everything on the Bavli.
+
+        Language filtering happens at the edition level in the download
+        plan (Hebrew + English only, skip merged/test/[fr]/[de]). There is
+        currently no title-level blacklist.
+        """
+        return 'include', 'All Bavli commentaries included (blacklist policy, Oct 2026).'
 
     sources = []
     for title in sorted(commentary_titles):
@@ -202,12 +220,24 @@ def main():
     download_plan = []
 
     def _best_hebrew(title):
-        """Return the highest-priority Hebrew text edition for a masechta."""
+        """Return the highest-priority Hebrew text edition for a masechta.
+
+        Sefaria ships two Davidson Hebrew editions: plain "Aramaic"
+        (unpointed) and "Vocalized Aramaic" (niqqud + punctuation). The
+        reader's vowel toggle and search normalization assume pointed text,
+        so Vocalized wins everywhere it exists (all 37 masechtos, verified
+        Oct 2026: Berakhot Vocalized carries ~227k marks in U+0591-05C7,
+        plain Aramaic zero).
+        """
         candidates = [
             b for b in editions_by_title.get(title, [])
             if b.get('language', '').upper() == 'HEBREW' and b.get('versionTitle', '') != 'merged'
             and b.get('json_url')
         ]
+        for c in candidates:
+            if 'Vocalized' in c.get('versionTitle', ''):
+                return c
+        # Fallback if a masechta ever loses its vocalized edition.
         # Prefer 'William Davidson Edition - Aramaic' or 'Wikisource Talmud Bavli'
         for pref in ('William Davidson', 'Wikisource', 'Vilna'):
             for c in candidates:
@@ -250,29 +280,51 @@ def main():
                 sort_order=1,
             ))
 
+    def _edition_ok(edition):
+        """Blacklist: Hebrew/English only, no merged/test/junk."""
+        if edition.get('versionTitle', '') == 'merged':
+            return False
+        if not edition.get('json_url'):
+            return False
+        # Owner decision Oct 2026: English + Hebrew only. Skip French,
+        # German, and other languages at inventory time so they are never
+        # downloaded or built (this was the cause of the Berakhot [fr]
+        # language-mismatch warnings). Note: Sefaria mislabels the French
+        # editions as language=English, so also match versionTitle.
+        if edition.get('language', '').upper() not in ('HEBREW', 'ENGLISH'):
+            return False
+        _vt = edition.get('versionTitle', '')
+        if '[fr]' in _vt or '[de]' in _vt or 'german' in _vt.lower():
+            return False
+        if re.search(r'(^test\b|\btest$|abbreviated|summary)', _vt, re.I):
+            return False
+        return True
+
+    def _rank_edition(e):
+        vt = e.get('versionTitle', '')
+        score = 0
+        if 'Vilna' in vt or 'William Davidson' in vt:
+            score += 1000
+        if 'Wikisource' in vt:
+            score += 100
+        score += float(e.get('priority') or 0)
+        return score
+
     for src in sources:
         if src['status'] != 'include':
             continue
+        # Blacklist policy: every Hebrew/English edition except merged,
+        # test/abridged/summary, and mislabeled [fr]/[de]/german.
+        # Steady: the build processes one masechta at a time, so keeping all
+        # editions is laptop-safe (no in-memory blowup).
         for edition in src['available_versions']:
-            if edition.get('versionTitle', '') == 'merged':
+            if not _edition_ok(edition):
                 continue
-            if not edition.get('json_url'):
-                continue
-            # Owner decision Oct 2026: English + Hebrew only. Skip French,
-            # German, and other languages at inventory time so they are never
-            # downloaded or built (this was the cause of the Berakhot [fr]
-            # language-mismatch warnings). Note: Sefaria mislabels the French
-            # editions as language=English, so also match versionTitle.
-            if edition.get('language', '').upper() not in ('HEBREW', 'ENGLISH'):
-                continue
-            _vt = edition.get('versionTitle', '')
-            if '[fr]' in _vt or '[de]' in _vt or 'german' in _vt.lower():
-                continue
+            lang = 'he' if edition.get('language', '').upper() == 'HEBREW' else 'en'
             download_plan.append(dict(
                 title=src['title'],
                 role='commentary',
-                # Normalize to he/en; inventory already drops non-HE/EN editions.
-                language='he' if edition.get('language', '').upper() == 'HEBREW' else 'en',
+                language=lang,
                 versionTitle=edition.get('versionTitle', ''),
                 json_url=edition['json_url'],
                 source_category='commentary',
@@ -332,7 +384,10 @@ def main():
                 rashi_slot_aliases=RASHI_SLOT_ALIASES,
                 picker_order=['Rashi/Rashi-slot', 'Tosafot', 'everything else'],
                 expansion_policy=(
-                    'Blacklist preferred. Measure pilot first, then add sources in batches.'
+                    'Blacklist policy Oct 2026: include all Bavli commentaries; '
+                    'exclude only non-Hebrew/non-English, merged, test/abridged, '
+                    'and [fr]/[de] editions. Download and build steady (batched, '
+                    'one masechta at a time).'
                 ),
             ),
             segment_unit='Sefaria segment (e.g. Berakhot 2a:1)',
@@ -373,8 +428,8 @@ def main():
         '## Confirmed preferences',
         '',
         '37 masechtos of Talmud Bavli with Gemara; Hebrew with nikud; '
-        'William Davidson (Steinsaltz) English; Rashi, Tosafot, Steinsaltz '
-        'commentary for the pilot; personal use; Bigme B751C.',
+        'William Davidson (Steinsaltz) English; all Bavli commentaries in '
+        'Hebrew/English (blacklist policy Oct 2026); personal use; Bigme B751C.',
         '',
         '## Pilot masechtos',
         '',
@@ -400,7 +455,7 @@ def main():
         )
     lines += [
         '',
-        '## Pilot commentary sources',
+        '## Commentary sources (blacklist policy)',
         '',
         f'Included: {include_count} | Pending review: {review_count}',
         '',
@@ -414,17 +469,17 @@ def main():
         '',
         '## Download plan',
         '',
-        f'{len(download_plan)} edition files to fetch (base texts + pilot commentaries).',
+        f'{len(download_plan)} edition files to fetch (base texts + all commentaries, Hebrew/English only).',
         '',
         '## Remaining steps',
         '',
         '1. Review this file, then run: python talmud/work/sync.py schemas',
-        '2. python talmud/work/sync.py texts',
+        '2. python talmud/work/sync.py texts [--masechta Berakhot for one book at a time]',
         '3. python talmud/work/sync.py links',
-        '4. python talmud/work/build.py --pilot',
+        '4. python talmud/work/build.py --pilot (quick check) or --masechta Berakhot (one book)',
         '5. python talmud/work/validate.py --pilot',
         '6. Measure EPUB sizes and first-open times on the Bigme.',
-        '7. Expand commentary per the blacklist policy in docs/talmud/docs/talmud-epub-plan.md.',
+        '7. Build remaining masechtos one at a time per the blacklist policy.',
     ]
     (OUT / 'source-review.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 

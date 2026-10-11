@@ -26,6 +26,13 @@ class _TextPageViewState extends State<TextPageView> {
   // One iterative More-chain per selection start: repeated More presses walk
   // the end block forward one readable paragraph at a time.
   final Map<String, int> _extensionEnds = {};
+  // The currently visible More-chain, reported by the owning slice so the
+  // covered sibling paragraphs on this page highlight as selected.
+  int? _activeExtSpine;
+  int? _activeExtStart;
+  ExtendedSelection? _activeExt;
+  // Page identity for _activeExt: a page turn drops a stale highlight.
+  Object? _activeExtPage;
 
   Future<void> _addAnnotation(
     int spineIndex,
@@ -228,6 +235,19 @@ class _TextPageViewState extends State<TextPageView> {
             );
           }
           final margin = widget.session.settings.horizontalMargin;
+          // A page turn invalidates the visible More-chain highlight: the
+          // owning slice rebuilds on the new page without a selection.
+          final pageKey = Object.hash(
+            page.start.spineIndex,
+            page.start.blockIndex,
+            page.start.charOffset,
+          );
+          if (_activeExt != null && _activeExtPage != pageKey) {
+            _activeExtPage = null;
+            _activeExtSpine = null;
+            _activeExtStart = null;
+            _activeExt = null;
+          }
           final annotations =
               BookStoreService.instance
                   .getBookState(widget.session.doc.id)
@@ -265,6 +285,29 @@ class _TextPageViewState extends State<TextPageView> {
                       slice.blockIndex,
                       sourceRange,
                     ),
+                    pendingFullHighlight:
+                        _activeExt != null &&
+                        _activeExtSpine == page.start.spineIndex &&
+                        slice.blockIndex > (_activeExtStart ?? -1) &&
+                        slice.blockIndex <= _activeExt!.endBlockIndex,
+                    onExtensionChanged: (extended) {
+                      if (extended == null) {
+                        if (_activeExtStart == slice.blockIndex &&
+                            _activeExtSpine == page.start.spineIndex) {
+                          _activeExtSpine = null;
+                          _activeExtStart = null;
+                          _activeExt = null;
+                          _activeExtPage = null;
+                          if (mounted) setState(() {});
+                        }
+                        return;
+                      }
+                      _activeExtSpine = page.start.spineIndex;
+                      _activeExtStart = slice.blockIndex;
+                      _activeExt = extended;
+                      _activeExtPage = pageKey;
+                      if (mounted) setState(() {});
+                    },
                     onAnnotateExtended: (range, extended, addNote) =>
                         _addMultiBlockAnnotation(
                           page.start.spineIndex,

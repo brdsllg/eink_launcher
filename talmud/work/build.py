@@ -210,11 +210,22 @@ class SafeHTML(HTMLParser):
 
 
 def clean(s):
-    return SafeHTML().finish(s)
+    return SafeHTML().finish(strip_controls(s))
 
 
 def plaintext(s):
-    return html.unescape(re.sub('<[^>]+>', '', s)).strip()
+    return html.unescape(re.sub('<[^>]+>', '', strip_controls(s))).strip()
+
+
+# Sefaria sources occasionally embed raw C0/C1 control characters (e.g. U+001F
+# unit-separator runs used as footnote markers in some commentaries). They are
+# illegal in XML 1.0 and fail EPUBCheck (RSC-016, which then cascades into
+# RSC-012 fragment errors), so strip them everywhere. Keep \t \n \r.
+_CONTROLS_RE = re.compile('[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]')
+
+
+def strip_controls(s):
+    return _CONTROLS_RE.sub('', s if isinstance(s, str) else str(s))
 
 
 # ─── Schema / segment tree helpers ───────────────────────────────────────────
@@ -658,10 +669,12 @@ def generate(conn, editions, masechtos=None):
             flush=True,
         )
 
-    # Full-coverage JSON
-    (OUT / 'full-coverage.json').write_text(
-        json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8'
-    )
+    # Full-coverage JSON — on pilot/full builds only, never on single-book
+    # runs (regenerate.py documents "without replacing full-coverage.json").
+    if masechtos is None or len(selected) > 1:
+        (OUT / 'full-coverage.json').write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8'
+        )
     print('Warnings:', json.dumps(
         dict(collections.Counter(w['kind'] for w in WARN)),
         ensure_ascii=False,
@@ -671,41 +684,52 @@ def generate(conn, editions, masechtos=None):
 
 # ─── Normalization ────────────────────────────────────────────────────────────
 
-def normalize(conn, pilot_masechtos=None):
-    """Read cached Sefaria texts and populate talmud.sqlite."""
+def normalize(conn, pilot_masechtos=None, single_masechta=None, reset_db=True):
+    """Read cached Sefaria texts and populate talmud.sqlite.
+
+    Steady (Oct 2026, blacklist scale-up): processes ONE masechta at a time
+    so a 1000+ commentary build never holds all books in memory. Each
+    masechta commits before the next starts; re-running resumes (rows are
+    INSERT OR IGNORE / REPLACE).
+    """
     global WARN
-    WARN = []
+    if reset_db:
+        WARN = []
 
     conn.executescript('''
-    DROP TABLE IF EXISTS segments;
-    DROP TABLE IF EXISTS translations;
-    DROP TABLE IF EXISTS notes;
-    DROP TABLE IF EXISTS note_refs;
-    DROP TABLE IF EXISTS editions;
-    CREATE TABLE segments(
+    CREATE TABLE IF NOT EXISTS segments(
         masechta TEXT, amud TEXT, daf INT, side INT, seg_num INT,
         original TEXT, hebrew TEXT, he_edition TEXT,
         PRIMARY KEY(masechta, amud, seg_num)
     );
-    CREATE TABLE translations(
+    CREATE TABLE IF NOT EXISTS translations(
         masechta TEXT, amud TEXT, seg_num INT, edition TEXT, text TEXT,
         PRIMARY KEY(masechta, amud, seg_num, edition)
     );
-    CREATE TABLE notes(
+    CREATE TABLE IF NOT EXISTS notes(
         id TEXT PRIMARY KEY, source TEXT, ref TEXT, category TEXT,
         sort_order INT, he TEXT, en TEXT, he_edition TEXT, en_edition TEXT
     );
-    CREATE TABLE note_refs(
+    CREATE TABLE IF NOT EXISTS note_refs(
         note_id TEXT, masechta TEXT, amud TEXT, seg_num INT,
         connection_type TEXT, original_base_ref TEXT, original_note_ref TEXT,
         UNIQUE(note_id, masechta, amud, seg_num, connection_type,
                original_base_ref, original_note_ref)
     );
-    CREATE TABLE editions(
+    CREATE TABLE IF NOT EXISTS editions(
         id TEXT PRIMARY KEY, title TEXT, version_title TEXT, language TEXT,
         license TEXT, source_url TEXT, export_url TEXT, sha256 TEXT
     );
     ''')
+    if reset_db:
+        conn.executescript('''
+        DELETE FROM segments;
+        DELETE FROM translations;
+        DELETE FROM notes;
+        DELETE FROM note_refs;
+        DELETE FROM editions;
+        ''')
+        conn.commit()
 
     plan_path = CACHE / 'download-plan.json'
     if not plan_path.exists():
@@ -713,45 +737,47 @@ def normalize(conn, pilot_masechtos=None):
     plan = json.loads(plan_path.read_text(encoding='utf-8'))
     source_policy = {s['title']: s for s in CONFIG['sources']}
 
-    target_masechtos = set(pilot_masechtos or MASECHTA_ORDER)
+    if single_masechta:
+        ordered_targets = [single_masechta]
+        # Incremental: clear only this book so re-runs resume the rest.
+        conn.executescript(
+            "DELETE FROM segments WHERE masechta='%s';\n"
+            "DELETE FROM translations WHERE masechta='%s';\n"
+            "DELETE FROM note_refs WHERE masechta='%s';\n" % (
+                single_masechta.replace("'", "''"),
+                single_masechta.replace("'", "''"),
+                single_masechta.replace("'", "''"),
+            )
+        )
+        # Notes are shared by source; orphan cleanup happens per-masechta
+        # below via attached-set (stale notes for this book are replaced).
+        conn.commit()
+    elif pilot_masechtos:
+        ordered_targets = [m for m in MASECHTA_ORDER if m in set(pilot_masechtos)]
+    else:
+        ordered_targets = list(MASECHTA_ORDER)
+    target_masechtos = set(ordered_targets)
 
-    docs = []
-    edition_info = {}
     schema_cache = {}
+    include_titles = {s['title'] for s in CONFIG['sources'] if s['status'] == 'include'}
 
-    for b in plan:
-        if b['title'] not in target_masechtos and not any(
-            b['title'].endswith(f' on {m}') or b['title'].startswith('Steinsaltz on ')
-            for m in target_masechtos
-        ):
-            # Check if this is a commentary on one of our target masechtos.
-            is_relevant = False
-            for m in target_masechtos:
-                if (m in b['title'] and b['role'] == 'commentary'):
-                    is_relevant = True
-                    break
-            if not is_relevant and b['title'] not in target_masechtos:
-                continue
-
+    def _load_plan_entry(b):
+        """Load one download-plan entry from cache; None if skipped."""
         if b['role'] == 'commentary':
-            policy = source_policy.get(b['title'])
-            if policy is None or policy['status'] != 'include':
-                continue
-
+            if b['title'] not in include_titles:
+                return None
         path = CACHE / 'texts' / f"{key(b['json_url'])}.json"
         if not path.exists():
             WARN.append(dict(kind='missing_cached_edition', title=b['title'], url=b['json_url']))
-            continue
-
+            return None
         d = json.loads(path.read_text(encoding='utf-8'))
         lang = d.get('actualLanguage', d.get('language', ''))
         if lang not in ('en', 'he'):
             WARN.append(dict(kind='language_mismatch', title=b['title'], edition=d.get('versionTitle', '')))
-            continue
+            return None
         if re.search(r'(^test\b|\btest$|abbreviated|summary)', d.get('versionTitle', ''), re.I):
             WARN.append(dict(kind='test_or_abridged_edition', title=b['title'], edition=d.get('versionTitle', '')))
-            continue
-
+            return None
         eid = 'ed-' + key(b['json_url'])
         meta_path = path.with_suffix('.json.meta.json')
         meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
@@ -761,272 +787,274 @@ def normalize(conn, pilot_masechtos=None):
             d.get('versionSource', ''), b['json_url'], meta.get('sha256', ''),
         )
         conn.execute('INSERT OR IGNORE INTO editions VALUES(?,?,?,?,?,?,?,?)', info)
-        edition_info[eid] = dict(
-            zip(('id', 'title', 'version_title', 'language',
-                 'license', 'source_url', 'export_url', 'sha256'), info)
-        )
-        docs.append((b, d, eid))
+        return (b, d, eid)
 
-    # ── Insert Hebrew segments ───────────────────────────────────────────────
-    # Sefaria Bavli text structure: d['text'] is a list of amudim, each a list
-    # of segment strings. Amud labels come from d['sectionNames'] + d['sections'].
-    # Amud labels are generated from the array index, starting at 1a (index 0).
-    segment_keys = set()
+    def _plan_for(masechta):
+        """Plan entries belonging to one masechta (base + 'X on <masechta>')."""
+        out = []
+        for b in plan:
+            if b['title'] == masechta:
+                out.append(b)
+            elif b['role'] == 'commentary' and b['title'].endswith(f' on {masechta}'):
+                out.append(b)
+        return out
 
-    for b, d, eid in docs:
-        if b['role'] != 'hebrew':
+    total_segments = 0
+    total_notes = 0
+    total_attachments = 0
+    first_amud = {}
+    for mi, masechta in enumerate(ordered_targets, 1):
+        print(f'[{mi}/{len(ordered_targets)}] {masechta}...', flush=True)
+        docs = []
+        for b in _plan_for(masechta):
+            loaded = _load_plan_entry(b)
+            if loaded is not None:
+                docs.append(loaded)
+        if not any(b['role'] == 'hebrew' for b, _, _ in docs):
+            WARN.append(dict(kind='missing_hebrew', masechta=masechta))
             continue
-        masechta = b['title']
-        if masechta not in target_masechtos:
-            continue
+        segment_keys = set()
 
-        text_data = d.get('text', [])
-        if not isinstance(text_data, list):
-            WARN.append(dict(kind='unexpected_text_structure', masechta=masechta))
-            continue
-
-        # Amud labels come from the array index; index 0 is 1a (see
-        # amud_from_index), so leading empty entries are simply skipped below.
-        for amud, chapter_segs in zip(amud_sequence(len(text_data)), text_data):
-            if not isinstance(chapter_segs, list):
-                chapter_segs = [chapter_segs] if chapter_segs else []
-            daf_n, side_n = amud_to_key(amud)
-            for seg_idx, seg_text in enumerate(chapter_segs, 1):
-                if not isinstance(seg_text, str) or not plaintext(seg_text):
-                    continue
-                # Strip nikud-optional cantillation; keep nikud as specified.
-                # Cantillation = U+0591..U+05AF; nikud = U+05B0..U+05C7.
-                he_clean = re.sub('[\u0591-\u05af]', '', seg_text)
-                conn.execute(
-                    'INSERT OR IGNORE INTO segments VALUES(?,?,?,?,?,?,?,?)',
-                    (masechta, amud, daf_n, side_n, seg_idx, seg_text, he_clean, eid),
-                )
-                segment_keys.add((masechta, amud, seg_idx))
-
-    # ── Insert English translations ──────────────────────────────────────────
-    for b, d, eid in docs:
-        if b['role'] != 'translation':
-            continue
-        masechta = b['title']
-        text_data = d.get('text', [])
-        if not isinstance(text_data, list):
-            continue
-
-        for amud, chapter_segs in zip(amud_sequence(len(text_data)), text_data):
-            if not isinstance(chapter_segs, list):
-                chapter_segs = [chapter_segs] if chapter_segs else []
-            for seg_idx, seg_text in enumerate(chapter_segs, 1):
-                if (masechta, amud, seg_idx) in segment_keys and isinstance(seg_text, str) and plaintext(seg_text):
+        # ── Insert Hebrew segments ───────────────────────────────────
+        # Sefaria Bavli text: d['text'] is a list of amudim, each a list of
+        # segment strings. Labels come from the array index, starting at 1a.
+        for b, d, eid in docs:
+            if b['role'] != 'hebrew':
+                continue
+            text_data = d.get('text', [])
+            if not isinstance(text_data, list):
+                WARN.append(dict(kind='unexpected_text_structure', masechta=masechta))
+                continue
+            for amud, chapter_segs in zip(amud_sequence(len(text_data)), text_data):
+                if not isinstance(chapter_segs, list):
+                    chapter_segs = [chapter_segs] if chapter_segs else []
+                daf_n, side_n = amud_to_key(amud)
+                for seg_idx, seg_text in enumerate(chapter_segs, 1):
+                    if not isinstance(seg_text, str) or not plaintext(seg_text):
+                        continue
+                    he_clean = re.sub('[\u0591-\u05af]', '', seg_text)
                     conn.execute(
-                        'INSERT OR IGNORE INTO translations VALUES(?,?,?,?,?)',
-                        (masechta, amud, seg_idx, eid, seg_text),
+                        'INSERT OR IGNORE INTO segments VALUES(?,?,?,?,?,?,?,?)',
+                        (masechta, amud, daf_n, side_n, seg_idx, seg_text, he_clean, eid),
                     )
-
-    conn.commit()
-
-    # ── Commentary notes ─────────────────────────────────────────────────────
-    raw = {}
-    leaf_nodes = {}
-    prefix_sources = {}
-    leaf_bases = {}
-
-    def _rank(d):
-        v = d.get('versionTitle', '')
-        return (1000 if 'William Davidson' in v or 'Vilna' in v else 0) + float(d.get('priority') or 0)
-
-    for b, d, eid in sorted(docs, key=lambda x: _rank(x[1]), reverse=True):
-        if b['role'] != 'commentary':
-            continue
-        source = b['title']
-        if source not in schema_cache:
-            sp = CACHE / 'schemas' / f'{key(source)}.json'
-            if sp.exists():
-                schema_cache[source] = json.loads(sp.read_text(encoding='utf-8'))
-            else:
-                WARN.append(dict(kind='missing_schema', source=source))
+                    segment_keys.add((masechta, amud, seg_idx))
+        # ── Insert English translations ──────────────────────────────
+        for b, d, eid in docs:
+            if b['role'] != 'translation':
                 continue
-        schema = schema_cache[source]
-        nodes = {p: n for p, n in leaves(schema.get('schema', {}))}
-        bases = [
-            x['en'] if isinstance(x, dict) else x
-            for x in schema.get('base_text_titles', [])
-        ]
-        for path, arr in arrays(d.get('text', {})):
-            prefix = ', '.join((source,) + path)
-            node = nodes.get(path) or next(
-                (n for p, n in nodes.items() if ', '.join(p) == ', '.join(path)),
-                None,
-            )
-            if node is None:
-                WARN.append(dict(kind='unmapped_schema_leaf', source=source, path=path))
+            text_data = d.get('text', [])
+            if not isinstance(text_data, list):
                 continue
-            leaf_nodes[prefix] = node
-            prefix_sources[prefix] = source
-            leaf_bases[prefix] = bases
-            for loc, text in segments(arr):
-                identity = (prefix, loc)
-                entry = raw.setdefault(
-                    identity,
-                    dict(source=source, prefix=prefix, loc=loc,
-                         category=b.get('source_category', 'commentary'),
-                         sort_order=b.get('sort_order', 0), langs={})
-                )
-                entry['langs'].setdefault(d.get('language', 'he'), (text, eid))
-
-    notes = {}
-    resolver = collections.defaultdict(dict)
-    for (prefix, loc), entry in raw.items():
-        names = leaf_nodes[prefix].get('sectionNames', [])
-        note_loc = loc
-        nid = 'n-' + key(prefix + ' ' + ':'.join(map(str, note_loc)))
-        note = notes.setdefault(
-            nid,
-            dict(id=nid, source=entry['source'],
-                 ref=prefix + (' ' + ':'.join(map(str, note_loc)) if note_loc else ''),
-                 category=entry['category'], sort_order=entry['sort_order'],
-                 parts={'he': [], 'en': []}, editions={'he': [], 'en': []})
-        )
-        for lang, (text, e_id) in entry['langs'].items():
-            note['parts'][lang].append((loc, text))
-            note['editions'][lang].append(e_id)
-        resolver[prefix][loc] = nid
-
-    # Attach notes to segments via schema addressing.
-    attachments = set()
-    for (prefix, loc), entry in raw.items():
-        names = leaf_nodes[prefix].get('sectionNames', [])
-        # Talmud commentary uses sectionNames like ['Daf', 'Line'] or ['Chapter', 'Verse'].
-        # We need at least 2 levels: amud + segment.
-        if len(names) >= 2 and len(loc) >= 2:
-            # Try to resolve the masechta from the source title.
-            source = entry['source']
-            # "Rashi on Berakhot" -> "Berakhot"
-            m = re.match(r'.+ on (.+)$', source)
-            base_masechta = m.group(1) if m else None
-            # "Steinsaltz on Berakhot" -> "Berakhot"
-            if base_masechta and base_masechta in target_masechtos:
-                # loc[0] = amud index (1-based), loc[1] = segment number
-                # Build amud string from amud index.
-                amud_idx = loc[0]
-                seg_num = loc[1] if len(loc) > 1 else 1
-
-                # Commentary arrays use the same convention as the base text:
-                # loc[0] is 1-based, so index 1 is 1a.
-                amud = amud_from_index(amud_idx - 1)
-                if (base_masechta, amud, seg_num) in segment_keys:
-                    nid = resolver[prefix][loc]
-                    attachments.add((
-                        nid, base_masechta, amud, seg_num,
-                        'commentary',
-                        f'{base_masechta} {amud}:{seg_num}',
-                        prefix + ' ' + ':'.join(map(str, loc)),
-                    ))
-
-    # Also use link CSV files for broader attachment.
-    links_dir = CACHE / 'links'
-    if links_dir.exists():
-        link_counts = collections.Counter()
-        for file in sorted(links_dir.glob('links*.csv')):
-            if not re.fullmatch(r'links\d+\.csv', file.name):
-                continue
-            try:
-                with file.open(encoding='utf-8-sig', newline='') as f:
-                    for row in csv.DictReader(f):
-                        side = (
-                            1 if row.get('Text 1') in target_masechtos
-                            else 2 if row.get('Text 2') in target_masechtos
-                            else 0
+            for amud, chapter_segs in zip(amud_sequence(len(text_data)), text_data):
+                if not isinstance(chapter_segs, list):
+                    chapter_segs = [chapter_segs] if chapter_segs else []
+                for seg_idx, seg_text in enumerate(chapter_segs, 1):
+                    if (masechta, amud, seg_idx) in segment_keys and isinstance(seg_text, str) and plaintext(seg_text):
+                        conn.execute(
+                            'INSERT OR IGNORE INTO translations VALUES(?,?,?,?,?)',
+                            (masechta, amud, seg_idx, eid, seg_text),
                         )
-                        if not side:
-                            continue
-                        other = 3 - side
-                        t_other = row.get(f'Text {other}', '')
-                        # Only link commentary sources we actually have
-                        if not any(
-                            t_other.startswith(f'{src} on') or t_other == src
-                            for src in (s['title'] for s in CONFIG['sources'] if s['status'] == 'include')
-                        ):
-                            continue
-                        bp = row.get(f'Text {side}', '')
-                        if bp not in target_masechtos:
-                            continue
-                        nr = row.get(f'Citation {other}', '')
-                        if not nr or nr not in resolver:
-                            continue
-                        base_ref = row.get(f'Citation {side}', '')
-                        _, start, end = parse_address(base_ref)
-                        for nid in (
-                            nid2 for loc2, nid2 in resolver[nr].items()
-                            if in_range(loc2, start, end)
-                        ):
-                            # Determine amud + seg from base ref
+        conn.commit()
+
+        # ── Commentary notes (per-masechta, freed after each book) ─────
+        raw = {}
+        leaf_nodes = {}
+
+        def _rank(d):
+            v = d.get('versionTitle', '')
+            return (1000 if 'William Davidson' in v or 'Vilna' in v else 0) + float(d.get('priority') or 0)
+
+        for b, d, eid in sorted(docs, key=lambda x: _rank(x[1]), reverse=True):
+            if b['role'] != 'commentary':
+                continue
+            source = b['title']
+            if source not in schema_cache:
+                sp = CACHE / 'schemas' / f'{key(source)}.json'
+                if sp.exists():
+                    schema_cache[source] = json.loads(sp.read_text(encoding='utf-8'))
+                else:
+                    WARN.append(dict(kind='missing_schema', source=source))
+                    continue
+            schema = schema_cache[source]
+            nodes = {p: n for p, n in leaves(schema.get('schema', {}))}
+            for path, arr in arrays(d.get('text', {})):
+                prefix = ', '.join((source,) + path)
+                node = nodes.get(path) or next(
+                    (n for p, n in nodes.items() if ', '.join(p) == ', '.join(path)),
+                    None,
+                )
+                if node is None:
+                    WARN.append(dict(kind='unmapped_schema_leaf', source=source, path=path))
+                    continue
+                leaf_nodes[prefix] = node
+                for loc, text in segments(arr):
+                    identity = (prefix, loc)
+                    entry = raw.setdefault(
+                        identity,
+                        dict(source=source, prefix=prefix, loc=loc,
+                             category=b.get('source_category', 'commentary'),
+                             sort_order=b.get('sort_order', 0), langs={})
+                    )
+                    entry['langs'].setdefault(d.get('language', 'he'), (text, eid))
+
+        notes = {}
+        resolver = collections.defaultdict(dict)
+        for (prefix, loc), entry in raw.items():
+            nid = 'n-' + key(prefix + ' ' + ':'.join(map(str, loc)))
+            note = notes.setdefault(
+                nid,
+                dict(id=nid, source=entry['source'],
+                     ref=prefix + (' ' + ':'.join(map(str, loc)) if loc else ''),
+                     category=entry['category'], sort_order=entry['sort_order'],
+                     parts={'he': [], 'en': []}, editions={'he': [], 'en': []})
+            )
+            for lang, (text, e_id) in entry['langs'].items():
+                note['parts'][lang].append((loc, text))
+                note['editions'][lang].append(e_id)
+            resolver[prefix][loc] = nid
+
+        # Attach notes via schema addressing (same amud/segment numbering).
+        attachments = set()
+        for (prefix, loc), entry in raw.items():
+            names = leaf_nodes[prefix].get('sectionNames', [])
+            if len(names) >= 2 and len(loc) >= 2:
+                source = entry['source']
+                m = re.match(r'.+ on (.+)$', source)
+                base_masechta = m.group(1) if m else None
+                if base_masechta == masechta:
+                    amud_idx = loc[0]
+                    seg_num = loc[1] if len(loc) > 1 else 1
+                    amud = amud_from_index(amud_idx - 1)
+                    if (base_masechta, amud, seg_num) in segment_keys:
+                        nid = resolver[prefix][loc]
+                        attachments.add((
+                            nid, base_masechta, amud, seg_num,
+                            'commentary',
+                            f'{base_masechta} {amud}:{seg_num}',
+                            prefix + ' ' + ':'.join(map(str, loc)),
+                        ))
+
+        # Links CSVs: stream row-by-row, only this masechta, only included
+        # sources. Per-masechta resolver keeps this bounded (no
+        # links × all-books rescan).
+        links_dir = CACHE / 'links'
+        if links_dir.exists():
+            for file in sorted(links_dir.glob('links*.csv')):
+                if not re.fullmatch(r'links\d+\.csv', file.name):
+                    continue
+                try:
+                    with file.open(encoding='utf-8-sig', newline='') as f:
+                        for row in csv.DictReader(f):
+                            side = (
+                                1 if row.get('Text 1') == masechta
+                                else 2 if row.get('Text 2') == masechta
+                                else 0
+                            )
+                            if not side:
+                                continue
+                            other = 3 - side
+                            t_other = row.get(f'Text {other}', '')
+                            if t_other not in include_titles and not any(
+                                t_other == src or t_other.startswith(f'{src} on')
+                                for src in include_titles
+                            ):
+                                # Fallback: commentary on this masechta.
+                                if not t_other.endswith(f' on {masechta}'):
+                                    continue
+                            bp = row.get(f'Text {side}', '')
+                            if bp != masechta:
+                                continue
+                            nr = row.get(f'Citation {other}', '')
+                            if not nr or nr not in resolver:
+                                continue
+                            base_ref = row.get(f'Citation {side}', '')
+                            _, start, end = parse_address(base_ref)
                             _, bs, _ = parse_address(base_ref)
-                            if bs and len(bs) >= 2:
+                            if not bs or len(bs) < 2:
+                                continue
+                            try:
                                 amud_s = key_to_amud(bs[0], bs[1])
-                                seg_s = bs[2] if len(bs) > 2 else 1
-                                if (bp, amud_s, seg_s) in segment_keys:
+                            except ValueError:
+                                continue
+                            seg_s = bs[2] if len(bs) > 2 else 1
+                            if (bp, amud_s, seg_s) not in segment_keys:
+                                continue
+                            for loc2, nid2 in resolver[nr].items():
+                                if in_range(loc2, start, end):
                                     attachments.add((
-                                        nid, bp, amud_s, seg_s,
+                                        nid2, bp, amud_s, seg_s,
                                         row.get('Conection Type', 'commentary'),
                                         base_ref, nr,
                                     ))
-                                    link_counts[row.get('Conection Type', '')] += 1
-            except Exception as ex:
-                WARN.append(dict(kind='link_csv_error', file=file.name, error=str(ex)))
-            print('Read', file.name, flush=True)
+                except Exception as ex:
+                    WARN.append(dict(kind='link_csv_error', file=file.name, error=str(ex)))
 
-    # Write notes and refs to DB
-    attached = {a[0] for a in attachments}
-    for nid in attached:
-        n = notes[nid]
-        values = []
-        for lang in ('he', 'en'):
-            parts = sorted(n['parts'][lang])
-            values.append(
-                '\n'.join(
-                    '<div class="note-paragraph">' + clean(t) + '</div>'
-                    for _, t in parts
+        # Write notes and refs for this masechta.
+        attached = {a[0] for a in attachments}
+        for nid in attached:
+            n = notes[nid]
+            values = []
+            for lang in ('he', 'en'):
+                parts = sorted(n['parts'][lang])
+                values.append(
+                    '\n'.join(
+                        '<div class="note-paragraph">' + clean(t) + '</div>'
+                        for _, t in parts
+                    )
                 )
+            conn.execute(
+                'INSERT OR REPLACE INTO notes VALUES(?,?,?,?,?,?,?,?,?)',
+                (nid, n['source'], n['ref'], n['category'], n['sort_order'],
+                 *values,
+                 json.dumps(sorted(set(n['editions']['he']))),
+                 json.dumps(sorted(set(n['editions']['en'])))),
             )
-        conn.execute(
-            'INSERT OR REPLACE INTO notes VALUES(?,?,?,?,?,?,?,?,?)',
-            (nid, n['source'], n['ref'], n['category'], n['sort_order'],
-             *values,
-             json.dumps(sorted(set(n['editions']['he']))),
-             json.dumps(sorted(set(n['editions']['en'])))),
-        )
-    conn.executemany(
-        'INSERT OR IGNORE INTO note_refs VALUES(?,?,?,?,?,?,?)',
-        sorted(attachments),
-    )
-    conn.commit()
-
-    # Record the first amud per tractate so a rebuild can be checked at a glance
-    # (Berakhot must open on 2a, Tamid on 25b), and warn when it is not.
-    first_amud = {}
-    for m_name, a_label in conn.execute(
-        'SELECT masechta, amud FROM segments ORDER BY masechta, daf, side'
-    ):
-        first_amud.setdefault(m_name, a_label)
-    for m_name, expected in EXPECTED_FIRST_AMUD.items():
-        got = first_amud.get(m_name)
-        if got is not None and got != expected:
-            WARN.append(dict(
-                kind='unexpected_first_amud', masechta=m_name,
-                expected=expected, got=got,
-            ))
+        if attachments:
+            conn.executemany(
+                'INSERT OR IGNORE INTO note_refs VALUES(?,?,?,?,?,?,?)',
+                sorted(attachments),
+            )
+        conn.commit()
+        total_segments += len(segment_keys)
+        total_notes += len(attached)
+        total_attachments += len(attachments)
+        print(f'  {masechta}: {len(segment_keys)} segments, {len(attached)} notes', flush=True)
+        # Free per-book memory before the next tractate.
+        del docs, raw, notes, resolver, attachments, segment_keys
+        # First-amud check per book (numeric daf/side order, not string sort:
+        # '10a' < '2a' as strings, so ORDER BY daf, side is required).
+        row = conn.execute(
+            'SELECT amud FROM segments WHERE masechta=? ORDER BY daf, side LIMIT 1',
+            (masechta,),
+        ).fetchone()
+        if row:
+            first = row[0]
+            first_amud[masechta] = first
+            expected = EXPECTED_FIRST_AMUD.get(masechta)
+            if expected and first != expected:
+                WARN.append(dict(
+                    kind='unexpected_first_amud', masechta=masechta,
+                    expected=expected, got=first,
+                ))
 
     report = dict(
-        masechtos=len(target_masechtos),
+        masechtos=len(ordered_targets),
         first_amud=first_amud,
-        segments=len(segment_keys),
-        notes=len(attached),
-        attachments=len(attachments),
+        segments=total_segments,
+        notes=total_notes,
+        attachments=total_attachments,
         warnings=WARN,
     )
-    (OUT / 'build-report.json').write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8'
-    )
+    # Steady: single-book runs must not clobber the full build report.
+    if single_masechta:
+        per_path = OUT / f"build-report-{slug(single_masechta)}.json"
+        per_path.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8'
+        )
+    else:
+        (OUT / 'build-report.json').write_text(
+            json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8'
+        )
     print(json.dumps({k: v for k, v in report.items() if k != 'warnings'}, indent=2))
     print(
         'Warnings by kind:',
@@ -1044,25 +1072,46 @@ def main():
     MASECHTA_ORDER = CONFIG['preferences']['masechta_order']
 
     parser = argparse.ArgumentParser(
-        description='Normalize Sefaria data and generate Talmud EPUBs.'
+        description='Normalize Sefaria data and generate Talmud EPUBs (steady: one book at a time).'
     )
     parser.add_argument(
         '--pilot', action='store_true',
-        help='Build only the pilot amudim (fast iteration).',
+        help='Build only the pilot masechtos (fast iteration).',
+    )
+    parser.add_argument(
+        '--masechta', default=None, choices=MASECHTA_ORDER,
+        help='Normalize + generate only this masechta (steady, laptop-safe).',
+    )
+    parser.add_argument(
+        '--normalize-only', action='store_true',
+        help='Only fill talmud.sqlite, skip EPUB generation.',
     )
     args = parser.parse_args()
 
+    if args.pilot and args.masechta:
+        parser.error('--pilot and --masechta cannot be combined')
     pilot_masechtos = (
         CONFIG['preferences']['pilot_masechtos'] if args.pilot else None
     )
 
     dbpath = ROOT / 'work' / 'talmud.sqlite'
     with sqlite3.connect(dbpath) as conn:
-        normalize(conn, pilot_masechtos=pilot_masechtos)
+        if args.masechta:
+            # Incremental: keep other books, rebuild only this one.
+            normalize(conn, single_masechta=args.masechta, reset_db=False)
+        elif pilot_masechtos:
+            normalize(conn, pilot_masechtos=pilot_masechtos, reset_db=True)
+        else:
+            normalize(conn, reset_db=True)
+        if args.normalize_only:
+            return
         conn.row_factory = sqlite3.Row
         edition_rows = conn.execute('SELECT * FROM editions')
         editions = {r['id']: dict(r) for r in edition_rows}
-        generate(conn, editions, masechtos=pilot_masechtos)
+        if args.masechta:
+            generate(conn, editions, masechtos=[args.masechta])
+        else:
+            generate(conn, editions, masechtos=pilot_masechtos)
 
 
 if __name__ == '__main__':

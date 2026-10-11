@@ -9,15 +9,22 @@ are code-complete and host-tested; device rechecks are noted per item.
    (`endBlockIndex/Id/DocumentPath/Offset`), `matchesBlock`/`rangeForBlock`
    cover start/middle/end blocks, painting and tap targets underline every
    covered paragraph, and the toolbar **More** button extends the current
-   selection through the next readable paragraph. Drag across blocks, cross-
-   chapter ranges, and multi-block Copy/Dictionary are still single-block.
+   selection through the next readable paragraph (repeatable): the start
+   paragraph highlights to its end, every covered following paragraph on the
+   page highlights in full, and Copy/Note/Underline apply to the combined
+   range (Dictionary stays word-based). Direct drag-across-blocks gestures
+   and cross-chapter ranges are still single-block — not built (needs a
+   cross-widget gesture/layout rewrite; More-chain is the pattern).
    Tests: `test/reader/planned_features_test.dart`, existing annotation tests.
 2. **Hide vowel points** — `ReaderSettings.hideVowelPoints` (+
    `StudyProjectionSettings`), persisted JSON, pagination v8 and projection keys
    include it, display strips U+0591–05C7 with source-offset mapping so
    annotations stay anchored, Talmud settings show Hidden/Shown. On device the
-   toggle shows no change on Talmud text (likely unpointed — inconclusive);
-   recheck on a pointed Tanach verse before calling it a bug.
+   toggle shows no change on Talmud text because the pipeline picked
+   Sefaria's unpointed Aramaic edition — fixed 11 Oct: inventory prefers
+   Vocalized Aramaic, download-plan swapped for all 37, Berakhot cache
+   verified (227k marks, 0 cantillation). Rebuild EPUBs + sidecars, then
+   recheck the toggle on Berakhot 2a.
 3. **Paragraph-vs-continuous** — `ReaderSettings.studyContinuous`, persisted,
    projection/pagination keys include it, `mergeContinuousBlocks` joins
    consecutive body paragraphs (headings/amud boundaries stay), Talmud settings
@@ -49,11 +56,10 @@ are code-complete and host-tested; device rechecks are noted per item.
 
 ## Not yet built/fixed (still open)
 
-- Direct drag-across-blocks gesture; multi-block Copy/Dictionary; cross-chapter
-  multi-ranges. Owner correction: the **More** button as built
-  ("underline the rest of this paragraph") is not what was asked — it should
-  let the *selection* extend across multiple paragraphs, then apply
-  Copy/Dictionary/Note/Underline to the whole range.
+- Direct drag-across-blocks gesture and cross-chapter
+  multi-ranges still not built (open). The **More** chain as rebuilt
+  11 Oct lets the *selection* extend across multiple paragraphs, then
+  Copy/Note/Underline apply to the whole range (Dictionary: selected word).
 - **Bidirectional selection handles (open):** either handle drags either
   direction with cross-flip, modern-phone style; 48 dp targets grabbable on
   device. Retest findings: flipping jumps the stationary handle a few
