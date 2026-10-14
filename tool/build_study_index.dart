@@ -7,6 +7,7 @@
 //
 // Usage:
 //   dart run tool/build_study_index.dart <book.epub> [--out <dir>]
+//   dart run tool/build_study_index.dart <book.epub> [more.epub ...] [--out <dir>]
 //   dart run tool/build_study_index.dart <books-dir> [--out <dir>]
 //
 // To keep sidecars in a separate subfolder (the layout the reader prefers):
@@ -40,28 +41,35 @@ Future<void> main(List<String> args) async {
       exit(2);
     }
   }
-  if (positional.length != 1) {
+  if (positional.isEmpty) {
     stderr.writeln(
-      'Usage: dart run tool/build_study_index.dart <book.epub|books-dir> [--out <dir>]',
+      'Usage: dart run tool/build_study_index.dart <book.epub|books-dir> [more ...] [--out <dir>]',
     );
     exit(2);
   }
-  final input = File(positional.single).absolute;
-  final inputDir = Directory(positional.single).absolute;
   final epubs = <File>[];
-  if (await FileSystemEntity.isFile(input.path) &&
-      input.path.toLowerCase().endsWith('.epub')) {
-    epubs.add(input);
-  } else if (await Directory(inputDir.path).exists()) {
-    for (final entity in inputDir.listSync()) {
-      if (entity is File && entity.path.toLowerCase().endsWith('.epub')) {
-        epubs.add(entity);
+  final seen = <String>{};
+  for (final arg in positional) {
+    final input = File(arg).absolute;
+    final inputDir = Directory(arg).absolute;
+    if (await FileSystemEntity.isFile(input.path) &&
+        input.path.toLowerCase().endsWith('.epub')) {
+      if (seen.add(input.path)) epubs.add(input);
+    } else if (await Directory(inputDir.path).exists()) {
+      for (final entity in inputDir.listSync()) {
+        if (entity is File && entity.path.toLowerCase().endsWith('.epub')) {
+          final f = File(entity.path).absolute;
+          if (seen.add(f.path)) epubs.add(f);
+        }
       }
+    } else {
+      stderr.writeln('Not found: $arg');
+      exit(2);
     }
-    epubs.sort((a, b) => a.path.compareTo(b.path));
   }
+  epubs.sort((a, b) => a.path.compareTo(b.path));
   if (epubs.isEmpty) {
-    stderr.writeln('No .epub files found at ${positional.single}');
+    stderr.writeln('No .epub files found at ${positional.join(", ")}');
     exit(1);
   }
   final out = outDir == null ? null : Directory(outDir).absolute;

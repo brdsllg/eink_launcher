@@ -16,6 +16,7 @@ import csv
 import hashlib
 import html
 import json
+import os
 import re
 import sqlite3
 import sys
@@ -210,7 +211,13 @@ class SafeHTML(HTMLParser):
 
 
 def clean(s):
-    return SafeHTML().finish(strip_controls(s))
+    s = strip_controls(s)
+    # Fast path: tag-free, entity-free text cleans to itself escaped.
+    # SafeHTML on such input emits only escaped data, so this is
+    # byte-identical while skipping parser construction (~500k notes).
+    if '<' not in s and '&' not in s:
+        return e(s)
+    return SafeHTML().finish(s)
 
 
 def plaintext(s):
@@ -396,6 +403,29 @@ def generate(conn, editions, masechtos=None):
                 (masechta, amud),
             ))
 
+            # Bulk prefetch: one translations query + one notes query per
+            # amud instead of two queries per segment. Same rows, and the
+            # per-segment sort below is unchanged, so output is identical.
+            # setdefault keeps the first row per segment, matching the old
+            # fetchone() choice when several editions exist.
+            trans_by_seg = {}
+            for _tr in conn.execute(
+                '''SELECT seg_num, text FROM translations
+                   WHERE masechta = ? AND amud = ?''',
+                (masechta, amud),
+            ):
+                trans_by_seg.setdefault(_tr['seg_num'], _tr['text'])
+            notes_by_seg = {}
+            for _nr in conn.execute(
+                '''SELECT DISTINCT r.seg_num, n.id, n.source, n.sort_order,
+                          n.ref, n.he, n.en
+                   FROM note_refs r
+                   JOIN notes n ON n.id = r.note_id
+                   WHERE r.masechta = ? AND r.amud = ?''',
+                (masechta, amud),
+            ):
+                notes_by_seg.setdefault(_nr['seg_num'], []).append(_nr)
+
             for seg in segments_rows:
                 seg_id = f's-{ms}-{amud}-{seg["seg_num"]}'
                 seg_ref = f'{masechta} {amud}:{seg["seg_num"]}'
@@ -403,14 +433,7 @@ def generate(conn, editions, masechtos=None):
                 # Notes for this segment, grouped by source: one group (one
                 # aside, one title) per source, comments in natural ref order.
                 note_rows = sorted(
-                    conn.execute(
-                        '''SELECT DISTINCT n.id, n.source, n.sort_order, n.ref,
-                                  n.he, n.en
-                           FROM note_refs r
-                           JOIN notes n ON n.id = r.note_id
-                           WHERE r.masechta = ? AND r.amud = ? AND r.seg_num = ?''',
-                        (masechta, amud, seg['seg_num']),
-                    ),
+                    notes_by_seg.get(seg['seg_num'], []),
                     key=lambda r: (
                         r['sort_order'] or 0,
                         r['source'] or '',
@@ -437,18 +460,14 @@ def generate(conn, editions, masechtos=None):
                     if he_text else ''
                 )
 
-                # English translation
-                en_row = conn.execute(
-                    '''SELECT text FROM translations
-                       WHERE masechta = ? AND amud = ? AND seg_num = ?''',
-                    (masechta, amud, seg['seg_num']),
-                ).fetchone()
+                # English translation (from the per-amud prefetch above)
+                en_text = trans_by_seg.get(seg['seg_num'])
                 en_block = ''
-                if en_row and plaintext(en_row['text']):
+                if en_text and plaintext(en_text):
                     total_trans[amud] += 1
                     en_block = (
                         f'<p class="translation" dir="ltr" lang="en" xml:lang="en">'
-                        f'{clean(en_row["text"])}</p>'
+                        f'{clean(en_text)}</p>'
                     )
 
                 # Note index link
@@ -634,9 +653,11 @@ def generate(conn, editions, masechtos=None):
         )
         files['package.opf'] = opf
 
-        # Write EPUB zip
+        # Write EPUB zip atomically: a crash or Ctrl-C never leaves a
+        # half-written book behind — the previous EPUB stays until rename.
         epub_path = book_dir / f'{slug(masechta)}.epub'
-        with zipfile.ZipFile(epub_path, 'w', zipfile.ZIP_DEFLATED) as z:
+        tmp_path = book_dir / f'.{slug(masechta)}.epub.tmp'
+        with zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as z:
             # mimetype must be first and uncompressed
             z.writestr(
                 zipfile.ZipInfo('mimetype'), b'application/epub+zip',
@@ -655,6 +676,7 @@ def generate(conn, editions, masechtos=None):
                 if isinstance(content, str):
                     content = content.encode('utf-8')
                 z.writestr(f'EPUB/{fname}', content)
+        os.replace(tmp_path, epub_path)
 
         note_count = len(total_notes)
         summary.append(dict(

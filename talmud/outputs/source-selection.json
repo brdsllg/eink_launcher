@@ -130,12 +130,24 @@
       "bytes": 356
     },
     "download-plan.json": {
-      "sha256": "25262f45459a1abf4dd422ce8cc210ecbcf22d738f17490c661a0996585f1a41",
-      "bytes": 579274
+      "sha256": "2f17214b1ffaa6f8adf7d43846ff66cb788ad6fa87d222ce1a6250671e97d1a9",
+      "bytes": 599671
+    },
+    "inspect-failures.json": {
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2
+    },
+    "link-list.json": {
+      "sha256": "9f460e8e2e0be517a96fc13f990fe975e4b44167c73c9b64358a8c29e7b0e961",
+      "bytes": 2188
+    },
+    "link-list.json.meta.json": {
+      "sha256": "7762ab09def51589acf112c30033be072cc68d5bf5aba27b4cc604e16eeac724",
+      "bytes": 337
     },
     "schemas-failures.json": {
-      "sha256": "8eefd4ddc13a9f8ae5550a5e41358547b22d3ff1c8fdae6e8a1a96e14d5d5672",
-      "bytes": 742
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2
     },
     "table_of_contents.json": {
       "sha256": "d2886a9a37e58e15e4238fed64ddb388db5c073600988a001d14f9e2f8b2311a",
