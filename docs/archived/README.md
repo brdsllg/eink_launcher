@@ -3,7 +3,7 @@
 These files are the **earlier versions** of documents that have since been rewritten
 and consolidated. They are kept for history and provenance only — **do not follow
 their instructions or treat their status notes as current.** The current documents
-live one level up in [`docs/`](../), and [`docs/tanach/`](../talmud/) /
+live one level up in [`docs/`](../), and [`docs/talmud/`](../talmud/) /
 [`docs/tanach/`](../tanach/) for the two EPUB-building segments.
 
 Everything here was superseded on **5 October 2026**, when the documentation was

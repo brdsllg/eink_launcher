@@ -5,41 +5,64 @@ Batra, Sanhedrin, Tamid) in the custom reader on the Bigme, and the analysis of
 whether the format can carry *every* commentary. **Owner** shows where a fix lives:
 *Builder* (regenerate the EPUBs) or *Reader* (Dart code in `lib/reader`).
 
-## Status of the nine findings (6 Oct 2026: verified on the Bigme unless noted)
+> **Whether a problem is fixed is recorded in one place only:** the issue tracker in
+> [DEVICE_TESTING.md](../../DEVICE_TESTING.md). This file keeps the Talmud-specific
+> detail behind each ID and never repeats the status. Follow the writing rules in
+> that file when you add anything here.
 
-| # | Item | Owner | Status |
+## Talmud issues and their detail
+
+| ID | Item | Owner | Detail |
 |---|---|---|---|
-| 1 | Steinsaltz notes included | Builder | **Closed.** Levi chose to keep them |
-| 2 | Bilingual reference headings; wanted English-only | Builder | **Verified on device 6 Oct** |
-| 3 | Doubled commentary titles ("Rashi on Berakhot on Rashi on…") | Builder | **Verified on device 6 Oct** |
-| 4 | Page numbers shifted when the keyboard opened | Reader | **Verified on device 6 Oct** |
-| 5 | One title per note instead of per commented section | Builder | **Verified on device 6 Oct** |
-| 6 | Logcat: "Another exception was thrown: DiagnosticsProperty<void>" | — | **Open: needs the full error text** |
-| 7 | Contents-page links ("Daf 3a"…) did nothing | Reader | **Verified on device 6 Oct** |
-| 8 | Settings said "Verse language" | Reader | **Verified on device 6 Oct** ("Talmud language" shown; "after each segment" is the helper sentence *"Selected commentary appears after each segment…"*, not a control label — checklist corrected) |
-| 9 | Berakhot began at Daf 3a (2a and 2b missing) | Builder | **Verified on device 6 Oct** (opens at 2a, correct words) |
+| TAL-001 | Steinsaltz notes included | Builder | Levi chose to keep them. |
+| TAL-002 | Bilingual reference headings; English-only wanted | Builder | |
+| TAL-003 | Doubled commentary titles ("Rashi on Berakhot on Rashi on…") | Builder | |
+| TAL-004 | Page numbers shifted when the keyboard opened | Reader | |
+| TAL-005 | One title per note instead of per commented section | Builder | |
+| TAL-006 | Log line: "Another exception was thrown: DiagnosticsProperty<void>" | Unknown | See "TAL-006 detail" below. |
+| TAL-007 | Contents-page links ("Daf 3a"…) did nothing | Reader | |
+| TAL-008 | Settings said "Verse language" | Reader | Now "Talmud language". The line "Selected commentary appears after each segment…" is a helper sentence above the selectors, not a control label. |
+| TAL-009 | Berakhot began at Daf 3a (2a and 2b missing) | Builder | |
+| TAL-010 | Commentary reading order: with all sources selected, Steinsaltz came before Tosafot | Reader | The picker was already ordered Rashi, Tosafot, rest. The fix sorts projected notes by the same rank (`orderedStudySources`). Standing order requested: Rashi, then Tosafot, then the rest. |
+| TAL-011 | Switching Berakhot to Continuous crashed the launcher | Reader | Cause: the whole amud was merged into one block. Fixed in source 6 Oct. If a crash ever recurs, capture `adb logcat` around the switch. |
+| TAL-012 | Continuous (the **Talmud layout** setting) changes nothing visible | Reader | **Paragraphs** keeps each body paragraph separate. **Continuous** (`mergeContinuousBlocks`) joins consecutive body paragraphs into flowing text, keeping headings and amud boundaries as breaks. Decision (Levi, 6 Oct 2026): remove the setting. |
+| TAL-013 | Vowel marks and punctuation do not show in Talmud text | Builder / Sefaria data | See "TAL-013 detail" below. |
+| TAL-014 | First open of Berakhot took 21 s | Builder / Reader | Suggests a stale or missing sidecar, so the reader fell back to importing on the device. Check the sidecar fingerprints. Full timings: DEVICE_TESTING.md, study-book measurements. |
 
-New device-verified timings (owner stopwatch, HiBreak release): first open
-**21s**, reopen **1–2s**. The 21s first open suggests a stale/missing sidecar
-with fallback to on-device import — verify sidecar fingerprints next pass.
-Full device log: `docs/DEVICE_TESTING.md` (6 Oct 2026 pass).
+Device log of each pass: [DEVICE_TESTING.md](../../DEVICE_TESTING.md).
 
-### Open follow-ups from the 6 Oct device pass (code-fixed, needs recheck)
-
-| # | Item | Owner | Status |
-|---|---|---|---|
-| 10 | Commentary display order: picker is Rashi → Tosafot → rest, but reading order with all sources selected puts Steinsaltz before Tosafot | Reader | Fixed 6 Oct in source: projected notes now sort by `orderedStudySources` rank. Owner follow-up: all good |
-| 11 | Berakhot → Continuous mode crashed the launcher | Reader | No longer crashes, but owner reports it visibly does nothing and asks what it is for — suggests removing it. Meaning: **Paragraphs** keeps each body paragraph separate; **Continuous** (`Talmud layout` setting, `mergeContinuousBlocks`) joins consecutive body paragraphs into flowing text, keeping headings and amud boundaries as breaks. Needs decision: keep/fix visibility vs remove the setting. owner here, lets remove this.|
-| 12 | Vowels/punctuation toggle shows no change on Talmud text | — | Owner follow-up: asks why vowels *and punctuation* do not show, whether Sefaria provides them, whether we pull them. Answer to record: Sefaria does supply vowels for Tanach (`hebrew.vowels=True` in the pipeline) and the reader keeps them unless **Vowel points: Hidden**; cantillation is stripped by the builder (`strip_trop`, U+0591–05AF). Talmud text is mostly unpointed at the source, so the toggle correctly does nothing there — verify the same toggle on a Tanach verse (e.g. Genesis 1:1, which should show marks when Shown and lose them when Hidden). Vowel range unified 6 Oct to full U+0591–05C7. owner here, there is no settings toggle for vowels in tanach (and there shouldnt be) and are you sure sefaria doesnt provide vowels and punctuation? because on the website they provide vowels and punctuation on all of talmud, so perhaps they dont provide that via paa, this needs investigation. |
-
-### Item 6 (open)
+### TAL-006 detail
 
 Flutter prints that line when an error's details are empty; the useful part is the
 "EXCEPTION CAUGHT BY…" block and stack trace just above it. It may be a layout or
-overflow error, possibly connected to the keyboard dialog (item 4, now fixed). To
-diagnose: capture the full `adb logcat` text around the error, or reproduce it with
+overflow error, possibly connected to the keyboard dialog (TAL-004). To diagnose:
+capture the full `adb logcat` text around the error, or reproduce it with
 `flutter run` for a clean trace. Do not guess a fix; add a regression test once the
 cause is known.
+
+### TAL-013 detail
+
+What the owner reported (6 Oct 2026): showing or hiding vowels and punctuation makes
+no visible change on Talmud text, yet the Sefaria website shows vowels and
+punctuation on all of Talmud.
+
+What is known:
+
+- The pipeline asks Sefaria for vowels for Tanach (`hebrew.vowels=True`) and the
+  builder removes cantillation marks only (`strip_trop`, U+0591–U+05AF). The reader
+  keeps vowel marks unless **Vowel points** is set to Hidden.
+- Whether Sefaria's data feed (as opposed to its website) supplies vowels and
+  punctuation for Talmud has **not been checked**. The website may add them from
+  another source.
+- "Pointed" simply means Hebrew text that carries vowel marks.
+
+Decision (Levi, 6 Oct 2026): there is no vowel setting for Tanach and there should
+not be one. The earlier idea of checking the setting on a Tanach verse therefore does
+not apply.
+
+To do: look at the raw Talmud text the pipeline downloads (for example Berakhot 2a)
+and see whether vowels and punctuation are present. If they are, the builder or
+reader is dropping them. If they are not, find out where the website gets them.
 
 ## Bigme checklist for the pilot books
 
@@ -48,7 +71,7 @@ cause is known.
    `dart run tool/build_study_index.dart talmud/outputs/books`). First opens
    should be instant with no import wait; if a sidecar is stale the reader
    falls back to importing on the device. (Verify fingerprints if a first
-   open still takes ~20s.)
+   open still takes ~20s; see TAL-014.)
 3. **Berakhot start and headings:** open Berakhot. It should begin at **Daf 2a**
    (מאימתי קורין את שמע), and headings should be English-only with no duplicated Hebrew.
 4. **Commentary:** tap a segment with Rashi. Notes should be grouped per source per
@@ -63,7 +86,7 @@ cause is known.
 8. **Commentary picker:** it should list Rashi, Tosafot, and Steinsaltz (kept on
    purpose), plus the Rashi-slot substitutes for Bava Batra and Tamid.
    With several sources selected, reading order should keep Rashi then Tosafot
-   first (open item 10).
+   first (TAL-010).
 
 ## How the reader treats study books
 
@@ -71,7 +94,7 @@ The study recognizer accepts the Talmud format (`section.segment[data-ref]`, the
 `note-index` shape, `data-category="commentary"`, `p.translation`). Recognized books
 go into the per-book SQLite cache and their chapters load lazily, so any reader code
 that reads a chapter's link targets directly must load the chapter first (which is
-what item 7 tripped over). Regenerating EPUBs changes their bytes, so the reader
+what TAL-007 tripped over). Regenerating EPUBs changes their bytes, so the reader
 re-imports automatically; no manual cache clearing is needed.
 
 ## Can the format carry every commentary?
@@ -92,17 +115,21 @@ loading, only *selected* sources become display blocks, a 768 MiB cache limit). 
 weak spots are packaging, first-open import, search, and the build script, and most
 can be fixed in the builder.
 
-### Findings
+### Scale-up work items
+
+These are project work items, not device problems, so they are not in the issue
+tracker. They use the same status words as DEVICE_TESTING.md. **FIX BUILT** here means
+the code change exists and passes computer tests.
 
 | | Finding | Owner | Status |
 |---|---|---|---|
-| A | One note per comment (own id, four data attributes, back-links) plus one index link per comment; with many sources the wrapper markup could rival the commentary text | Builder | Grouping per source per segment is done (items 3, 5). Builder back-links removed Oct 2026 (`talmud/work/build.py`, `tanach/work/build.py` no longer emit `<p class="backlinks">`; reader already stripped them). One index link per source is in place |
-| B | Opening an amud parses the whole document, every installed commentary included, before filtering to the chosen sources | Reader / format | Open |
-| C | First open sends every amud's XHTML through parsing, compression, and search-text building before anything shows. The main risk for the biggest tractates (Shabbat, Bava Batra, Bava Metzia, Zevachim, Chullin) with full commentary | Reader | Open; must be tested on the device |
-| D | Search scans every amud's text including unselected commentary, then fully projects every candidate; a common Hebrew word matches nearly every amud | Reader | Partially fixed Oct 2026: SQLite v6 splits `base_search_text`/`commentary_search_text`; with no source selected only base is scanned. With sources selected the final projection still applies the exact filter. Full per-source index still future |
-| E | Build script: the link-attachment loop rescans every comment of a source for each link row (roughly links × comments); all comments sit in memory at once; `inventory.py` downloads every non-merged edition including other languages | Builder | Open |
-| F | Source discovery may be incomplete: the manifest lists only 13 non-pilot titles "pending review", far fewer than exist, and `inventory.py` skips any category containing both `Talmud` and `Bavli` as base text, which would silently drop commentaries filed there. The rule to implement is "labeled a commentary by Sefaria's category", not "linked to the Bavli" | Builder | Fixed 6 Oct in source: commentary markers now checked before the Talmud+Bavli base-text skip (most commentaries live under Talmud/Bavli). Do NOT rerun `inventory.py` over an edited `source-selection.json`; verify by re-running inventory on a copy and comparing counts |
-| G | Amud offset (arrays assumed to start at 2a) | Builder | **Resolved**: see the plan document |
+| A | One note per comment (own id, four data attributes, back-links) plus one index link per comment; with many sources the wrapper markup could rival the commentary text | Builder | **OPEN.** Grouping per source per segment is done (TAL-003, TAL-005). Builder back-links removed Oct 2026 (`talmud/work/build.py`, `tanach/work/build.py` no longer emit `<p class="backlinks">`; reader already stripped them). One index link per source is in place. Remaining: the one-note-per-comment wrapper size |
+| B | Opening an amud parses the whole document, every installed commentary included, before filtering to the chosen sources | Reader / format | **OPEN** |
+| C | First open sends every amud's XHTML through parsing, compression, and search-text building before anything shows. The main risk for the biggest tractates (Shabbat, Bava Batra, Bava Metzia, Zevachim, Chullin) with full commentary | Reader | **OPEN.** Must be tested on the device |
+| D | Search scans every amud's text including unselected commentary, then fully projects every candidate; a common Hebrew word matches nearly every amud | Reader | **FIX BUILT** (partial, Oct 2026): SQLite v6 splits `base_search_text`/`commentary_search_text`; with no source selected only base is scanned. With sources selected the final projection still applies the exact filter. A full per-source index is still future work |
+| E | Build script: the link-attachment loop rescans every comment of a source for each link row (roughly links × comments); all comments sit in memory at once; `inventory.py` downloads every non-merged edition including other languages | Builder | **OPEN** |
+| F | Source discovery may be incomplete: the manifest lists only 13 non-pilot titles "pending review", far fewer than exist, and `inventory.py` skips any category containing both `Talmud` and `Bavli` as base text, which would silently drop commentaries filed there. The rule to implement is "labeled a commentary by Sefaria's category", not "linked to the Bavli" | Builder | **FIX BUILT** (6 Oct): commentary markers are now checked before the Talmud+Bavli base-text skip (most commentaries live under Talmud/Bavli). Do NOT rerun `inventory.py` over an edited `source-selection.json`; verify by re-running inventory on a copy and comparing counts |
+| G | Amud offset (arrays assumed to start at 2a) | Builder | **CLOSED** (resolved; see the plan document) |
 
 ### Order of work
 

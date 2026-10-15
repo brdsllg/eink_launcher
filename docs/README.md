@@ -20,16 +20,11 @@ sideloading. It has been tested on a Bigme HiBreak (model B751C, Android 14).
   regressions. `flutter analyze` is clean. Rebuild EPUBs (parsha-order fix) and
   sidecars before the next HiBreak pass. See
   [DEVICE_TESTING.md](DEVICE_TESTING.md).
-- **Current device status:** several areas are confirmed on the Bigme, but the
-  remaining work is still concentrated in tabs, newer layouts, selection and
-  annotations, dictionaries, and study books. This project does not treat any of
-  those partial checks as complete. The latest source fixes for study-book navigation,
-  bilingual headings, and selection-handle size still need a HiBreak recheck. See
-  [DEVICE_TESTING.md](DEVICE_TESTING.md).
-- **Confirmed on the device:** PDF page turns, scrolling and zooming with no
-  ghosting or white flashes; startup, recovery, app drawer, and battery behavior
-  (2 Sept); physical page buttons (18 Sept). The status of newer features is
-  tracked in the device checklist rather than assumed to be complete.
+- **Device status:** for whether any specific problem is fixed, see the issue tracker
+  in [DEVICE_TESTING.md](DEVICE_TESTING.md). It is the only place that says so. In
+  short: PDF reading, startup, app drawer, battery, page buttons, dictionaries, tabs
+  and layouts have been checked on the Bigme. Selection and the Tanach and Talmud
+  study books are partly checked and have open problems listed there.
 
 ## What the app does
 
@@ -148,9 +143,20 @@ until the app has its own `FileProvider`; the file chooser relies on it.
 | `docs/tanach/README.md`, `docs/talmud/README.md` | The two EPUB-building segments |
 | [`archived/README.md`](archived/README.md) | The earlier versions of every document above, kept for history only |
 
+## Writing in these docs
+
+One rule above all: **status lives in one place.** Whether a problem is fixed is
+written only in the issue tracker in [DEVICE_TESTING.md](DEVICE_TESTING.md), using
+its seven status words (OPEN, FIX BUILT, FIXED, DECIDED, NEEDS INFO, WATCHING,
+CLOSED). Every other document refers to an issue by its ID (for example SEL-003 or
+TAN-002) and never repeats "fixed" or "still broken". Passing computer tests is at
+most FIX BUILT; only the owner's check on the device makes something FIXED. The full
+writing rules and the test-pass template are in DEVICE_TESTING.md.
+
 ## Next
 
-1. Run a device pass on the HiBreak (B751C) covering tabs, layouts, annotations,
-   and the dictionaries. The checklist is in [DEVICE_TESTING.md](DEVICE_TESTING.md).
+1. Rebuild the Tanach and Talmud books and sidecars, then run a device pass on the
+   HiBreak (B751C). The checklist is in [DEVICE_TESTING.md](DEVICE_TESTING.md);
+   tabs and layouts are skipped unless something regresses.
 2. Test the largest Tanach books on the device: first-open time, memory, search.
 3. Finish Talmud device checks and scale-up work (see `docs/talmud/README.md`).

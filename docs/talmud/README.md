@@ -7,11 +7,11 @@ reader contract; where this folder is silent, `docs/tanach/docs/tanach-epub.md` 
 segment because the pipeline rewrites it; its readable summary is in
 `docs/tanach/outputs/reader-compatibility.md`.
 
-**Status (6 Oct 2026):** the six-tractate pilot is built and passes EPUBCheck and
-link checks. 6 Oct device findings got code fixes (Continuous crash,
-commentary order, inventory Finding F) that need rebuilt books + HiBreak
-recheck. Still to do: checking on the Bigme, building the other 31 tractates, and the
-scale-up work.
+**Status (7 Oct 2026):** the six-tractate pilot is built and passes EPUBCheck and
+link checks. Whether each device problem is fixed is recorded only in the issue
+tracker in [DEVICE_TESTING.md](../DEVICE_TESTING.md) (Talmud items are TAL-001 to
+TAL-014; detail in `docs/reader-device-findings.md`). Still to do: rebuild the pilot
+books and sidecars, building the other 31 tractates, and the scale-up work.
 
 ## What it produces
 
@@ -63,8 +63,8 @@ python talmud/work/regenerate.py --masechta Berakhot  # rebuild one tractate fro
 
 ## Next steps, in order
 
-1. **Check on the Bigme:** headings, one title per commentary source, Contents links,
-   settings wording (checklist in `docs/reader-device-findings.md`).
+1. **Rebuild the pilot books and sidecars**, then check on the Bigme that the first
+   open is fast (TAL-014). The checklist is in `docs/reader-device-findings.md`.
 2. **Scaling work:** index comments per source instead of rescanning for every link
    row, build one tractate at a time, keep one edition per language.
 3. **Measure** one big tractate with 2, then about 5, then all sources: EPUB size,

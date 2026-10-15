@@ -4,24 +4,23 @@ Long-pressing a word starts a selection with draggable handles. An action bar of
 **Copy**, **Dictionary**, **Add Note**, and **Underline**. Adding a note underlines
 its text automatically; tapping an underline shows its note, with Edit and Delete.
 
-**Status (6 Oct 2026, +owner follow-up on latest build):** implemented in code
-and covered by automated tests.
-Single-block drag selection remains; multi-paragraph is supported through the
-toolbar **More** button, which extends the current selection through the next
-readable paragraph and saves one multi-block annotation (underlines in every
-covered paragraph, one note viewer). Direct drag across block boundaries is
-still not supported. The selection handles have a 48 dp touch target,
-device-verified grabbable 6 Oct on the HiBreak. Bidirectional handles (either
-handle drags either direction, modern-phone style with cross-flip) built 6 Oct,
-retested by owner: flipping still jumps the stationary handle a few letters or
-a word; in Hebrew dragging one handle pulls the other before flipping; mixed
-Hebrew + English in one paragraph behaves strangely.
+**What is built (as of 7 Oct 2026):** selection, the four actions, saved
+annotations and bidirectional handles are implemented and covered by automated
+tests. Multi-paragraph underline and note are built through the toolbar **More**
+button, which extends the selection through the next readable paragraph and saves
+one multi-block annotation (underlines in every covered paragraph, one note viewer).
+Dragging across block boundaries in one gesture is not built.
 
-**Owner correction on More:** the current More ("underline the rest of this
-paragraph") is not what was asked. The More button should let the *selection*
-itself extend across multiple paragraphs, so Copy / Dictionary / Add Note /
-Underline then apply to the whole multi-paragraph range. Keep the button if it
-helps, but change what it does.
+**Whether any of it works on the device** is recorded only in the issue tracker in
+[DEVICE_TESTING.md](DEVICE_TESTING.md): SEL-001 (handle size), SEL-002 (**More**),
+SEL-003 to SEL-005 (handle flipping, Hebrew, mixed text).
+
+**What the owner wants from More (6 Oct 2026):** the **More** button should let the
+*selection itself* extend across multiple paragraphs, so Copy, Dictionary, Add Note
+and Underline then apply to the whole multi-paragraph range. Keep the button if it
+helps, but change what it does. (Older notes described the current behavior as
+"underline the rest of this paragraph". Check the source for what it really does
+before reworking.)
 
 ## Scope
 
@@ -58,12 +57,16 @@ helps, but change what it does.
   and under the temporary gray selection highlight. Tapping inside an underline
   opens its note; tapping elsewhere behaves as before (including links).
 
-## Remaining check on the device
+## Device check, when the fixes exist
 
-On the Bigme: select text in an EPUB paragraph, try Copy, Dictionary, Add Note, and
-Underline, then try **More** — owner expects More to extend the *selection*
-across paragraphs (not just underline the rest of the current paragraph).
-Try dragging either handle either direction: the stationary handle must not
-jump letters/words, Hebrew handles must not pull each other, and mixed
-Hebrew + English must behave. Restart the app, and confirm the underline and note survived. Repeat in a
-text-layer PDF (PDFs remain single-block). Open: needs Levi's confirmation.
+On the Bigme: select text in an EPUB paragraph and try Copy, Dictionary, Add Note and
+Underline. Then check:
+
+- **More** stretches the *selection* across paragraphs (SEL-002).
+- Dragging either handle either way: the other handle must not jump letters or words
+  (SEL-003), Hebrew handles must not pull each other (SEL-004), and a paragraph that
+  mixes Hebrew and English must behave (SEL-005).
+- Restart the app and confirm the underline and note survived.
+- Repeat in a text-layer PDF (PDFs stay single-block).
+
+Record results as a new test pass in [DEVICE_TESTING.md](DEVICE_TESTING.md).

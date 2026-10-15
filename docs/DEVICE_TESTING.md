@@ -1,41 +1,251 @@
 # Device testing
 
-Everything tested on the physical device, in one place: what was checked, what the
-measurements were, what is still unchecked, and checklists for next time.
+The one place for everything checked on the physical device: what was tested, what
+broke, whether it is fixed, and what to check next.
 
-Devices: all tests so far used a **Bigme HiBreak (model B751C)** (Android 14, arm64, 1264 × 1680,
-density 300, 256 MiB normal heap class, default Impeller OpenGLES renderer). The Bigme's
-refresh-mode name was never recorded.
+Last updated: 7 Oct 2026. This file was restructured into an issue tracker on that
+date. Statuses and the status log were reconstructed from the older notes, so some
+change dates are the date a pass reported them, not the exact day of the fix.
 
-## Status at a glance
+Device: all tests so far used a **Bigme HiBreak (model B751C)** (Android 14, arm64,
+1264 × 1680, density 300, 256 MiB normal heap class, default Impeller OpenGLES
+renderer). The Bigme's refresh-mode name was never recorded.
 
-| Area | Status |
+## Start here
+
+1. **Is a problem fixed?** Look in the [Issue tracker](#issue-tracker). It is the only
+   place in the whole docs folder that says so.
+2. **What happened on a given day?** See [Test passes](#test-passes-newest-first). They
+   are a diary of what was seen. They never say what is fixed *now*.
+3. **Adding or changing something?** Read
+   [Rules for writing in this document](#rules-for-writing-in-this-document) first.
+
+## Status words
+
+Every issue has exactly one of these. Nothing else is allowed.
+
+| Status | Meaning |
 | --- | --- |
-| PDF page turns, scrolling, zooming, pinch | Confirmed, including no ghosting or white flashes |
-| Startup, recovery, app drawer, battery, file chooser | Confirmed |
-| EPUB/TXT/Markdown open, search, saved positions | Confirmed |
-| Physical page buttons | Confirmed (with the button assignment described below) |
-| Tabs, newer screen layouts | **Confirmed by owner (tested several times; skip future passes unless regression)** |
-| Selection, notes, underlines | **Partially checked (48 dp handles grabbable 6 Oct; follow-up: flip jumps stationary handle, Hebrew handles pull each other, mixed-dir weird; More button must extend selection across paragraphs)** |
-| Hebrew and English dictionaries | **Checked (Passed)** |
-| Tanach study books | **Partially checked (6 Oct: chapters/bilingual pass; escaped-markup examples now Gen 7:2, 7:11, 7:23, 8:14, 9:17 + sidecar-folder request; parsha/aliyah still needs rebuilt EPUBs)** |
-| Talmud study books | **Partially checked (6 Oct: Berakhot start/headings/links pass; follow-up: commentary order good, Continuous does nothing — remove? vowels question answered in findings)** |
-| Renderer preference, preview/sharpen timing, unplugged idle battery drain | Optional measurements, never taken |
+| **OPEN** | Reported and not fixed. Also used when a fix was tried and the problem was still there afterwards. |
+| **FIX BUILT** | A fix is written and passes the computer tests, but nobody has checked it on the HiBreak. **Not fixed yet.** |
+| **FIXED** | The owner checked it on the HiBreak and the problem is gone. Always shows the date. |
+| **DECIDED** | The owner decided what to do. The work is not done yet. |
+| **NEEDS INFO** | Nothing can be done until something is found out first (an example, a log, an investigation). |
+| **WATCHING** | Seen once and could not be repeated. No work until it happens again. |
+| **CLOSED** | No action needed: expected behavior, or kept on purpose. The reason is always written. |
 
-## Test history
+## Issue tracker
 
-### 31 Aug 2026: manual pass
+### 1. Not fixed yet
 
-The owner worked through the eight-part checklist. Startup, file browsing, app drawer,
-status bar, EPUB/TXT/Markdown, saved reading state, interruptions, sustained use, and
-safe recovery were reported good. Individual steps, timings, memory, and crash-loop
-tests were not recorded. Three PDF problems appeared across every PDF tried:
+| ID | Problem | Status | Next step | Updated |
+| --- | --- | --- | --- | --- |
+| SEL-002 | Selection cannot be stretched over several paragraphs. The **More** button does not do what you asked for. | **OPEN** | Rework **More** so it stretches the selection itself across paragraphs, then Copy, Dictionary, Add Note and Underline apply to the whole range. Dragging the handles across paragraphs is a separate, later feature. | 6 Oct 2026 |
+| SEL-003 | Selection handles: flipping one handle past the other makes the other handle jump a few letters or a whole word. | **OPEN** | A fix was built 6 Oct and did not cure it. Needs another attempt. | 6 Oct 2026 |
+| SEL-004 | Selection handles in Hebrew: dragging the right handle pulls the left handle along (and the reverse) before they flip. | **OPEN** | Needs a fix. | 6 Oct 2026 |
+| SEL-005 | Selection handles in a paragraph that mixes Hebrew and English behave strangely. | **OPEN** | Write down one exact paragraph (book and place) where it happens, then fix. | 6 Oct 2026 |
+| TAN-004 | Literal words `span`, `class` and `nbsp` appear inside Hebrew verses. Exact places: Genesis 7:2 (twice), 7:11, 7:23, 8:14, 9:17. More are expected elsewhere. | **OPEN** | Find out whether the book builder or the reader causes it, then fix. | 6 Oct 2026 |
+| TAN-005 | First open of Genesis takes 1 min 45 s (later opens take about 2 s) because no Tanach sidecar files have been built. | **OPEN** | Build the sidecars after the rebuilt books exist and copy them to the device. Expected result: first open close to the 2 s reopen time. | 6 Oct 2026 |
+| TAN-006 | Request: keep the sidecar files in their own folder instead of next to each book. | **OPEN** | Needs a design. See `docs/tanach/docs/tanach-epub.md`. | 6 Oct 2026 |
+| TAL-006 | An unexplained log line: "Another exception was thrown: DiagnosticsProperty<void>". | **NEEDS INFO** | Capture the full error text just above that line. See [the Talmud findings](talmud/docs/reader-device-findings.md). Do not guess a fix. | 6 Oct 2026 |
+| TAL-012 | The Talmud **Paragraphs / Continuous** setting changes nothing you can see. | **DECIDED** | Decision (Levi, 6 Oct 2026): remove the setting. | 6 Oct 2026 |
+| TAL-013 | Vowel marks and punctuation do not show in the Talmud text, although the Sefaria website shows them on all of Talmud. | **NEEDS INFO** | Investigate what Sefaria's data feed actually supplies for Talmud. Decision (Levi, 6 Oct 2026): there is no vowel setting for Tanach and there should not be one. | 6 Oct 2026 |
+| TAL-014 | First open of Berakhot took 21 s. It should be nearly instant if the sidecar file is working. | **NEEDS INFO** | Check that the Berakhot sidecar is fresh (matches the current book), then time the first open again. | 6 Oct 2026 |
+| BRW-001 | File browser acted oddly once after closing all open tabs. | **WATCHING** | Could not be repeated. If it happens again, write down the exact steps. Keep in the next device pass. | 5 Oct 2026 |
 
-| ID | Problem | Outcome |
+### 2. Fix built, waiting for a device check
+
+None of these are fixed until the owner confirms them on the HiBreak. Rebuild the
+books first (see the [checklist](#checklist-for-the-next-device-pass)).
+
+| ID | Problem | Status | What to check | Updated |
+| --- | --- | --- | --- | --- |
+| TAN-002 | In Parshiyot mode, chapter headings were still shown (only parsha and aliyah headings should show). | **FIX BUILT** | Parshiyot mode shows only parsha and aliyah headings, each as side-by-side English and Hebrew like the verses. Chapters mode and Parshiyot mode are never shown together. | 6 Oct 2026 |
+| TAN-003 | Parshiyot were in the wrong order in the Contents (Miketz appeared after Vayechi). Leviticus was also out of order. | **FIX BUILT** | Rebuild the Tanach books, then check the Contents order of the weekly portions. | 6 Oct 2026 |
+
+### 3. Fixed, closed, or confirmed
+
+| ID | Problem | Status | How it was confirmed |
+| --- | --- | --- | --- |
+| PDF-001 | Rapid next-page taps froze Fit Height and Fit Width. | **FIXED** 2 Sept 2026 | Fixed in 1.0.1, confirmed on the device; 20 rapid taps and the menu stayed responsive in the 2 Sept check. |
+| PDF-002 | After a pinch in Zoom / Scroll the page went white, then came back in pieces. | **FIXED** 2 Sept 2026 | For the conditions tested on 2 Sept. Owner saw no ghosting or white flashes on 2 Sept and 6 Oct. |
+| PDF-003 | Fast Zoom / Scroll reached pages before their pixels appeared. | **FIXED** 2 Sept 2026 | For the conditions tested on 2 Sept. A never-seen page still renders at PDFium's speed, which is a known limit, not a bug. |
+| BTN-001 | Side buttons stopped working inside the app. | **FIXED** 18 Sept 2026 | Assigning the side buttons to D-pad Left/Right in the Bigme firmware fixed it at once. See [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md). |
+| SEL-001 | Selection handles were too small to grab. | **FIXED** 6 Oct 2026 | Handles are now 48 dp; owner says they are easy to grab. |
+| TAL-001 | Steinsaltz notes are included in the Talmud books. | **CLOSED** | Kept on purpose (Levi's choice). |
+| TAL-002 | Reference headings were bilingual; English-only was wanted. | **FIXED** 6 Oct 2026 | Headings English-only, no duplication. |
+| TAL-003 | Doubled commentary titles ("Rashi on Berakhot on Rashi on…"). | **FIXED** 6 Oct 2026 | Titles read like `Rashi on Berakhot 2a:1`. |
+| TAL-004 | Page numbers shifted when the keyboard opened (Go to page). | **FIXED** 6 Oct 2026 | Keyboard overlay no longer changes page numbers. |
+| TAL-005 | Notes had one title each instead of one per commented section. | **FIXED** 6 Oct 2026 | Commentary grouped one block per source per segment. |
+| TAL-007 | Contents-page links ("Daf 3a" and so on) did nothing. | **FIXED** 6 Oct 2026 | Daf links jump to the right place. |
+| TAL-008 | Settings said "Verse language". | **FIXED** 6 Oct 2026 | Now reads "Talmud language". The line "Selected commentary appears after each segment…" is a helper sentence, not a control label. |
+| TAL-009 | Berakhot began at Daf 3a (2a and 2b were missing). | **FIXED** 6 Oct 2026 | Opens at Daf 2a with the correct opening words. |
+| TAL-010 | With all commentaries on, Steinsaltz appeared before Tosafot in the text. | **FIXED** 6 Oct 2026 | Follow-up pass: order is good (Rashi, then Tosafot, then the rest). |
+| TAL-011 | Switching Berakhot to Continuous crashed the launcher. | **FIXED** 6 Oct 2026 | Follow-up pass: no crash. The setting itself is being removed (TAL-012). |
+| TAN-007 | After clearing the cache, the next open imports the book again. | **CLOSED** | Expected behavior of the disposable cache, not data loss. Handing over a ready-made cache is a possible future workflow (see TAN-005). |
+| TAN-001 | Picking an aliyah (from the picker or the Contents page) landed in the wrong place. Examples: Bereishit 5th aliyah opened Genesis 4:1 with no 5th-aliyah heading (should be 4:19); the 4th opened Genesis 3 (should be 2:20); Noach was also wrong. | **FIXED** 7 Oct 2026 | Owner confirmed on the HiBreak. The 5 Oct fix had failed on the 6 Oct pass; what changed in between was not recorded. |
+
+## Status log
+
+One line per change, newest first. Older dates are when a pass reported the change.
+
+- **7 Oct 2026:** TAN-001 OPEN → FIXED (owner confirmed on the HiBreak).
+- **6 Oct 2026, follow-up pass:** TAL-010 FIX BUILT → FIXED. TAL-011 FIX BUILT →
+  FIXED. TAL-012 reported, then DECIDED (remove the setting). TAL-013 reported as a
+  question, NEEDS INFO. TAN-004 NEEDS INFO → OPEN (exact examples captured).
+  TAN-006 reported. SEL-002 re-described (owner correction on **More**). SEL-003,
+  SEL-004 and SEL-005 reported, OPEN.
+- **6 Oct 2026, release pass:** SEL-001 FIXED. TAL-002, 003, 004, 005, 007, 008 and
+  009 FIXED. TAN-001 still wrong after the 5 Oct fix, OPEN. TAN-002 and TAN-003
+  reported, then FIX BUILT after the pass. TAN-004 and TAN-005 reported. TAL-010,
+  011, 013 and 014 reported; TAL-010 and TAL-011 FIX BUILT after the pass.
+- **5 Oct 2026, owner pass:** SEL-001 and SEL-002 reported (SEL-001 FIX BUILT).
+  TAN-001 reported (a fix was built that did not work, see 6 Oct). TAN-007 CLOSED
+  as expected behavior. BRW-001 reported, WATCHING.
+- **18 Sept 2026:** BTN-001 reported and FIXED (firmware button assignment).
+- **2 Sept 2026:** PDF-001, PDF-002 and PDF-003 FIXED for the conditions tested.
+- **31 Aug 2026:** PDF-001, PDF-002 and PDF-003 reported.
+
+## Feature areas at a glance
+
+This table says how much of each area has been checked. It does not say whether a
+specific problem is fixed; only the tracker does.
+
+| Area | Checked? | Issues |
 | --- | --- | --- |
-| PDF-001 | Rapid next-page taps could freeze Fit Height/Fit Width | Fixed in 1.0.1; confirmed on device |
-| PDF-002 | After a pinch in Zoom / Scroll, the page briefly went white, then returned in pieces | Resolved for the conditions tested on 2 Sept |
-| PDF-003 | Fast Zoom / Scroll reached unseen pages before pixels appeared | Resolved for the conditions tested on 2 Sept. First-time rendering of a never-seen page remains limited by PDFium speed |
+| PDF page turns, scrolling, zooming, pinch | Checked OK (2 Sept; 6 Oct regression "all good"; no ghosting or white flashes) | PDF-001 to 003 |
+| Startup, recovery, app drawer, battery, file chooser | Checked OK (2 Sept) | none |
+| EPUB / TXT / Markdown open, search, saved positions | Checked OK | none |
+| Physical page buttons | Checked OK, with the button assignment in BTN-001 | BTN-001 |
+| Tabs and newer screen layouts | Checked OK by owner, several times. Skip in future passes unless something regresses. | none |
+| Hebrew and English dictionaries | Checked OK (5 Oct) | none |
+| Selection, notes, underlines | Partly checked. Handle size OK. Notes, underlines and text-layer PDF passed 5 Oct and were not re-run. | SEL-001 to 005 |
+| Tanach study books | Partly checked. Chapters mode, bilingual headings and chapter contents pass. | TAN-001 to 007 |
+| Talmud study books | Partly checked. Berakhot pilot starts, headings, links and commentary grouping pass. | TAL-001 to 014 |
+| Renderer preference, preview and sharpen timing, unplugged idle battery drain | Not measured (optional) | none |
+
+## Rules for writing in this document
+
+These keep the file clean. Anyone editing it, human or AI, follows them.
+
+1. **One problem, one ID, one tracker row.** An ID is an area prefix plus three
+   digits: `PDF`, `SEL` (selection), `TAN` (Tanach), `TAL` (Talmud), `BTN` (buttons),
+   `BRW` (file browser). New area: add a prefix here first. IDs are never reused or
+   renumbered.
+2. **Use only the seven status words**, in bold capitals, exactly as spelled in the
+   table above.
+3. **Only the owner moves something to FIXED**, and only after checking it on the
+   HiBreak. Passing `flutter test` or `flutter analyze` is at most **FIX BUILT**.
+   Always write the date next to **FIXED**.
+4. **When a status changes, do both:** edit the tracker row (status, next step,
+   date) and move it to the right table; then add one line to the Status log. Never
+   edit an old test pass to say something was fixed later.
+5. **Every test pass uses the same template** (below), newest pass first.
+6. **Other documents link to IDs and never copy status words.** Write "see TAN-003 in
+   DEVICE_TESTING.md", not "fixed" or "still broken". Copies go stale; this is the
+   most common cause of confusion.
+7. **Owner decisions** are written as `Decision (Levi, 6 Oct 2026): …` in the row's
+   Next step cell, and the status becomes **DECIDED** until the work is built.
+8. **Write for a non-coder.** One plain sentence per cell where possible. Give exact
+   examples (book and verse, not "some verses"). File and function names belong in
+   the plan and builder documents, not in the tracker.
+9. **Dates look like `6 Oct 2026`.** Timings say who measured them ("owner
+   stopwatch"). Numbers always have units.
+10. **Never delete a row.** Fixed and closed rows stay in table 3 as the record.
+11. **Update the "Last updated" line** whenever you change anything here.
+
+### Template for a test pass
+
+```
+### 6 Oct 2026: <short title> (who tested, device, build)
+
+Build and settings: <build, refresh mode, button assignment, anything unusual>
+
+| Step | Result | Issues |
+| --- | --- | --- |
+| 1 Tabs | Passed | none |
+| 2 Selection | Handles flip badly | SEL-003 |
+
+New issues: <IDs added to the tracker today, or "none">
+Notes: <anything else seen, in plain words>
+```
+
+Results say what was observed that day (Passed, Problem seen, Skipped). They list
+IDs but never say whether an issue is fixed now.
+
+## Test passes (newest first)
+
+### 6 Oct 2026: follow-up pass (owner, HiBreak, latest build)
+
+Build and settings: latest build, default settings, fast refresh mode with increased
+contrast, side buttons assigned to D-pad Left/Right.
+
+| Step | Result | Issues |
+| --- | --- | --- |
+| 1 Tabs and layouts | Skipped at the owner's request (already tested several times) | none |
+| 2 Selection | Handles flip badly; Hebrew handles pull each other; mixed Hebrew and English strange; **More** does not do what was asked | SEL-002, SEL-003, SEL-004, SEL-005 |
+| 3 Tanach | Otherwise "all beautiful". Exact escaped-markup examples captured. Owner asked for sidecars in a separate folder | TAN-004, TAN-006 |
+| 4 Talmud | Otherwise all good. Commentary order good. Continuous no longer crashes but visibly does nothing; owner decided to remove it. Owner asked why vowels and punctuation do not show | TAL-010, TAL-011, TAL-012, TAL-013 |
+| 5 PDF regression | All good | none |
+
+New issues: SEL-003, SEL-004, SEL-005, TAL-012, TAL-013 (as a question), TAN-006.
+
+Notes: the owner asked what "a pointed verse" means. "Pointed" just means the Hebrew
+carries vowel marks. The owner also asked whether Sefaria supplies vowels and
+punctuation for Talmud and whether the pipeline pulls them. That is still unanswered
+(TAL-013).
+
+### 6 Oct 2026: release pass (owner, HiBreak, release build)
+
+Build and settings: fresh full rebuild installed by the owner; timings are owner
+stopwatch.
+
+| Step | Result | Issues |
+| --- | --- | --- |
+| Tanach (Genesis), first open after install | "Loading" for over a minute; no sidecars exist | TAN-005 |
+| Tanach, Parshiyot/aliyot toggle | Turns on, but chapter headings stay visible | TAN-002 |
+| Tanach, aliyah landings | Wrong in several places (not just one) | TAN-001 |
+| Tanach, Contents order of portions | Miketz appears after Vayechi | TAN-003 |
+| Tanach, escaped markup | Literal `span`, `class`, `nbsp` seen; exact examples not yet captured | TAN-004 |
+| Tanach, Chapters mode, bilingual headings, chapter contents | Passed | none |
+| Cache clear, then open Genesis | 1 min 45 s cold; about 2 s warm reopen | TAN-005 |
+| Talmud (Berakhot pilot), first open | 21 s cold; 1–2 s reopen. Starts at Daf 2a with the correct opening words | TAL-014 |
+| Talmud headings, commentary grouping, Contents daf links, page-jump keyboard, commentary picker (Rashi, Tosafot, Steinsaltz) | Passed | none |
+| Talmud, commentary reading order | Steinsaltz came before Tosafot | TAL-010 |
+| Talmud, Continuous | Crashed the launcher | TAL-011 |
+| Talmud, vowels/punctuation toggle | No visible change | TAL-013 |
+| Search "Kayin" | 22 matches, consistent with the earlier base-text-only check | none |
+| Selection handles | 48 dp handles easy to grab. Owner asked for bidirectional handles (either handle drags either way). Notes/underline persistence and text-layer PDF were not re-run (they passed 5 Oct) | SEL-001 |
+| Ghosting and refresh | "All beautiful": no ghosting or white flashes | none |
+
+New issues: TAN-001 to TAN-005 (TAN-001 first reported 5 Oct), TAL-010, TAL-011,
+TAL-013, TAL-014.
+
+Notes: fixes written after this pass, none yet checked on the device unless the
+tracker says FIXED: TAL-010, TAL-011, TAN-002, TAN-003. Rebuild the books and
+sidecars before the next pass.
+
+### 5 Oct 2026: owner pass (HiBreak)
+
+| Step | Result | Issues |
+| --- | --- | --- |
+| 1–4 Startup, Browser, PDF, Tabs | Passed, no problems | none |
+| 5.2 Selection | Worked inside one block; handles quite small; could not extend across paragraphs | SEL-001, SEL-002 |
+| 5–6 Text formatting, dictionaries | Passed | none |
+| Study books, aliyah picks and Contents aliyah links | Chapter links worked; aliyah links and picks landed wrongly (Bereishit 5th aliyah opened Genesis 4:1, not 4:19) | TAN-001 |
+| Study books, headings | Parsha and aliyah headings needed the same side-by-side English/Hebrew style as verses; chapter-only headings stayed chapter-only | TAN-002 |
+| Study books, clearing the cache | The next open imports the book again | TAN-007 |
+| File browser | Odd behavior once after deleting all open tabs; not repeatable | BRW-001 |
+
+New issues: SEL-001, SEL-002, TAN-001, TAN-002, TAN-007, BRW-001.
+
+### 18 Sept 2026: page buttons
+
+The side buttons stopped responding inside the app while working elsewhere. Force
+stop, a reboot, and a rebuilt APK all failed to help, and reader settings still
+showed buttons enabled. The Bigme was not sending any supported key to this app.
+Assigning the side buttons to D-pad Left/Right in the Bigme firmware fixed it at once.
+Issue: BTN-001. Supported key pairs: [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md).
 
 ### 2 Sept 2026: computer-driven check (ADB) of version 1.0.2
 
@@ -45,7 +255,7 @@ The production app was untouched; fault-injection tests used a separate temporar
 package, since removed. The owner then reported **"no ghosting or white flashes"** on
 the physical screen. That is direct observation, separate from the screenshot
 sampling; it does not settle a preferred renderer or cover every document and scroll
-speed.
+speed. Issues checked: PDF-001, PDF-002, PDF-003.
 
 | Check | Result |
 | --- | --- |
@@ -69,122 +279,13 @@ speed.
 
 Analysis was clean and 240 tests passed at the time.
 
-### 18 Sept 2026: page buttons
+### 31 Aug 2026: manual pass (owner)
 
-The side buttons stopped responding inside the app while working elsewhere. Force
-stop, a reboot, and a rebuilt APK all failed to help, and reader settings still showed
-buttons enabled. The Bigme was not sending any supported key to this app. **Assigning
-the side buttons to D-pad Left/Right in the Bigme firmware fixed it at once.** Details
-and supported key pairs: [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md).
-
-### 5 Oct test (User pass on HiBreak)
-
-- **Steps 1–4 (Startup, Browser, PDF, Tabs):** Completed successfully with no problems.
-- **Step 5.2 (Selection):** Selection worked within a single block, but its handles were quite small and it did not extend across multiple paragraphs. The source follow-up increases each handle's touch target to 48 dp; multi-paragraph selection remains a planned feature because annotations are anchored to one block. The larger handles still need a HiBreak check.
-- **Steps 5–6 (Text formatting, dictionaries):** Completed successfully.
-- **Study Books:**
-  - Clearing the disposable cache requires the next open to import the EPUB again. This is expected cache behavior, not a data-loss condition; pre-parsing and transferring a ready cache remains a possible future workflow.
-  - Parshiyot and aliyot within Genesis–Deuteronomy: selecting the fifth portion of Bereishit initially displayed Genesis 4:1 without the fifth-aliyah heading instead of Genesis 4:19. The source follow-up now resolves the anchor after the lazy chapter loads and waits for its page before displaying it. This needs a HiBreak recheck.
-  - EPUB TOC links: chapter links worked, but aliyah links initially did not. They use the same lazy-anchor correction and need a HiBreak recheck.
-  - UI preference: source code selects either the aliyah contents/headings or the chapter contents/headings, never both. Confirm this on the device with the revised build.
-  - Headings formatting: chapter headings remain chapter-only. Parshiyot and aliyot now use the same bilingual split renderer as pesukim (English left, Hebrew right); this needs a HiBreak recheck.
-- **File Browser Quirk:** Observed once after deleting all open tabs, but could not be reproduced. The normal folder-opening regression test passes; keep this in the next device pass and record exact steps if it recurs.
-
-### 6 Oct 2026: release pass (owner, HiBreak, release build)
-
-Fresh full rebuild installed by the owner. Timings are stopwatch-measured below.
-Code fixes landed after this pass (6 Oct fix pass, host-tested, needs recheck):
-Continuous-crash root cause (segment headings parsed as paragraphs), commentary
-reading-order sort, parsha-order + heading-mode fixes, vowel-range unification,
-bidirectional handles, inventory Finding F. Rebuild EPUBs + sidecars before the
-next device pass.
-
-- **Tanach (Genesis):**
-  - Cold open after install showed "loading" for over a minute. There is currently
-    **no prebuilt sidecar workflow for Tanach**: `tool/build_study_index.dart`
-    works for any study EPUB (Tanach included), but no Tanach sidecars were
-    built/copied, so the device imports on first open. Follow-up: build Tanach
-    sidecars on the laptop and copy each `<book>.study.sqlite` next to its EPUB.
-  - Parshiyot/aliyot toggle enables successfully, but **chapter headings remain
-    visible in parsha mode** (want parsha/aliyah headings only). Reader cause:
-    `_applyHeadingMode` (`lib/reader/services/tanach_layout_service.dart`)
-    removes only top-level `body h1` non-parsha headings in parsha mode, so
-    chapter headings at other levels survive.
-  - **Aliyah landings are wrong, not just one anchor:** Bereishit 5th aliyah
-    lands on Genesis 4:1 with no 5th-aliyah heading (want 4:19); the 4th lands
-    on Genesis 3 (reported want: 2:20); Noach portions also misbehave.
-  - **Builder data bug (confirmed in source):** in `tanach/work/build.py` the
-    Miketz entry (Gen 41:1–44:17) is listed *after* Vayechi (Gen 47:28–50:26),
-    so the parsha contents order is wrong (Miketz appears after Vayechi).
-  - **Escaped markup visible in places:** literal `span`, `class`, `nbsp` text
-    in the rendered book. Needs exact book/verse examples captured before a
-    builder-vs-reader call is made.
-  - Chapters mode, bilingual headings, and chapter contents all pass.
-- **Cache reimport (Genesis):** after clearing the disposable cache, cold
-  import took **1m 45s** (stopwatch); warm reopen **~2s**.
-- **Talmud (Berakhot pilot):**
-  - First open **21s**, reopen **1–2s**, begins at **Daf 2a** with the correct
-    opening words. (21s suggests the sidecar was stale/missing and the reader
-    fell back to on-device import; verify sidecar fingerprints next pass.)
-  - Headings English-only, no duplication — pass. Commentary grouped one block
-    per source per segment — pass. Contents daf links — pass. Page-jump
-    keyboard overlay — pass. Picker lists Rashi/Tosafot/Steinsaltz — pass.
-  - **Commentary display order:** the picker itself is now correctly ordered
-    (Rashi → Tosafot → rest), but with all sources selected the *reading* order
-    puts Steinsaltz before Tosafot. Reader cause: projected notes are appended
-    in builder index-link order, not in `orderedStudySources` rank order
-    (`tanach_layout_service.dart` projection loop). Follow-up: sort appended
-    commentary notes by source rank. Requested standing order: Rashi then
-    Tosafot first when reading with multiple commentaries.
-  - **Settings wording:** "Talmud language" confirmed. "After each segment" was
-    never a control label — it is the helper sentence *"Selected commentary
-    appears after each segment…"* above the selectors. No action; checklist
-    wording corrected in `docs/talmud/docs/reader-device-findings.md`.
-  - **Vowels toggle on Talmud:** showing/hiding vowel points and punctuation
-    produced no visible change. Expected if the Talmud text carries no niqqud;
-    verify on a pointed Tanach verse before calling it a bug.
-  - **Continuous mode crash:** switching Berakhot to Continuous crashed the
-    launcher. Open crash bug — needs `adb logcat` around the switch plus a
-    regression test once the cause is known.
-  - Search "Kayin": 22 matches — consistent with the earlier base-text-only
-    check.
-- **Selection:** 48 dp handles confirmed easy to grab. Request: bidirectional
-  handles (either handle drags either direction, modern-phone style) instead of
-  fixed forward/back roles. Notes/underlines persistence and text-layer PDF
-  repeat were not re-run (already passed 5 Oct).
-- **Ghosting/refresh:** reported "all beautiful" — no ghosting or white
-  flashes on this pass.
-
-### 6 Oct 2026: follow-up pass (owner, HiBreak, latest build)
-
-Config: latest build, defaults, fast refresh mode with increased contrast,
-side buttons assigned to D-pad Left/Right.
-
-- **Tabs/layouts (Step 1):** not re-run by owner request — already tested
-  several times, treated as confirmed. Drop from future passes unless a
-  regression appears.
-- **Selection (Step 2):** bidirectional handles still flawed:
-  - Flipping jumps the stationary handle a few letters or a whole word.
-  - In Hebrew, dragging the right handle pulls the left handle (and vice versa)
-    before flipping — feels wrong.
-  - Mixed Hebrew + English in one paragraph behaves strangely.
-  - **More button misunderstood:** owner did NOT ask for "underline the rest of
-    the current paragraph". The **More** button should let the selection itself
-    extend across multiple paragraphs (then Copy/Dictionary/Note/Underline the
-    whole range). Keep the button if useful, but fix what it does. See
-    [annotation_plan.md](annotation_plan.md).
-- **Tanach (Step 3):** otherwise "all beautiful". Escaped markup now has exact
-  examples — literal `span` / `class` / `nbsp` words inside the Hebrew psukim
-  at **Gen 7:2, 7:11, 7:23, 8:14, 9:17** (7:2 listed twice by owner, likely two
-  spots in the verse; more expected elsewhere). Owner request: let
-  `.study.sqlite` sidecars live in a separate folder instead of next to each
-  EPUB. See `docs/tanach/docs/tanach-epub.md`.
-- **Talmud (Step 4):** otherwise all good. Continuous mode no longer crashes
-  but visibly does nothing — owner asks what it is for and suggests removing
-  it. Vowels question: owner does not know what "pointed verse" means and asks
-  why vowels *and punctuation* do not show, whether Sefaria provides them and
-  whether we pull them. See `docs/talmud/docs/reader-device-findings.md`.
-- **PDF regression (Step 5):** all good.
+The owner worked through the eight-part checklist. Startup, file browsing, app drawer,
+status bar, EPUB/TXT/Markdown, saved reading state, interruptions, sustained use, and
+safe recovery were reported good. Individual steps, timings, memory, and crash-loop
+tests were not recorded. Three PDF problems appeared across every PDF tried:
+PDF-001, PDF-002, PDF-003.
 
 ## Measurements (version 1.0.2)
 
@@ -222,14 +323,15 @@ the tap). Screenshot capture slows sampling, so this is coarse.
 
 ## Measurements (study books, 6 Oct 2026, owner stopwatch, HiBreak release)
 
-| Book | Cold (after cache clear / first open) | Warm reopen |
-| --- | --- | --- |
-| Genesis (Tanach, no sidecar — on-device import) | **1m 45s** | **~2s** |
-| Berakhot (Talmud pilot; sidecar likely stale/missing — verify) | **21s** | **1–2s** |
+| Book | Cold (after cache clear / first open) | Warm reopen | Related issue |
+| --- | --- | --- | --- |
+| Genesis (Tanach, no sidecar, so the device imports it) | **1 min 45 s** | **about 2 s** | TAN-005 |
+| Berakhot (Talmud pilot; sidecar likely stale or missing, to be verified) | **21 s** | **1–2 s** | TAL-014 |
 
-Sidecar workflow: `dart run tool/build_study_index.dart <book.epub|books-dir>`
-builds a `<book>.study.sqlite` that must sit next to its EPUB; a stale sidecar
-falls back to on-device import. Applies to Tanach books too, not just Talmud.
+Sidecar workflow: `dart run tool/build_study_index.dart <book.epub|books-dir>` builds a
+`<book>.study.sqlite` that must sit next to its EPUB. A stale sidecar makes the reader
+fall back to importing on the device. This applies to Tanach books too, not just
+Talmud.
 
 ## Limits of the evidence
 
@@ -251,26 +353,27 @@ deleted; copies, generators, and raw timings are kept locally in
 
 ## Checklist for the next device pass
 
-**Newer features (not yet checked):**
+Skip tabs and layouts unless something regresses (owner decision, 6 Oct 2026).
 
-1. Tabs: open and close mixed formats, switch while one is loading, restart and
-   confirm tabs return, check portrait and landscape.
-2. Layouts: browser, Apps, settings, dialogs, search, recovery.
-3. Text selection: bidirectional handles (either handle drags either way) are built
-   6 Oct and need a device recheck; then copy, look up, add a note, and underline in English,
-   Hebrew, and Aramaic on the new-handle code. Restart and confirm notes and
-   underlines remain; repeat in a text-layer PDF. Multi-paragraph selection
-   via **More** is expected to work; direct drag-across-blocks is not yet expected.
-4. Study books (details live here; builders/trackers own the fixes):
-   - Tanach: needs rebuilt EPUBs (parsha order, aliyah mapping, escaped
-     markup) — see `docs/tanach/docs/tanach-epub.md` — plus Tanach sidecars,
-     then recheck 5th-aliyah landing (want Gen 4:19 heading), parsha-only
-     headings, and Chapters/Parshiyot exclusivity.
-   - Talmud: needs commentary display-order fix + Continuous-crash diagnosis —
-     see `docs/talmud/docs/reader-device-findings.md` — then recheck
-     multi-source order (Rashi → Tosafot), Continuous layout, and sidecar
-     fingerprints. Capture `adb logcat` for any crash and exact book/verse
-     for any escaped markup.
+**Before the pass, on the laptop:**
+
+1. Rebuild the Tanach books (needed for TAN-002 and TAN-003), then build the Tanach
+   sidecars (TAN-005) and copy them to the device.
+2. Rebuild the Talmud books and sidecars, and check the sidecars are fresh (TAL-014).
+   Steps: [the Talmud findings](talmud/docs/reader-device-findings.md).
+3. Build and install the latest app.
+
+**On the device, only the items whose fix exists:**
+
+| Check | Issue | Only worth doing when |
+| --- | --- | --- |
+| Parshiyot mode shows only parsha and aliyah headings, side by side English/Hebrew; Chapters and Parshiyot never both | TAN-002 | After the rebuilt books are installed |
+| Contents lists the weekly portions in the right order (Miketz before Vayigash and Vayechi) | TAN-003 | After the rebuilt books are installed |
+| Genesis first open time with its sidecar present | TAN-005 | After the sidecars are copied |
+| Berakhot first open time with a fresh sidecar | TAL-014 | After the sidecar is verified |
+| Handles: flip either way, in English, in Hebrew, and in a mixed paragraph; **More** stretches the selection across paragraphs; then Copy, Dictionary, Add Note and Underline; restart and confirm notes and underlines survive; repeat in a text-layer PDF (PDFs stay single-paragraph) | SEL-002 to SEL-005 | After those fixes are built. There is nothing new to check yet. |
+| Talmud settings no longer show Paragraphs / Continuous | TAL-012 | After the setting is removed |
+| Repeat anything odd in the file browser; write down exact steps | BRW-001 | Only if it happens again |
 
 **PDF regression (after future PDF changes).** Use one text/vector PDF and one scanned
 PDF, with the same renderer and refresh mode:
