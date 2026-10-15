@@ -45,6 +45,12 @@ class BlockSliceView extends StatefulWidget {
   onAnnotate;
   final Future<ExtendedSelection?> Function(TextSelection sourceRange)?
   onExtendSelection;
+  // True when another slice's **More**-chain covers this whole block: paint
+  // it as selected (no handles/toolbar here; those stay on the start block).
+  final bool pendingFullHighlight;
+  // Reports the slice's own pending multi-paragraph extension so the parent
+  // can highlight the covered sibling slices. Null when cleared.
+  final ValueChanged<ExtendedSelection?>? onExtensionChanged;
   final Future<void> Function(
     TextSelection range,
     ExtendedSelection extended,
@@ -67,6 +73,8 @@ class BlockSliceView extends StatefulWidget {
     this.onAnnotate,
     this.onExtendSelection,
     this.onAnnotateExtended,
+    this.pendingFullHighlight = false,
+    this.onExtensionChanged,
   });
 
   @override
@@ -83,8 +91,9 @@ class _BlockSliceViewState extends State<BlockSliceView> {
   Offset? _dragPosition;
   bool? _draggingStart;
   // Pending multi-paragraph extension owned by the parent page view: the
-  // local handle still shows the first block, while copy/dictionary/note
-  // apply to the whole range. Cleared with the selection.
+  // local handle still shows the first block, while copy/note/underline
+  // apply to the whole range (dictionary uses the in-block word).
+  // Cleared with the selection.
   ExtendedSelection? _extended;
   ContentBlock get block => widget.block;
   BlockSlice get slice => widget.slice;
@@ -126,10 +135,12 @@ class _BlockSliceViewState extends State<BlockSliceView> {
   void _clearSelection() {
     _overlay.hide();
     if (mounted) {
+      final hadExtended = _extended != null;
       setState(() {
         _selection = null;
         _extended = null;
       });
+      if (hadExtended) widget.onExtensionChanged?.call(null);
     }
   }
 
@@ -144,8 +155,9 @@ class _BlockSliceViewState extends State<BlockSliceView> {
       final extended = await extend(range);
       if (!mounted || extended == null) return;
       // Keep the toolbar open: the local handle grows to the end of this
-      // paragraph so the rest looks selected, while copy/dictionary/note
-      // below apply to the whole multi-paragraph range.
+      // paragraph to show where the range starts, the parent highlights the
+      // following covered paragraphs, and copy/note/underline below apply
+      // to the whole multi-paragraph range (dictionary stays word-based).
       final displayEnd =
           TextBlockLayout.prefixFor(block, settings).length +
           TextBlockLayout.displayedPlainText(block, settings).length;
@@ -157,6 +169,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
         _selection = toEnd.start == toEnd.end ? selection : toEnd;
         _extended = extended;
       });
+      widget.onExtensionChanged?.call(extended);
       _overlay.show();
       return;
     }
@@ -170,9 +183,11 @@ class _BlockSliceViewState extends State<BlockSliceView> {
           _clearSelection();
           return;
         case 'dictionary':
-          final word = combined.replaceAll(RegExp('[\u200b\u00ad]'), '');
+          // Dictionary looks up a word, not paragraphs: use the in-block
+          // selection that started the chain, not the combined text.
+          final single = block.plainText.substring(range.start, range.end);
           _clearSelection();
-          await widget.onDefineWord?.call(word);
+          await widget.onDefineWord?.call(single);
           return;
         default:
           if (multi != null) {
@@ -246,7 +261,10 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     }
     // Any extension across paragraphs is rebuilt by the next More press;
     // a handle drag stays inside this block.
-    if (_extended != null) _extended = null;
+    if (_extended != null) {
+      _extended = null;
+      widget.onExtensionChanged?.call(null);
+    }
     // Keep at least one char selected.
     if (next.start == next.end) {
       return;
@@ -490,8 +508,20 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     );
   }
 
-  Widget _buildBlock(TextBlockLayout layout, double width) {
-    if (block.type == BlockType.horizontalRule) {
+  /// Gray highlight for a paragraph covered by another slice's More-chain
+  /// (no handles or toolbar here). Null when this slice owns a selection.
+  TextSelection? _pendingDisplaySelection() {
+    if (!widget.pendingFullHighlight || _selection != null) return null;
+    final prefix = TextBlockLayout.prefixFor(block, settings).length;
+    final length = TextBlockLayout.displayedPlainText(block, settings).length;
+    if (length <= 0) return null;
+    return TextSelection(
+      baseOffset: prefix,
+      extentOffset: prefix + length,
+    );
+  }
+
+  Widget _buildBlock(TextBlockLayout layout, double width) {    if (block.type == BlockType.horizontalRule) {
       return Align(
         alignment: Alignment.topCenter,
         child: Container(height: 1, color: Colors.black),
@@ -602,7 +632,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
               painter: _TextBlockPainter(
                 block,
                 settings,
-                _selection,
+                _selection ?? _pendingDisplaySelection(),
                 widget.annotations,
                 slice.blockIndex,
               ),

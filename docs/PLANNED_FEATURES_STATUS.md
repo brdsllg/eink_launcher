@@ -6,8 +6,8 @@ the issue tracker in [DEVICE_TESTING.md](DEVICE_TESTING.md), and this file refer
 its IDs (SEL-003, TAN-002, and so on) instead of repeating status words.
 
 Source: full `docs/` sweep. Items 1–21 from that sweep. Everything under "Built"
-passes the computer tests (host-tested 6 Oct); none of it counts as fixed until the
-tracker says so.
+passes the computer tests (host-tested 6 Oct, plus 11 Oct vowel/markup/sidecar
+fixes below); none of it counts as fixed until the tracker says so.
 
 ## Built
 
@@ -15,19 +15,25 @@ tracker says so.
    end block (`endBlockIndex/Id/DocumentPath/Offset`), `matchesBlock`/`rangeForBlock`
    cover start/middle/end blocks, painting and tap targets underline every covered
    paragraph, and the toolbar **More** button extends the current selection through
-   the next readable paragraph and saves one multi-block annotation. Not built: drag
-   across blocks, cross-chapter ranges, multi-block Copy/Dictionary (these stay
-   single-block). The owner reports **More** does not behave as wanted; the older
-   notes also described it as "underline the rest of the paragraph", so check the
-   source for what it really does before reworking. Tests:
-   `test/reader/planned_features_test.dart`, existing annotation tests.
+   the next readable paragraph (repeatable, 11 Oct rebuild): the start paragraph
+   highlights to its end, every covered following paragraph highlights in full, and
+   Copy/Note/Underline apply to the combined range (Dictionary stays word-based).
+   Not built: drag across blocks, cross-chapter ranges (these stay single-block;
+   needs a cross-widget gesture/layout rewrite; More-chain is the pattern). The
+   owner reports **More** does not behave as wanted; the older notes also described
+   it as "underline the rest of the paragraph", so check the source for what it
+   really does before reworking. Tests: `test/reader/planned_features_test.dart`,
+   existing annotation tests.
 2. **Hide vowel points** (tracker: TAL-013). `ReaderSettings.hideVowelPoints` (+
    `StudyProjectionSettings`), persisted JSON, pagination v8 and projection keys
    include it, display strips U+0591–05C7 with source-offset mapping so annotations
    stay anchored, Talmud settings show Hidden/Shown. The vowel range is the same
    U+0591–05C7 everywhere (it was missing 05BE/05C0/05C3/05C6 in the paginator,
-   search and cache). On the device the setting showed no change on Talmud text; the
-   open question is whether the source text has vowels at all.
+   search and cache). On the device the setting showed no change on Talmud text
+   because the pipeline picked Sefaria's unpointed Aramaic edition — fixed 11 Oct:
+   inventory prefers Vocalized Aramaic, download-plan swapped for all 37, Berakhot
+   cache verified (227k marks, 0 cantillation). Rebuild EPUBs + sidecars, then
+   recheck the toggle on Berakhot 2a.
 3. **Paragraph-vs-continuous** (tracker: TAL-011, TAL-012).
    `ReaderSettings.studyContinuous`, persisted, projection/pagination keys include
    it, `mergeContinuousBlocks` joins consecutive body paragraphs (headings and amud
@@ -84,8 +90,17 @@ Also built, outside the sweep's numbering:
 - **Talmud settings:** remove the Paragraphs/Continuous setting (TAL-012, decided).
 - **Vowels and punctuation for Talmud:** investigate what Sefaria's data supplies
   (TAL-013). There is no vowel setting for Tanach and none is wanted.
-- **Tanach:** find the cause of the literal `span`/`class`/`nbsp` text (TAN-004);
-  rebuild EPUBs and sidecars; sidecars in a separate folder (TAN-006, request).
+- **Tanach:** cause of the literal `span`/`class`/`nbsp` text found 11 Oct (tracker:
+  TAN-004): `hebrew()` in `tanach/work/build.py` escaped raw source markup; now
+  strips to clean text (section markers kept), host-verified over 23,206 verses
+  (`span` search was 202 matches in Genesis, all books affected). Rebuild EPUBs +
+  sidecars into `study/`, then recheck verses clean and `span` search 0. Sidecars
+  in a separate `study/` subfolder (tracker: TAN-005, TAN-006): the reader checks
+  `<books-dir>/study/<book>.study.sqlite` first with next-to-EPUB fallback; build
+  with `dart run tool/build_study_index.dart <books-dir> --out <books-dir>/study`.
+  Device (Tanach): EPUBs at `/sdcard/books/3. nigleh/tanach/tanach w meforshim HE/`,
+  sidecars in its `study/` subfolder. Genesis cold import 1m 45s → ~2s warm expected
+  once the sidecar matches.
 - **Commentary picker:** grouping and a search box for dozens of sources;
   auto-default to Rashi+Tosafot (left as opt-in); a full per-source full-text index
   (the current split is base versus all commentary).

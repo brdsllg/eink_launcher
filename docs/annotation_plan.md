@@ -4,12 +4,17 @@ Long-pressing a word starts a selection with draggable handles. An action bar of
 **Copy**, **Dictionary**, **Add Note**, and **Underline**. Adding a note underlines
 its text automatically; tapping an underline shows its note, with Edit and Delete.
 
-**What is built (as of 7 Oct 2026):** selection, the four actions, saved
-annotations and bidirectional handles are implemented and covered by automated
-tests. Multi-paragraph underline and note are built through the toolbar **More**
-button, which extends the selection through the next readable paragraph and saves
-one multi-block annotation (underlines in every covered paragraph, one note viewer).
-Dragging across block boundaries in one gesture is not built.
+**What is built (as of 7 Oct 2026, More-chain rebuilt 11 Oct):** selection, the four
+actions, saved annotations and bidirectional handles are implemented and covered
+by automated tests. Multi-paragraph underline and note are built through the
+toolbar **More** button, which extends the selection through the next readable
+paragraph (repeatable): the start paragraph highlights to its end, every covered
+following paragraph highlights in full, then saves one multi-block annotation
+(underlines in every covered paragraph, one note viewer). Copy, Add Note and
+Underline apply to the whole combined range; Dictionary looks up the originally
+selected word. Dragging across block boundaries in one gesture is not built
+(each paragraph owns its own text painter, so a true drag would need a
+cross-widget gesture + layout rewrite; More-chain is the supported pattern).
 
 **Whether any of it works on the device** is recorded only in the issue tracker in
 [DEVICE_TESTING.md](DEVICE_TESTING.md): SEL-001 (handle size), SEL-002 (**More**),
@@ -26,7 +31,7 @@ before reworking.)
 
 | Included | Not included |
 | --- | --- |
-| EPUB, TXT, Markdown (the shared text pipeline), including multi-paragraph underline/note via **More** (start block + next readable block, middle blocks fully covered) | Dragging handles across two blocks in one gesture; Copy/Dictionary of a multi-block range (still block-local); selection across chapters/pages |
+| EPUB, TXT, Markdown (the shared text pipeline), including multi-paragraph selection via **More** (start block + following readable blocks, all highlighted; Copy/Note/Underline apply to the combined range, Dictionary to the selected word) | Dragging handles across two blocks in one gesture; selection across chapters/pages |
 | PDFs with a text layer, including cropped pages and Zoom / Scroll | Image-only PDFs (would need OCR) |
 | Underline as the only style | Highlight colors or other styles, which would break the black-and-white rule |
 

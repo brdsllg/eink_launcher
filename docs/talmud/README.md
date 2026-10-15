@@ -7,11 +7,13 @@ reader contract; where this folder is silent, `docs/tanach/docs/tanach-epub.md` 
 segment because the pipeline rewrites it; its readable summary is in
 `docs/tanach/outputs/reader-compatibility.md`.
 
-**Status (7 Oct 2026):** the six-tractate pilot is built and passes EPUBCheck and
-link checks. Whether each device problem is fixed is recorded only in the issue
-tracker in [DEVICE_TESTING.md](../DEVICE_TESTING.md) (Talmud items are TAL-001 to
-TAL-014; detail in `docs/reader-device-findings.md`). Still to do: rebuild the pilot
-books and sidecars, building the other 31 tractates, and the scale-up work.
+**Status (7 Oct 2026, builder facts to 11 Oct):** the six-tractate pilot is built and
+passes EPUBCheck and link checks. Whether each device problem is fixed is recorded
+only in the issue tracker in [DEVICE_TESTING.md](../DEVICE_TESTING.md) (Talmud
+items are TAL-001 to TAL-014; detail in `docs/reader-device-findings.md`). Still
+to do: rebuild the pilot books (Vocalized Aramaic fix 11 Oct: inventory prefers it,
+download-plan swapped for all 37, Berakhot cache 227k marks verified) and sidecars
+into `study/`, building the other 31 tractates, and the scale-up work.
 
 ## What it produces
 
@@ -63,10 +65,16 @@ python talmud/work/regenerate.py --masechta Berakhot  # rebuild one tractate fro
 
 ## Next steps, in order
 
-1. **Rebuild the pilot books and sidecars**, then check on the Bigme that the first
-   open is fast (TAL-014). The checklist is in `docs/reader-device-findings.md`.
-2. **Scaling work:** index comments per source instead of rescanning for every link
-   row, build one tractate at a time, keep one edition per language.
+1. **Rebuild the pilot books and sidecars into `study/`**, then check on the Bigme
+   that the first open is fast (TAL-014) and the vowel toggle shows on Berakhot 2a
+   (TAL-013, Vocalized Aramaic fix). The checklist is in
+   `docs/reader-device-findings.md`.
+2. **Scaling work (done 9 Oct in builder):** per-masechta normalize with freed
+   memory, batched downloads (50/batch, 4 workers, resumable), single-book
+   `--masechta` for sync + build, single-book reports that never clobber the full
+   report. Remaining: per-source search index + picker grouping.
+   Index comments per source instead of rescanning for every link row, build one
+   tractate at a time, keep one edition per language.
 3. **Measure** one big tractate with 2, then about 5, then all sources: EPUB size,
    largest amud, first-open time, peak memory, page-turn speed, search speed.
 4. **Decide** from those numbers whether to keep EPUB packaging or have the pipeline

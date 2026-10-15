@@ -3,8 +3,8 @@
 The one place for everything checked on the physical device: what was tested, what
 broke, whether it is fixed, and what to check next.
 
-Last updated: 7 Oct 2026. This file was restructured into an issue tracker on that
-date. Statuses and the status log were reconstructed from the older notes, so some
+Last updated: 15 Oct 2026. This file was restructured into an issue tracker on 7 Oct
+2026. Statuses and the status log were reconstructed from the older notes, so some
 change dates are the date a pass reported them, not the exact day of the fix.
 
 Device: all tests so far used a **Bigme HiBreak (model B751C)** (Android 14, arm64,
@@ -40,16 +40,16 @@ Every issue has exactly one of these. Nothing else is allowed.
 
 | ID | Problem | Status | Next step | Updated |
 | --- | --- | --- | --- | --- |
-| SEL-002 | Selection cannot be stretched over several paragraphs. The **More** button does not do what you asked for. | **OPEN** | Rework **More** so it stretches the selection itself across paragraphs, then Copy, Dictionary, Add Note and Underline apply to the whole range. Dragging the handles across paragraphs is a separate, later feature. | 6 Oct 2026 |
+| SEL-002 | Selection cannot be stretched over several paragraphs. The **More** button does not do what you asked for. | **FIX BUILT** | Rebuilt 11 Oct: **More** stretches the selection itself across paragraphs (repeatable), then Copy, Dictionary, Add Note and Underline apply to the whole range. Needs device check. Dragging the handles across paragraphs is a separate, later feature. | 11 Oct 2026 |
 | SEL-003 | Selection handles: flipping one handle past the other makes the other handle jump a few letters or a whole word. | **OPEN** | A fix was built 6 Oct and did not cure it. Needs another attempt. | 6 Oct 2026 |
 | SEL-004 | Selection handles in Hebrew: dragging the right handle pulls the left handle along (and the reverse) before they flip. | **OPEN** | Needs a fix. | 6 Oct 2026 |
 | SEL-005 | Selection handles in a paragraph that mixes Hebrew and English behave strangely. | **OPEN** | Write down one exact paragraph (book and place) where it happens, then fix. | 6 Oct 2026 |
-| TAN-004 | Literal words `span`, `class` and `nbsp` appear inside Hebrew verses. Exact places: Genesis 7:2 (twice), 7:11, 7:23, 8:14, 9:17. More are expected elsewhere. | **OPEN** | Find out whether the book builder or the reader causes it, then fix. | 6 Oct 2026 |
-| TAN-005 | First open of Genesis takes 1 min 45 s (later opens take about 2 s) because no Tanach sidecar files have been built. | **OPEN** | Build the sidecars after the rebuilt books exist and copy them to the device. Expected result: first open close to the 2 s reopen time. | 6 Oct 2026 |
-| TAN-006 | Request: keep the sidecar files in their own folder instead of next to each book. | **OPEN** | Needs a design. See `docs/tanach/docs/tanach-epub.md`. | 6 Oct 2026 |
+| TAN-004 | Literal words `span`, `class` and `nbsp` appear inside Hebrew verses. Exact places: Genesis 7:2 (twice), 7:11, 7:23, 8:14, 9:17. `span` search returns 202 matches in Genesis; all books affected. | **FIX BUILT** | Cause found 11 Oct: `hebrew()` in `tanach/work/build.py` escaped raw source markup; now strips to clean text (section markers kept), host-verified over 23,206 verses. Rebuild EPUBs + sidecars into `study/`, then recheck verses clean and `span` search 0. | 11 Oct 2026 |
+| TAN-005 | First open of Genesis takes 1 min 45 s (later opens take about 2 s) because no Tanach sidecar files have been built. | **FIX BUILT** | Reader checks `<books-dir>/study/<book>.study.sqlite` first with next-to-EPUB fallback; build with `dart run tool/build_study_index.dart <books-dir> --out <books-dir>/study` after the rebuilt books exist and copy them to the device. Expected result: first open close to the 2 s reopen time. | 11 Oct 2026 |
+| TAN-006 | Request: keep the sidecar files in their own folder instead of next to each book. | **FIX BUILT** | Built 11 Oct: `study/` subfolder checked first with next-to-EPUB fallback. See `docs/tanach/docs/tanach-epub.md`. Needs rebuilt books + device check. | 11 Oct 2026 |
 | TAL-006 | An unexplained log line: "Another exception was thrown: DiagnosticsProperty<void>". | **NEEDS INFO** | Capture the full error text just above that line. See [the Talmud findings](talmud/docs/reader-device-findings.md). Do not guess a fix. | 6 Oct 2026 |
 | TAL-012 | The Talmud **Paragraphs / Continuous** setting changes nothing you can see. | **DECIDED** | Decision (Levi, 6 Oct 2026): remove the setting. | 6 Oct 2026 |
-| TAL-013 | Vowel marks and punctuation do not show in the Talmud text, although the Sefaria website shows them on all of Talmud. | **NEEDS INFO** | Investigate what Sefaria's data feed actually supplies for Talmud. Decision (Levi, 6 Oct 2026): there is no vowel setting for Tanach and there should not be one. | 6 Oct 2026 |
+| TAL-013 | Vowel marks and punctuation do not show in the Talmud text, although the Sefaria website shows them on all of Talmud. | **FIX BUILT** | Cause found: pipeline picked Sefaria's unpointed Aramaic edition. Fixed 11 Oct: inventory prefers Vocalized Aramaic, download-plan swapped for all 37, Berakhot cache verified (227k marks, 0 cantillation). Rebuild EPUBs + sidecars, then recheck the toggle on Berakhot 2a. Decision (Levi, 6 Oct 2026): there is no vowel setting for Tanach and there should not be one. | 11 Oct 2026 |
 | TAL-014 | First open of Berakhot took 21 s. It should be nearly instant if the sidecar file is working. | **NEEDS INFO** | Check that the Berakhot sidecar is fresh (matches the current book), then time the first open again. | 6 Oct 2026 |
 | BRW-001 | File browser acted oddly once after closing all open tabs. | **WATCHING** | Could not be repeated. If it happens again, write down the exact steps. Keep in the next device pass. | 5 Oct 2026 |
 
@@ -89,6 +89,10 @@ books first (see the [checklist](#checklist-for-the-next-device-pass)).
 
 One line per change, newest first. Older dates are when a pass reported the change.
 
+- **15 Oct 2026 (merge):** kept the 7 Oct tracker structure, ported 8–11 Oct remote
+  facts: TAN-004 OPEN → FIX BUILT (markup cause + 23,206-verse check). TAN-005,
+  TAN-006 OPEN → FIX BUILT (`study/` subfolder). TAL-013 NEEDS INFO → FIX BUILT
+  (Vocalized Aramaic, 227k marks). SEL-002 OPEN → FIX BUILT (More-chain rebuild).
 - **7 Oct 2026:** TAN-001 OPEN → FIXED (owner confirmed on the HiBreak).
 - **6 Oct 2026, follow-up pass:** TAL-010 FIX BUILT → FIXED. TAL-011 FIX BUILT →
   FIXED. TAL-012 reported, then DECIDED (remove the setting). TAL-013 reported as a

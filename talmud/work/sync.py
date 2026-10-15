@@ -65,26 +65,47 @@ def key(value):
     return hashlib.sha256(value.encode()).hexdigest()[:24]
 
 
-def batch(items):
+def batch(items, batch_size=50, max_workers=4):
+    """Download in small batches so a 1000+ file run won't spike memory.
+
+    Already-cached files are skipped inside fetch(), so re-running after an
+    interruption resumes where it stopped. Progress prints per batch.
+    """
     failures = []
-    with cf.ThreadPoolExecutor(max_workers=8) as pool:
-        futures = {pool.submit(fetch, u, p): (u, p) for u, p in items}
-        for i, f in enumerate(cf.as_completed(futures), 1):
-            u, p = futures[f]
-            try:
-                f.result()
-            except Exception as ex:
-                failures.append(dict(url=u, path=str(p), error=str(ex)))
-            if i % 50 == 0:
-                print(f'{i}/{len(futures)} downloaded or cached', flush=True)
+    total = len(items)
+    done = 0
+    for start in range(0, total, batch_size):
+        chunk = items[start:start + batch_size]
+        with cf.ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {pool.submit(fetch, u, p): (u, p) for u, p in chunk}
+            for f in cf.as_completed(futures):
+                u, p = futures[f]
+                try:
+                    f.result()
+                except Exception as ex:
+                    failures.append(dict(url=u, path=str(p), error=str(ex)))
+                done += 1
+        print(f'{done}/{total} downloaded or cached', flush=True)
     print(
-        f'Finished {len(futures)} requests; failures: {len(failures)}', flush=True
+        f'Finished {total} requests; failures: {len(failures)}', flush=True
     )
     return failures
 
 
 if __name__ == '__main__':
-    mode = sys.argv[1] if len(sys.argv) > 1 else ''
+    import argparse
+    parser = argparse.ArgumentParser(description='Download Sefaria data (steady, resumable).')
+    parser.add_argument('mode', nargs='?', default='',
+                        help='catalog inspect schemas texts links java epubcheck')
+    parser.add_argument('--masechta', default=None,
+                        help='Only fetch this masechta and its commentaries (steady one-book-at-a-time).')
+    parser.add_argument('--batch-size', type=int, default=50,
+                        help='Files per batch (default 50). Lower if rate-limited.')
+    parser.add_argument('--workers', type=int, default=4,
+                        help='Parallel downloads (default 4). Lower if rate-limited.')
+    args, _unknown = parser.parse_known_args()
+    # Back-compat: `sync.py texts` etc. still works; argparse picks mode up.
+    mode = args.mode or (sys.argv[1] if len(sys.argv) > 1 else '')
 
     if mode == 'catalog':
         failures = batch([
@@ -164,6 +185,13 @@ if __name__ == '__main__':
             s['title'] for s in config['sources'] if s['status'] == 'include'
         ]
         all_titles = masechta_titles + commentary_titles
+        if args.masechta:
+            # Steady: only this masechta + commentaries ending in ' on <masechta>'.
+            all_titles = [
+                t for t in all_titles
+                if t == args.masechta or t.endswith(f' on {args.masechta}')
+            ]
+            print(f'Schemas filtered to {args.masechta}: {len(all_titles)} titles', flush=True)
         items = [
             (
                 BASE + 'schemas/' + urllib.parse.quote(t.replace(' ', '_'), safe='') + '.json',
@@ -181,6 +209,13 @@ if __name__ == '__main__':
             )
             raise SystemExit(1)
         plan = json.loads(plan_path.read_text(encoding='utf-8'))
+        if args.masechta:
+            # Steady: only this masechta's base + its commentaries.
+            plan = [
+                b for b in plan
+                if b['title'] == args.masechta or b['title'].endswith(f' on {args.masechta}')
+            ]
+            print(f'Texts filtered to {args.masechta}: {len(plan)} files', flush=True)
         items = [
             (b['json_url'], CACHE / 'texts' / f"{key(b['json_url'])}.json")
             for b in plan
@@ -214,7 +249,7 @@ if __name__ == '__main__':
         )
         raise SystemExit(1)
 
-    failures = batch(items)
+    failures = batch(items, batch_size=args.batch_size, max_workers=args.workers)
     (CACHE / f'{mode}-failures.json').write_text(json.dumps(failures, indent=2))
     if failures:
         print(f'WARNING: {len(failures)} failures written to {mode}-failures.json')

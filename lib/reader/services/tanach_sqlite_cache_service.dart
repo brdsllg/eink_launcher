@@ -86,14 +86,35 @@ class TanachSqliteCacheService {
     }
   }
 
-  /// Sidecar path for a laptop-built index: `<base>.study.sqlite` next to the
-  /// EPUB (e.g. `berakhot.epub` → `berakhot.study.sqlite`). The laptop
-  /// pipeline (tool/build_study_index.dart) writes this name; copy the pair
-  /// onto the device together.
+  /// Sidecar paths for a laptop-built index: `<base>.study.sqlite`, either in
+  /// the `study` subfolder next to the EPUB (preferred, e.g.
+  /// `books/study/berakhot.study.sqlite` for `books/berakhot.epub`) or right
+  /// next to the EPUB (legacy, e.g. `books/berakhot.study.sqlite`). The laptop
+  /// pipeline (tool/build_study_index.dart `--out <books-dir>/study`) writes the
+  /// subfolder layout; copy the folder onto the device together with the EPUBs.
+  static const String sidecarSubdirName = 'study';
+
   static String sidecarPathForEpub(String epubPath) =>
       '${epubPath.replaceAll(RegExp(r'\.epub$', caseSensitive: false), '')}.study.sqlite';
 
-  /// Adopts a laptop-built sidecar index sitting next to the EPUB.
+  static String sidecarSubdirPathForEpub(String epubPath) {
+    final epub = File(epubPath);
+    final parent = epub.parent.path;
+    final base = epub.uri.pathSegments.last.replaceAll(
+      RegExp(r'\.epub$', caseSensitive: false),
+      '',
+    );
+    return '$parent/$sidecarSubdirName/$base.study.sqlite';
+  }
+
+  /// Sidecar candidates in lookup order: subfolder first, next-to-EPUB second.
+  static List<String> sidecarCandidatesForEpub(String epubPath) => [
+        sidecarSubdirPathForEpub(epubPath),
+        sidecarPathForEpub(epubPath),
+      ];
+
+  /// Adopts a laptop-built sidecar index, either from the `study` subfolder or
+  /// sitting next to the EPUB.
   ///
   /// Returns null (and falls through to the normal import) when the sidecar
   /// is missing, stale (EPUB fingerprint mismatch), or corrupt. On success the
@@ -103,32 +124,35 @@ class TanachSqliteCacheService {
     DocRef doc, {
     required String fingerprint,
   }) async {
-    final sidecar = File(sidecarPathForEpub(doc.path));
-    if (!await sidecar.exists()) return null;
-    ParsedBook? skeleton;
-    try {
-      skeleton = await Isolate.run(
-        () => _readSkeleton(sidecar.path, fingerprint: fingerprint),
-      );
-    } catch (_) {
-      return null;
+    for (final candidate in sidecarCandidatesForEpub(doc.path)) {
+      final sidecar = File(candidate);
+      if (!await sidecar.exists()) continue;
+      ParsedBook? skeleton;
+      try {
+        skeleton = await Isolate.run(
+          () => _readSkeleton(sidecar.path, fingerprint: fingerprint),
+        );
+      } catch (_) {
+        continue;
+      }
+      if (skeleton == null) continue;
+      final file = await databaseFile(doc);
+      try {
+        await file.parent.create(recursive: true);
+        await sidecar.copy(file.path);
+        await _trim(file.parent, keepPath: file.path);
+      } catch (_) {
+        return null;
+      }
+      try {
+        return await Isolate.run(
+          () => _readSkeleton(file.path, fingerprint: fingerprint),
+        );
+      } catch (_) {
+        return null;
+      }
     }
-    if (skeleton == null) return null;
-    final file = await databaseFile(doc);
-    try {
-      await file.parent.create(recursive: true);
-      await sidecar.copy(file.path);
-      await _trim(file.parent, keepPath: file.path);
-    } catch (_) {
-      return null;
-    }
-    try {
-      return await Isolate.run(
-        () => _readSkeleton(file.path, fingerprint: fingerprint),
-      );
-    } catch (_) {
-      return null;
-    }
+    return null;
   }
 
   Future<ParsedBook> import(

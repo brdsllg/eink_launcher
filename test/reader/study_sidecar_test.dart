@@ -30,6 +30,22 @@ void main() {
     );
   });
 
+  test('subfolder sidecar path lives under the study directory', () {
+    expect(
+      TanachSqliteCacheService.sidecarSubdirPathForEpub(
+        '/books/berakhot.epub',
+      ),
+      '/books/study/berakhot.study.sqlite',
+    );
+    expect(
+      TanachSqliteCacheService.sidecarCandidatesForEpub('/books/berakhot.epub'),
+      [
+        '/books/study/berakhot.study.sqlite',
+        '/books/berakhot.study.sqlite',
+      ],
+    );
+  });
+
   test('laptop fingerprint matches the device file hash', () async {
     // The device computes sha256 over the raw file bytes
     // (ParsedEpubCacheService._fingerprint); the laptop tool must hash the
@@ -124,6 +140,65 @@ void main() {
     expect(
       await service.adoptSidecar(doc, fingerprint: fingerprint),
       isNull,
+    );
+  });
+
+  test('adoptSidecar finds the sidecar in the study subfolder', () async {
+    final epub = File('${directory.path}/tamid.epub');
+    await epub.writeAsString('epub bytes');
+    final fingerprint =
+        (await sha256.bind(epub.openRead()).first).toString();
+    final doc = DocRef(
+      id: 'tamid-test',
+      path: epub.path,
+      format: DocFormat.epub,
+      title: 'Tamid',
+      fileSize: await epub.length(),
+    );
+    final service = TanachSqliteCacheService(
+      cacheDirectory: Directory('${directory.path}/cache'),
+    );
+    final subdirSidecar = File(
+      TanachSqliteCacheService.sidecarSubdirPathForEpub(epub.path),
+    );
+    await subdirSidecar.parent.create(recursive: true);
+    await TanachSqliteCacheService.writeDatabaseForExport(
+      subdirSidecar.path,
+      _book(),
+      fingerprint,
+    );
+
+    final adopted = await service.adoptSidecar(doc, fingerprint: fingerprint);
+    expect(adopted, isNotNull);
+    expect(adopted!.hasLazyTanachContent, isTrue);
+  });
+
+  test('adoptSidecar prefers the subfolder but falls back next to the EPUB',
+      () async {
+    final epub = File('${directory.path}/tamid.epub');
+    await epub.writeAsString('epub bytes');
+    final fingerprint =
+        (await sha256.bind(epub.openRead()).first).toString();
+    final doc = DocRef(
+      id: 'tamid-test',
+      path: epub.path,
+      format: DocFormat.epub,
+      title: 'Tamid',
+      fileSize: await epub.length(),
+    );
+    final service = TanachSqliteCacheService(
+      cacheDirectory: Directory('${directory.path}/cache'),
+    );
+
+    // Only the legacy next-to-EPUB sidecar exists: still adopted.
+    await TanachSqliteCacheService.writeDatabaseForExport(
+      TanachSqliteCacheService.sidecarPathForEpub(epub.path),
+      _book(),
+      fingerprint,
+    );
+    expect(
+      await service.adoptSidecar(doc, fingerprint: fingerprint),
+      isNotNull,
     );
   });
 

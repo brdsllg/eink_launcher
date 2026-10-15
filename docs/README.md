@@ -15,11 +15,11 @@ sideloading. It has been tested on a Bigme HiBreak (model B751C, Android 14).
   `build/app/outputs/flutter-apk/app-release.apk`
   (SHA-256 `01D04659FC1BEB73F5A7F8767A357ACAA1E7078E82CA8701E9C1A4C80958706E`).
   Earlier trial APKs stay in the same folder for comparison.
-- **Latest source checks (6 Oct 2026):** The focused reader, selection, browser, and
-  study-book tests pass including new Continuous/commentary-order/vowel-range
-  regressions. `flutter analyze` is clean. Rebuild EPUBs (parsha-order fix) and
-  sidecars before the next HiBreak pass. See
-  [DEVICE_TESTING.md](DEVICE_TESTING.md).
+- **Latest source checks:** study sidecar tests pass, including the new
+  `study/` subfolder lookup with next-to-EPUB fallback
+  (`test/reader/study_sidecar_test.dart`). Rebuild EPUBs (11 Oct markup-word fix,
+  host-verified over 23,206 verses) and sidecars into `study/` before the next
+  HiBreak pass. See [DEVICE_TESTING.md](DEVICE_TESTING.md).
 - **Device status:** for whether any specific problem is fixed, see the issue tracker
   in [DEVICE_TESTING.md](DEVICE_TESTING.md). It is the only place that says so. In
   short: PDF reading, startup, app drawer, battery, page buttons, dictionaries, tabs

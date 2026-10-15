@@ -36,8 +36,13 @@ traditional 37 tractates with Gemara. Pilot first, measure, then scale.
 ### Text
 
 - Hebrew/Aramaic as one stream with no special handling of the mix.
-- Vowel points included. A reader setting hides them at display time; there is only
-  one build. Cantillation is stripped.
+- Vowel points included: the base text is Sefaria's **William Davidson
+  Edition – Vocalized Aramaic** (all 37 masechtos carry it; Berakhot holds
+  ~227k marks in U+0591–05C7, zero cantillation — verified Oct 2026 from
+  the export bucket). The old pipeline preferred the unpointed Aramaic
+  edition, which is why the reader toggle did nothing on Talmud.
+  A reader setting hides vowels at display time; there is only one build.
+  Cantillation is stripped (none present in this edition).
 - English: William Davidson (Steinsaltz) translation exactly as Sefaria has it.
   Missing segments stay blank: nothing invented, no substitute edition.
 
@@ -151,6 +156,50 @@ per-source full-text index still future). Details and device findings are in
   re-measure each time, because some tractates have many more commentaries than
   others. `inventory_report.py` lists every commentary Sefaria links to the Bavli.
   Still open (needs the measurements).
+
+## Measurements (10 Oct 2026, HiBreak, release APK incl. sidecar-subfolder support)
+
+First full-commentary big-tractate run: **Bava Batra** (largest pilot book),
+all 38 blacklist-policy commentary sources (47 edition files). Built with the
+uncommitted steady one-masechta path (`sync.py --masechta`, `build.py
+--masechta`); per-book report in `talmud/outputs/build-report-bava-batra.json`.
+Device file kept as `bava-batra-full.epub` next to the pilot books.
+
+| Measure | Full Bava Batra | Pilot Bava Batra (for reference) |
+|---|---|---|
+| EPUB size | 10,082,328 bytes (~9.6 MiB) | 4,156,256 bytes |
+| Segments / notes | 3,804 / 34,030 | ~12,636 notes |
+| Largest amud | 4b, 432,008 bytes XHTML (amudim total 48.5 MB uncompressed) | — |
+| EPUBCheck | clean (see fix note below) | clean |
+| Sidecar (`study/`, laptop-built) | 70,479,872 bytes, fingerprint verified = EPUB SHA-256 | — |
+| Cold first open (no sidecar, on-device import) | ~2.5–3 min (intent 23:33:48, Loading at 23:34/23:35, content by 23:36; coarse screencap bounds) | 21 s (6 Oct, pilot) |
+| Memory at import completion | PSS 154 MB, RSS 245 MB (peak *during* import not captured) | — |
+| Warm reopen (force-stop + intent) | instant (activity 1.36 s, content rendered, no Loading) | 1–2 s |
+| Page turns (D-pad + tap) | work, bilingual segments render (2a:2–2b:3 verified) | pass |
+| TOC screen | renders, 27 pages, Daf 2a link jumps p1 → p17 correctly | pass |
+| Search for a common word | **not measured** (search UI would not open via adb taps) | — |
+
+- **Builder fix (uncommitted, `talmud/work/build.py`):** Sefaria embeds raw
+  U+001F runs in some commentaries; first full build failed EPUBCheck (2
+  fatals RSC-016 + 78 cascading RSC-012). Added `strip_controls()` at the
+  `clean()`/`plaintext()` chokepoints; rebuilt book validates clean.
+  `tanach/work/build.py` has the same latent exposure (no control stripping)
+  — flagged, not yet fixed/verified.
+- **Reader finding (minor):** the book's own Contents page (`nav.xhtml`)
+  renders heading-only in the reading view; the native TOC screen is fine.
+- **Footer page totals are progressive estimates**, not stable counts
+  (portrait 1148 → 1731; landscape 66 → 566 → 1107 → 1884 as background
+  pagination converges). Do not quote them as measurements.
+- **APK size note:** universal `flutter build apk --release` is now 101 MB
+  (3 ABIs incl. pdfium); owner's 8 Oct build was 46 MB. Consider
+  `--split-per-abi` or arm64-only for device distribution.
+- **Device state left behind:** this tab is in Landscape (automation could not
+  flip the toggle back — one owner tap restores Portrait); pilot books
+  untouched; `bava-batra-full.epub` + `study/bava-batra-full.study.sqlite`
+  on device; no logcat exceptions this pass.
+- Still open for the decision gate: peak memory *during* import, page-turn
+  milliseconds, search timing with many sources selected, and the
+  repeat for Shabbat.
 
 ## Resolved
 

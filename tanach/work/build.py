@@ -58,6 +58,18 @@ def hebrew(s,ref):
         lambda m:m.group(1),s)
     # MAM can also emit an unpaired ketiv span (for example Ruth 3:12).
     s=re.sub(r'<span class="mam-kq-k">\((.*?)\)</span>',lambda m:m.group(1),s)
+    # Remaining MAM/source markup must never reach html.escape(): anything left
+    # as a literal tag would render as visible "span"/"class"/"nbsp" words and
+    # pollute search (owner: "span" matches 202x in Genesis, all books affected).
+    # Drop Masoretic footnote variants entirely; unwrap inline marks keeping text.
+    s=re.sub(r'<sup\s+class="footnote-marker".*?</sup>','',s,flags=re.S)
+    s=re.sub(r'<i\s+class="footnote".*?</i>','',s,flags=re.S)
+    s=re.sub(r'<br\s*/?>',' ',s)
+    s=re.sub(r'</?(?:b|small|big|sup|sub|i|em|strong|u|span)(?:\s[^>]*)?>','',s)
+    s=html.unescape(s)
+    s=s.replace(chr(0xa0),' ').replace(chr(0x2009),' ').replace(chr(0x200a),' ').replace(chr(0x2006),' ').replace(chr(0x2007),' ')
+    s=re.sub(r'<[^>]+>','',s)
+    s=re.sub(r'\s+',' ',s).strip()
     # The export has unpointed ketiv before one or more [pointed qere] groups.
     # A maqaf can join either side, and multiword qere is sometimes split over
     # adjacent bracket groups (for example, אשדת [אֵשׁ] [דָּת]).
