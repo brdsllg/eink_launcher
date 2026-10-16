@@ -283,4 +283,182 @@ Do not claim that adding more yields alone bounds every operation.
 - Move large JSON conversion and page reconstruction off the UI isolate.
 - Keep expensive pure projection off the UI isolate on fallback paths too.
 - Bound outstanding writes and retained payloads; coalesce superseded optional work where safe.
-- Preserve complete-entry semantics, settings/c
+- Preserve complete-entry semantics, settings/content keys, failure recovery, and safe file replacement.
+- Measure worker startup, transfer, and result-consumption costs before choosing short-lived versus persistent workers.
+
+`TextPainter`/`dart:ui` layout must not be moved into `Isolate.run`; worker candidates are pure-data work.[^isolates]
+
+#### F. Run a current-chapter-only control experiment
+
+Temporarily suppress automatic distant-chapter pagination while retaining on-demand navigation. Compare otherwise identical runs.
+
+Improvement would support unnecessary background workload as a contributor; it would not isolate one function. This experiment is not the finished three-behind/two-ahead feature, and incomplete page totals must not be presented as whole-book totals.
+
+**Decision point:** if traces instead implicate native/plugin blocking or another path, change the investigation priority. Do not force the evidence to fit pagination.
+
+### Step 4. Revisit the broader reflow design after the targeted work
+
+Keep `responsive-reader-reflow-plan.md` as the larger design track. Preserve its semantic anchors, shared layout requests, generation checks, coherent old-page snapshot, and page-window goals.[^plan]
+
+Before adopting sparse/segment pagination:
+
+- Preserve source-based positions and fallback behavior rather than saving page numbers as anchors.
+- Keep the old page, blocks, settings, and required resources coherent until replacement.
+- Swap the new target page and its matching data together.
+- Define the intended window as three rendered pages behind, one selected page, and two ahead—not six whole chapters.
+- Bound text, geometry, measurements, native layout objects, and in-flight work separately.
+- Preserve canonical prefix layout until restart/checkpoint equivalence or another boundary model has executable coverage proof.
+- Do not assume restarting at an arbitrary offset yields the same page boundaries.
+- Define page-number and percent-jump semantics for incomplete layouts.
+
+Splitting a large paragraph or changing projection boundaries requires geometry, source-offset, bidirectional-text, selection, and annotation regression coverage. It is not automatically a safe performance shortcut.
+
+## 5. Tests and acceptance criteria
+
+### Automated checks
+
+Retain the existing reader tests and extend the relevant files, particularly:
+
+- `test/reader/epub_paginator_service_test.dart`
+- `test/reader/text_reader_session_test.dart`
+- `test/reader/text_page_view_test.dart`
+- `test/reader/pagination_cache_service_test.dart`
+- `test/reader/tanach_session_test.dart`
+- `test/reader/tanach_pagination_test.dart`
+- `test/reader/annotation_selection_test.dart`
+- `test/reader/state_and_epub_recovery_test.dart`
+
+Required coverage:
+
+- [ ] Responsive/synchronous/cached measurement paths produce equivalent geometry and ordered source coverage.
+- [ ] Many small blocks, one large block, split headings, images, RTL/LTR mixtures, vowel settings, and hyphenation are covered.
+- [ ] Cancellation is checked before the next generator advance/measure and no superseded work publishes.
+- [ ] A timer scheduled during an active run can execute before that run finishes; test many-block and single-block slicing cases separately.
+- [ ] Timer progress is not misrepresented as a bound on one synchronous measurement.
+- [ ] Unrelated progress does not trigger fresh text layout for unchanged visible content.
+- [ ] Genuine page, annotation, selection, and settings changes still update correctly.
+- [ ] Navigation waiters do not depend on throttled progress notifications.
+- [ ] Cache hit/miss/invalid-entry/failure paths remain correct, with no partial layout stored as complete.
+- [ ] Suspend, memory pressure, disposal, and rapid settings changes release/cancel owned work correctly.
+- [ ] Bookmarks, semantic anchors, search targets, links, and annotation mapping survive.
+- [ ] Any segment-window implementation proves gap-free/nonduplicated coverage and backward/forward chapter-edge navigation.
+
+Existing session tests use synthetic books and controlled futures. Their presence is useful but does not demonstrate B751C responsiveness or bound a single UI-thread operation.
+
+Before proposing an implementation as validated:
+
+```bash
+flutter analyze
+flutter test test/reader
+```
+
+Also run affected project-level tests, including lifecycle/navigation tests, and the device checks below. Commands are proposed gates, not commands executed for this report.
+
+### Device checks
+
+Start with the exact Tamid file and settings that reproduce the issue, then include a larger tractate.
+
+Cover:
+
+- First open with cold pagination data and reopen with warm data.
+- Returning through a retained session versus a confirmed process restart.
+- Repeated forward/backward turns, including chapter edges.
+- Commentary, font-size, and vowel-display changes.
+- Suspend/resume and recovery after memory pressure.
+- Baseline, each isolated change, and the combined candidate.
+- Profile-mode diagnosis and release-mode confirmation.
+
+Run repeated comparable attempts; record the attempt count and failures. No ANR in one run is not proof of elimination. Agree on numerical responsiveness and memory budgets before acceptance; the five-second ANR timeout is not a usability target.
+
+| Metric | Baseline | Candidate |
+| --- | --- | --- |
+| Run count and exact reproduction scenario | Not collected | Not collected |
+| Longest foreground heartbeat delay | Not collected | Not collected |
+| Block measurement p50/p95/max and sample count | Not collected | Not collected |
+| Visible build/paint layout counts and durations | Not collected | Not collected |
+| Publication/index p50/p95/max | Not collected | Not collected |
+| Cache conversion p50/p95/max and peak queue | Not collected | Not collected |
+| Settings-to-target-ready and first-rendered latency | Not collected | Not collected |
+| Forward/backward navigation wait | Not collected | Not collected |
+| Peak resident pages, memory, and retained native objects | Not collected | Not collected |
+| ANR count and associated trace identifiers | Not collected | Not collected |
+
+## 6. Documentation integration and handoff
+
+Add this as a companion investigation document, not a replacement for the reflow plan.
+
+Suggested additions:
+
+In `docs/README.md`:
+
+```markdown
+- [Text reader ANR investigation](talmud/docs/reader-anr-investigation.md) — evidence, suspected causes, and validation steps.
+```
+
+In `docs/talmud/docs/responsive-reader-reflow-plan.md`:
+
+```markdown
+## Related ANR investigation
+
+See [Text reader ANR investigation](reader-anr-investigation.md) for the current
+code findings and targeted performance-validation sequence. The reflow design
+is not yet a demonstrated fix for the reported input-dispatch ANR.
+```
+
+Record new device results in the active testing documentation, such as `docs/DEVICE_TESTING.md`, or a clearly linked new run log. Do not silently edit archived results to imply that new testing occurred.
+
+### First implementation handoff
+
+1. Match the source and installed build; preserve the reproduction inputs.
+2. Add bounded per-phase timings and unchanged-page layout counters.
+3. Capture a baseline without changing pagination boundaries.
+4. Test one targeted change at a time, beginning with the measured dominant path.
+5. Re-run correctness tests and compare device evidence.
+6. Update this document with measured findings, including hypotheses weakened or rejected.
+7. Seek owner review before merging; documentation creation is not authorization for a production rewrite.
+
+## 7. Current validation status
+
+- Source inspection: completed for the files and paths identified above.
+- Exact failing APK mapped to reviewed source: not established.
+- Full ANR stack or exported CPU/system trace analyzed for this report: no.
+- Actual projected block-size distribution: not measured.
+- Flutter analysis, test suite, Android build, or B751C benchmark executed for this report: no.
+- Application implementation changed by this report: no.
+- Confirmed root cause or validated ANR fix: no.
+
+**Working conclusion:** investigate repeated UI-isolate layout and publication first, while measuring cache/loading alternatives. Keep correctness and measured input responsiveness as separate acceptance gates.
+
+## References
+
+Repository paths are root-relative descriptions. Bundle-derived findings come from the owner's uploaded source, not assumptions about current `main`. The externally retrieved renderer and screen were pinned to the reported commit. Official documentation was consulted on October 16, 2026.
+
+[^paginator]: Owner-supplied `reader_bundle.txt`, section `lib/reader/services/epub_paginator_service.dart`; symbols `_steps`, `paginateSpineResponsive`, and `TextBlockLayout`.
+
+[^session]: Owner-supplied `reader_bundle.txt`, section `lib/reader/controllers/text_reader_session.dart`; symbols `_repaginate`, `_runPagination`, `_publishChapter`, `_rebuildPages`, `_ensureChapterLoaded`, and `_trimResidentChapters`.
+
+[^page]: Owner-supplied `reader_bundle.txt`, section `lib/reader/widgets/text_page_view.dart`; `_TextPageViewState.build` and annotation-list construction.
+
+[^cache]: Owner-supplied `reader_bundle.txt`, section `lib/reader/services/pagination_cache_service.dart`; `load`, `save`, `_save`, and `_trim`.
+
+[^loading]: Owner-supplied `reader_bundle.txt`, sections `lib/reader/services/parsed_epub_cache_service.dart`, `lib/reader/services/tanach_sqlite_cache_service.dart`, and `lib/reader/services/epub_parser_service.dart`.
+
+[^renderer]: Commit-pinned `lib/reader/widgets/block_slice_view.dart`, especially `_BlockSliceViewState.build`, `_TextBlockPainter.paint`, and `shouldRepaint`. Source: `https://raw.githubusercontent.com/brdsllg/eink_launcher/67e06dcd91c3e9628d95ef04694ef47d45bebb83/lib/reader/widgets/block_slice_view.dart`.
+
+[^screen]: Commit-pinned `lib/reader/screens/reader_screen.dart`, especially `build`, `_buildShell`, and the `TextPageView` construction. Source: `https://raw.githubusercontent.com/brdsllg/eink_launcher/67e06dcd91c3e9628d95ef04694ef47d45bebb83/lib/reader/screens/reader_screen.dart`.
+
+[^plan]: Owner-supplied responsive-reflow plan and commit-pinned repository copy at `docs/talmud/docs/responsive-reader-reflow-plan.md`: `https://raw.githubusercontent.com/brdsllg/eink_launcher/67e06dcd91c3e9628d95ef04694ef47d45bebb83/docs/talmud/docs/responsive-reader-reflow-plan.md`.
+
+[^android]: Android Developers, “Diagnose and fix ANRs,” input-dispatch timeout section: `https://developer.android.com/topic/performance/anrs/diagnose-and-fix-anrs`.
+
+[^threading]: Flutter, “Merged threads on macOS and Windows,” context describing the preceding Android/iOS default merge: `https://docs.flutter.dev/release/breaking-changes/macos-windows-merged-threads`.
+
+[^yield]: Dart API, `Future.delayed` constructor: `https://api.dart.dev/dart-async/Future/Future.delayed.html`.
+
+[^unawaited]: Dart API, `unawaited` function: `https://api.dart.dev/dart-async/unawaited.html`.
+
+[^isolates]: Flutter, “Concurrency and isolates,” including background-isolate restrictions and transfer overhead: `https://docs.flutter.dev/perf/isolates`.
+
+[^textpainter]: Flutter API, `TextPainter` class, layout lifecycle and resource disposal: `https://api.flutter.dev/flutter/painting/TextPainter-class.html`.
+
+[^profiler]: Flutter DevTools, “Use the CPU profiler view”: `https://docs.flutter.dev/tools/devtools/cpu-profiler`.
