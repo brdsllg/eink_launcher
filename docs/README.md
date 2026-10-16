@@ -140,6 +140,7 @@ until the app has its own `FileProvider`; the file chooser relies on it.
 | [annotation_plan.md](annotation_plan.md) | Selection and annotation design, and the remaining device check |
 | [ANDROID_HARDENING_PLAN.md](ANDROID_HARDENING_PLAN.md) | Startup, recovery, and Android reliability work |
 | [DEVICE_TESTING.md](DEVICE_TESTING.md) | Everything tested on the device, measurements, and what is still unchecked |
+| [talmud/docs/reader-ANR-investigation.md](talmud/docs/reader-ANR-investigation.md) | Text reader ANR investigation: evidence, suspected causes, and validation steps |
 | `docs/tanach/README.md`, `docs/talmud/README.md` | The two EPUB-building segments |
 | [`archived/README.md`](archived/README.md) | The earlier versions of every document above, kept for history only |
 

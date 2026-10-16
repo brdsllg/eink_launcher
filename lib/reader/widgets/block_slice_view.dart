@@ -673,6 +673,31 @@ class _SplitHeadingPainter extends CustomPainter {
       oldDelegate.block != block || oldDelegate.settings != settings;
 }
 
+/// Value comparison for the annotation lists handed to [_TextBlockPainter].
+///
+/// The page view rebuilds filtered annotation lists on every build, so list
+/// identity alone would repaint unchanged text on each pagination progress
+/// update. Two lists paint the same when they hold the same annotations in
+/// the same order, compared by the fields that affect underlines. Genuine
+/// additions, removals, and offset edits still repaint.
+bool sameVisibleAnnotations(List<Annotation> a, List<Annotation> b) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    final x = a[i];
+    final y = b[i];
+    if (x.id != y.id ||
+        x.blockIndex != y.blockIndex ||
+        x.startOffset != y.startOffset ||
+        x.endOffset != y.endOffset ||
+        x.endBlockIndex != y.endBlockIndex ||
+        x.endBlockOffset != y.endBlockOffset) {
+      return false;
+    }
+  }
+  return true;
+}
+
 class _TextBlockPainter extends CustomPainter {
   final ContentBlock block;
   final ReaderSettings settings;
@@ -772,6 +797,6 @@ class _TextBlockPainter extends CustomPainter {
       oldDelegate.block != block ||
       oldDelegate.settings != settings ||
       oldDelegate.selection != selection ||
-      oldDelegate.annotations != annotations ||
+      !sameVisibleAnnotations(oldDelegate.annotations, annotations) ||
       oldDelegate.sliceBlockIndex != sliceBlockIndex;
 }

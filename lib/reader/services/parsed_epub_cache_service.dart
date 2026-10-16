@@ -11,6 +11,7 @@ import '../models/parsed_book.dart';
 import '../models/reader_settings.dart';
 import '../models/toc_entry.dart';
 import 'epub_parser_service.dart';
+import 'reader_diagnostics.dart';
 import 'tanach_layout_service.dart';
 import 'tanach_sqlite_cache_service.dart';
 
@@ -94,10 +95,23 @@ class ParsedEpubCacheService {
       } catch (_) {
         // A database cache is an optimization. Preserve the old fully parsed
         // path if storage is unavailable or SQLite cannot initialize.
-        return TanachLayoutService.layout(
+        // NOTE: this fallback lays out on the calling (UI) isolate, unlike
+        // the worker paths above — timed for the ANR investigation (H5).
+        final diagnostics = ReaderDiagnostics.instance;
+        final watch = diagnostics.enabled ? (Stopwatch()..start()) : null;
+        final laidOut = TanachLayoutService.layout(
           book,
           ReaderSettings(honorPublisherCss: honorPublisherCss),
         );
+        if (watch != null) {
+          watch.stop();
+          diagnostics.record(
+            'loading.fallback_ui_layout',
+            watch.elapsed,
+            count: book.spine.length,
+          );
+        }
+        return laidOut;
       }
     }
     if (cachePath != null) {

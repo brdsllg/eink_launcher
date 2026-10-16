@@ -7,6 +7,7 @@ import '../models/laid_out_page.dart';
 import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
 import 'hyphenation_service.dart';
+import 'reader_diagnostics.dart';
 
 /// Deterministic layout shared by EPUB, plain-text, and Markdown documents.
 ///
@@ -48,6 +49,12 @@ class EpubPaginatorService {
   /// measured. The first finished page is reported immediately; later pages at
   /// most every [yieldBudget] of layout work. The final list is the same one
   /// [paginateSpine] returns.
+  ///
+  /// Cancellation is checked before advancing the generator as well as after,
+  /// so a superseded run stops before measuring the next chunk instead of
+  /// after it. Snapshots that add no completed pages still yield to the event
+  /// loop, but [onProgress] is only called when the page count grows: this
+  /// separates yielding from publication without changing final geometry.
   Future<List<LaidOutPage>> paginateSpineResponsive({
     required int spineIndex,
     required List<ContentBlock> blocks,
@@ -59,17 +66,26 @@ class EpubPaginatorService {
     Duration yieldBudget = defaultYieldBudget,
   }) async {
     List<LaidOutPage> latest = const [];
-    for (final pages in _steps(
+    var lastPublishedLength = -1;
+    final iterator = _steps(
       spineIndex: spineIndex,
       blocks: blocks,
       contentSize: contentSize,
       settings: settings,
       imageSizes: imageSizes,
       yieldBudget: yieldBudget,
-    )) {
+      isCancelled: isCancelled,
+    ).iterator;
+    while (true) {
       if (isCancelled()) return const [];
+      if (!iterator.moveNext()) break;
+      if (isCancelled()) return const [];
+      final pages = iterator.current;
       latest = pages;
-      onProgress(pages);
+      if (pages.length != lastPublishedLength) {
+        lastPublishedLength = pages.length;
+        onProgress(pages);
+      }
       await Future<void>.delayed(Duration.zero);
     }
     return latest;
@@ -82,6 +98,7 @@ class EpubPaginatorService {
     required ReaderSettings settings,
     Map<String, Size> imageSizes = const {},
     Duration yieldBudget = defaultYieldBudget,
+    bool Function()? isCancelled,
   }) sync* {
     if (contentSize.width <= 0 || contentSize.height <= 0 || blocks.isEmpty) {
       yield const [];
@@ -122,12 +139,15 @@ class EpubPaginatorService {
     }
 
     for (var blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+      if (isCancelled?.call() == true) return;
       if (blockIndex > 0 && blockIndex % _blocksPerBatch == 0) {
         publishedPages = pages.length;
         lastYield = stopwatch.elapsed;
         yield List<LaidOutPage>.unmodifiable(pages);
       }
       final block = blocks[blockIndex];
+      final diagnostics = ReaderDiagnostics.instance;
+      final measureWatch = diagnostics.enabled ? (Stopwatch()..start()) : null;
       final layout = TextBlockLayout.measure(
         block: block,
         width: contentSize.width,
@@ -137,6 +157,14 @@ class EpubPaginatorService {
             ? null
             : imageSizes[block.resourcePath],
       );
+      if (measureWatch != null) {
+        measureWatch.stop();
+        diagnostics.record(
+          'paginator.measure',
+          measureWatch.elapsed,
+          count: block.characterCount,
+        );
+      }
 
       if (layout.lines.isEmpty) {
         final remaining = contentSize.height - usedHeight;
@@ -160,6 +188,7 @@ class EpubPaginatorService {
 
       var lineIndex = 0;
       while (lineIndex < layout.lines.length) {
+        if (isCancelled?.call() == true) return;
         var remaining = contentSize.height - usedHeight;
         var fitCount = layout.linesFitting(
           startLine: lineIndex,

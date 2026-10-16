@@ -423,9 +423,39 @@ Record new device results in the active testing documentation, such as `docs/DEV
 - Exact failing APK mapped to reviewed source: not established.
 - Full ANR stack or exported CPU/system trace analyzed for this report: no.
 - Actual projected block-size distribution: not measured.
-- Flutter analysis, test suite, Android build, or B751C benchmark executed for this report: no.
 - Application implementation changed by this report: no.
 - Confirmed root cause or validated ANR fix: no.
+
+### Implementation note (16 Oct 2026)
+
+The certain, no-regret work from Step 1–2 and Section 6 was implemented;
+nothing that changes page geometry or cache semantics was altered:
+
+- Baseline snapshot: source at `10544358bdac1d667e15be716bc695930174b2ab`
+  (two commits ahead of the bundle-reported `67e06dc`), working tree clean
+  before these changes, Flutter 3.47.1 stable / Dart 3.13.1. The failing APK
+  is still not mapped to a source commit; rebuild from the recorded commit
+  before any device comparison.
+- Added `lib/reader/services/reader_diagnostics.dart`: bounded, dormant-by-default
+  phase timings (`paginator.measure`, `session.publish`, `cache.load_decode`,
+  `cache.save_encode`, `loading.fallback_ui_layout`), fixed-size ring buffer,
+  and a lifecycle-aware heartbeat. No text, paths, or annotation contents are
+  recorded.
+- The tools are activated with a build flag, no code change or settings UI:
+  `flutter run --release --dart-define=READER_DIAGNOSTICS=1`. Without the
+  flag everything is a dormant no-op. With it, the session runs the heartbeat
+  during each pagination pass and prints the bounded summary (`READER-DX`
+  lines) to logcat when layout finishes, so `adb logcat` captures it.
+- Small safe fixes with final geometry unchanged: cancellation is checked
+  before advancing the pagination generator and inside line slicing;
+  progress callbacks and chapter publication are skipped when no completed
+  page was added (the event-loop yield still happens); the visible-page
+  painter compares annotation contents instead of list identity.
+- Documentation: investigation linked from `docs/README.md` and the reflow
+  plan; TAL-015 opened in `docs/DEVICE_TESTING.md`.
+- `flutter analyze` and the reader test suite were run; results are recorded
+  with the change, not in this document. No B751C benchmark, CPU profile, or
+  ANR trace has been collected yet — that is the next step (TAL-015).
 
 **Working conclusion:** investigate repeated UI-isolate layout and publication first, while measuring cache/loading alternatives. Keep correctness and measured input responsiveness as separate acceptance gates.
 

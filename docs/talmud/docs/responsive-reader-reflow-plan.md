@@ -256,3 +256,9 @@ execution environment at the time of this revision. No tests, Android build,
 rendered reader UI or B751C benchmark has run. No implementation or ANR fix is
 claimed by this plan. Publish as draft until those gates are met; never merge
 without the owner's further instruction.
+
+## Related ANR investigation
+
+See [Text reader ANR investigation](reader-ANR-investigation.md) for the current
+code findings and targeted performance-validation sequence. The reflow design
+above is not yet a demonstrated fix for the reported input-dispatch ANR.

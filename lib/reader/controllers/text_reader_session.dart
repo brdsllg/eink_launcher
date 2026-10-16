@@ -22,6 +22,7 @@ import '../services/book_store_service.dart';
 import '../services/epub_paginator_service.dart';
 import '../services/parsed_epub_cache_service.dart';
 import '../services/pagination_cache_service.dart';
+import '../services/reader_diagnostics.dart';
 import '../services/reader_error_service.dart';
 import '../services/text_block_parser.dart';
 import 'reader_session.dart';
@@ -151,6 +152,12 @@ class TextReaderSession extends ReaderSession {
 
   /// Upper bound on "wait for the next batch" retries inside one page turn.
   static const int _maxTurnAttempts = 64;
+
+  /// Event-loop heartbeat for the ANR investigation. Started when a
+  /// pagination pass begins, stopped when it ends or the session is
+  /// suspended/torn down. Never started unless diagnostics are enabled
+  /// (see [ReaderHeartbeat.start]), so normal builds pay nothing.
+  final ReaderHeartbeat _heartbeat = ReaderHeartbeat();
 
   TextReaderSession({
     required this.doc,
@@ -346,6 +353,7 @@ class TextReaderSession extends ReaderSession {
   @override
   void suspend() {
     if (_isSuspended || _disposed) return;
+    _heartbeat.dispose();
     _lifecycleGeneration++;
     _isSuspended = true;
     _isReady = false;
@@ -386,6 +394,7 @@ class TextReaderSession extends ReaderSession {
   @override
   void dispose() {
     _disposed = true;
+    _heartbeat.dispose();
     _lifecycleGeneration++;
     _paginationGeneration++;
     _book = null;
@@ -735,6 +744,7 @@ class TextReaderSession extends ReaderSession {
     if (book == null || _isSuspended || _disposed) return;
     final generation = ++_paginationGeneration;
     _abandonLayouts();
+    _heartbeat.start();
     _isPaginating = true;
     _chapterPages.clear();
     _completedChapters.clear();
@@ -803,12 +813,15 @@ class TextReaderSession extends ReaderSession {
       if (!_paginationCurrent(generation)) return;
       _isPaginating = false;
       _error = null;
+      _heartbeat.dispose();
+      ReaderDiagnostics.instance.dumpToLog();
       notifyListeners();
     } catch (error) {
       if (!_paginationCurrent(generation)) return;
       _isPaginating = false;
       _isReady = false;
       _error = readerErrorMessage(error, doc.format);
+      _heartbeat.dispose();
       notifyListeners();
     }
   }
@@ -1021,6 +1034,11 @@ class TextReaderSession extends ReaderSession {
 
   /// Publishes the pages measured so far for one chapter. Running this per batch
   /// is what lets a reader start before the chapter — or the book — is done.
+  ///
+  /// Partial snapshots that add no completed pages are dropped here: the
+  /// paginator already yields to the event loop between batches, so
+  /// republishing an unchanged page set would only rebuild the page index and
+  /// notify listeners for no new content. Completed chapters always publish.
   void _publishChapter(
     int spineIndex,
     List<LaidOutPage> pages, {
@@ -1029,12 +1047,28 @@ class TextReaderSession extends ReaderSession {
   }) {
     if (!_paginationCurrent(generation)) return;
     if (!complete && pages.isEmpty) return;
+    final existing = _chapterPages[spineIndex];
+    if (!complete &&
+        existing != null &&
+        existing.length == pages.length) {
+      return;
+    }
+    final diagnostics = ReaderDiagnostics.instance;
+    final watch = diagnostics.enabled ? (Stopwatch()..start()) : null;
     _chapterPages[spineIndex] = pages;
     if (complete) _completedChapters.add(spineIndex);
     // Release waiters first so a pending turn sees the pages it was waiting for.
     _layouts[spineIndex]?.published();
     _rebuildPages();
     notifyListeners();
+    if (watch != null) {
+      watch.stop();
+      diagnostics.record(
+        'session.publish',
+        watch.elapsed,
+        count: pages.length,
+      );
+    }
   }
 
   Future<void> _ensureChapterLoaded(

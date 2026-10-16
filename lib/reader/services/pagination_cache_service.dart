@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/laid_out_page.dart';
 import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
+import 'reader_diagnostics.dart';
 
 class PaginationCacheService {
   static const int _cacheVersion = 10;
@@ -67,14 +68,25 @@ class PaginationCacheService {
         await file.delete();
         return null;
       }
-      final data =
-          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final raw = await file.readAsString();
+      final diagnostics = ReaderDiagnostics.instance;
+      final watch = diagnostics.enabled ? (Stopwatch()..start()) : null;
+      final data = jsonDecode(raw) as Map<String, dynamic>;
       if (data['version'] != _cacheVersion) return null;
       await file.setLastModified(DateTime.now());
       final pages = data['pages'] as List<dynamic>;
-      return List<LaidOutPage>.unmodifiable(
+      final result = List<LaidOutPage>.unmodifiable(
         pages.map((value) => _pageFromJson(value as Map<String, dynamic>)),
       );
+      if (watch != null) {
+        watch.stop();
+        diagnostics.record(
+          'cache.load_decode',
+          watch.elapsed,
+          count: result.length,
+        );
+      }
+      return result;
     } catch (_) {
       return null;
     }
@@ -92,12 +104,22 @@ class PaginationCacheService {
     try {
       final file = await _fileFor(key);
       await file.parent.create(recursive: true);
+      final diagnostics = ReaderDiagnostics.instance;
+      final watch = diagnostics.enabled ? (Stopwatch()..start()) : null;
       final encoded = utf8.encode(
         jsonEncode({
           'version': _cacheVersion,
           'pages': pages.map(_pageToJson).toList(),
         }),
       );
+      if (watch != null) {
+        watch.stop();
+        diagnostics.record(
+          'cache.save_encode',
+          watch.elapsed,
+          count: pages.length,
+        );
+      }
       if (encoded.length > maxBytes) return;
       // Separate temporary files prevent two superseded pagination runs from
       // writing through the same handle. Rename is atomic on the Android/Linux

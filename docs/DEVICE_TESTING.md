@@ -3,7 +3,7 @@
 The one place for everything checked on the physical device: what was tested, what
 broke, whether it is fixed, and what to check next.
 
-Last updated: 15 Oct 2026. This file was restructured into an issue tracker on 7 Oct
+Last updated: 16 Oct 2026. This file was restructured into an issue tracker on 7 Oct
 2026. Statuses and the status log were reconstructed from the older notes, so some
 change dates are the date a pass reported them, not the exact day of the fix.
 
@@ -52,6 +52,7 @@ Every issue has exactly one of these. Nothing else is allowed.
 | TAL-013 | Vowel marks and punctuation do not show in the Talmud text, although the Sefaria website shows them on all of Talmud. | **FIX BUILT** | Cause found: pipeline picked Sefaria's unpointed Aramaic edition. Fixed 11 Oct: inventory prefers Vocalized Aramaic, download-plan swapped for all 37, Berakhot cache verified (227k marks, 0 cantillation). Rebuild EPUBs + sidecars, then recheck the toggle on Berakhot 2a. Decision (Levi, 6 Oct 2026): there is no vowel setting for Tanach and there should not be one. | 11 Oct 2026 |
 | TAL-014 | First open of Berakhot took 21 s. It should be nearly instant if the sidecar file is working. | **NEEDS INFO** | Check that the Berakhot sidecar is fresh (matches the current book), then time the first open again. | 6 Oct 2026 |
 | BRW-001 | File browser acted oddly once after closing all open tabs. | **WATCHING** | Could not be repeated. If it happens again, write down the exact steps. Keep in the next device pass. | 5 Oct 2026 |
+| TAL-015 | The app shows "app not responding" when opening or reading Talmud books, including Tamid, and opening the same book again can freeze again. | **OPEN** | Start with the exact Tamid file and settings that freeze. See [the ANR investigation](talmud/docs/reader-ANR-investigation.md). | 16 Oct 2026 |
 
 ### 2. Fix built, waiting for a device check
 
@@ -89,6 +90,10 @@ books first (see the [checklist](#checklist-for-the-next-device-pass)).
 
 One line per change, newest first. Older dates are when a pass reported the change.
 
+- **16 Oct 2026:** TAL-015 reported, OPEN ("app not responding" opening or
+  reading Talmud books including Tamid; reopening the same book can freeze
+  again). ANR investigation document added with bounded diagnostics and small
+  safe fixes; computer tests run, no device baseline yet.
 - **15 Oct 2026 (merge):** kept the 7 Oct tracker structure, ported 8–11 Oct remote
   facts: TAN-004 OPEN → FIX BUILT (markup cause + 23,206-verse check). TAN-005,
   TAN-006 OPEN → FIX BUILT (`study/` subfolder). TAL-013 NEEDS INFO → FIX BUILT
