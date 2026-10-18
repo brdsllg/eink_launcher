@@ -45,6 +45,25 @@ This establishes an **input-dispatch timeout**, not the function responsible. An
 
 The discussion places the incident on October 14, 2026; the excerpt itself contains no year or timezone. The bundle identifies a commit dated October 15, 2026 at 21:16:25 +1100. Therefore, the reviewed source is not automatically the source of the failing APK.
 
+### Device traces collected 16 Oct 2026
+
+Live Bigme B751C runs (Tamid) produced what the October 14 excerpt lacked:
+`runA-no-commentary.txt` (logcat, fresh process 16:20:07, first freeze 16:20:42
+during rapid page turns), `freeze-B.zip` (bugreport with 4 ANR traces), and
+`freeze-B2.zip` (bugreport with 14 further ANR traces, 16:26–17:02). In total,
+**eighteen main-thread stacks across several app processes**, all
+input-dispatch timeouts. Two episodes pair a MotionEvent ANR with a
+FocusEvent ANR about a minute later while still wedged, ending in a
+user-requested kill; the 11-commentary retry ANR'd during load (3m53s open)
+and then roughly every 90 s for 12+ minutes with brief recoveries between.
+
+Caveats: per-interval CPU burn is inferred from main-thread `schedstat`
+deltas between consecutive dumps (~9–11 user CPU-seconds per ~110 s episode),
+not from a profiler. The tested builds lacked the diagnostics flag
+(`=1` does not enable a Dart boolean flag; `=true` is required), so no
+per-phase timings exist yet and the ranking below still rests on trace
+shape plus manual timings, not on measured phase durations.
+
 ### Materials reviewed
 
 - The uploaded `reader_bundle.txt`, including the session, paginator, pagination cache, page widget, parsing/loading services, and two reader test files.
@@ -180,6 +199,50 @@ Flutter documents merged UI/platform threads on modern Android builds, making UI
 | H6: Allocation pressure and retained geometry | Possible amplifier | Memory/GC trace and queue growth correlate with stalls | Stable residency and no relevant allocation/GC pressure |
 
 These hypotheses overlap; the rows are not probabilities.
+
+### Assessment update from the 16 Oct traces
+
+The common signature across all eighteen stacks: main thread `state=R` in
+unsymbolized app frames, no held mutexes, GC (`HeapTaskDaemon`) idle,
+sibling threads asleep, top frames in memory copy/allocation
+(`__memcpy_aarch64_simd`, `malloc` into `mmap`, atomic-compare primitives),
+100% user + ~0% kernel CPU in the sampled window with tens of thousands of
+minor page faults, and anonymous RSS ratcheting roughly 18 MB per freeze
+episode (168→187 MB, 164→182 MB).
+
+- **H1 (long block measurement/slicing): strengthened, still not isolated.**
+  Repeated ~10 s CPU bursts separated by brief recoveries fit indivisible
+  synchronous work units rather than one endless stall; the commentary
+  multiplier (no-commentary survives 10 flips, 11 commentaries ANR during
+  load) fits per-block cost scaling with projected content. The top-frame
+  allocation signature fits large painter/layout temporaries.
+- **H2 (repeated visible-page layout): unchanged.** No rebuild/paint counts
+  exist yet; needs the diagnostics build.
+- **H3 (publication/index reconstruction): strengthened as co-candidate.**
+  Same burst shape and commentary scaling as H1; per-progress full-spine
+  rebuild plus fresh wrapper allocation fits the copy/allocate top frames
+  and the RSS ratchet. H1 vs H3 is exactly what the phase timings must
+  separate.
+- **H4 (pagination-cache conversion): plausible, slightly strengthened.**
+  Whole-chapter JSON encode plus UTF-8 conversion on the UI isolate is one
+  of the few operations shaped like a single giant copy/allocate burst;
+  still needs `cache.save_encode` timings.
+- **H5 (loading fallback/other startup work): weakened for this case.**
+  Cold opens with sidecars take ~1 s, warm reopens are instant, and
+  commentary projection runs on a worker (`Isolate.run`), so the 3m53s
+  commentary load burn sits downstream of loading. The fallback flag was
+  never observed (no diagnostics); keep as a conditional check, not a lead.
+- **H6 (allocation pressure/retained geometry): strengthened as amplifier.**
+  The per-episode RSS ratchet and fault counts show accumulation accompanying
+  each stall; not established as the trigger.
+
+**Ruled out by the traces (mechanism level):** blocking file/network I/O on
+the main thread, mutex/binder contention, plugin-channel blocking, GC
+pauses, a native crash (no tombstone/signal; the `crash_dump` log lines are
+the system's all-process ANR dump being denied permission, not a crash), an
+infinite loop with no forward progress (popups clear and the clock advances
+between episodes), and cache corruption (no evidence; repeated work plus
+retained sessions suffice to explain reopen freezes).
 
 ### Conclusions not supported by current evidence
 
@@ -442,10 +505,12 @@ nothing that changes page geometry or cache semantics was altered:
   and a lifecycle-aware heartbeat. No text, paths, or annotation contents are
   recorded.
 - The tools are activated with a build flag, no code change or settings UI:
-  `flutter run --release --dart-define=READER_DIAGNOSTICS=1`. Without the
-  flag everything is a dormant no-op. With it, the session runs the heartbeat
+  `flutter run --release --dart-define=READER_DIAGNOSTICS=true` (the value
+  must be the word `true`; `=1` leaves them dormant). Without the flag
+  everything is a dormant no-op. With it, the session runs the heartbeat
   during each pagination pass and prints the bounded summary (`READER-DX`
-  lines) to logcat when layout finishes, so `adb logcat` captures it.
+  lines) to logcat: periodically during progress, when layout finishes, and
+  on suspend/dispose — so a wedged pass that never completes still reports.
 - Small safe fixes with final geometry unchanged: cancellation is checked
   before advancing the pagination generator and inside line slicing;
   progress callbacks and chapter publication are skipped when no completed
@@ -454,8 +519,36 @@ nothing that changes page geometry or cache semantics was altered:
 - Documentation: investigation linked from `docs/README.md` and the reflow
   plan; TAL-015 opened in `docs/DEVICE_TESTING.md`.
 - `flutter analyze` and the reader test suite were run; results are recorded
-  with the change, not in this document. No B751C benchmark, CPU profile, or
-  ANR trace has been collected yet — that is the next step (TAL-015).
+  with the change, not in this document. ANR traces were collected (see
+  below); CPU profile and phase timings are still pending (TAL-015).
+
+### Device evidence (16 Oct 2026, Bigme B751C, Tamid)
+
+Eighteen ANR traces in `freeze-B.zip` / `freeze-B2.zip` (16:17–17:07, several
+app processes; logcat in `runA-no-commentary.txt`, `runB-commentary.txt`),
+all input-dispatch timeouts with the same signature: main thread `state=R`
+in unsymbolized app frames, no held mutexes, GC (`HeapTaskDaemon`) idle,
+sibling threads asleep, top frames in memory copy/allocation
+(`__memcpy_aarch64_simd`, `malloc` into `mmap`, allocation atomics). The
+16:21:37 window measured 100% user + 0.4% kernel CPU with 28,724 minor
+faults; anonymous RSS grew roughly 18 MB per freeze episode (168 to 187 MB,
+then 164 to 182 MB). The 11-commentary retry opened in 3m53s with ANRs
+during load, then ANRs roughly every 90 s for 12+ minutes with brief
+recoveries between: per-interval burn is ~9–11 user CPU-seconds per ~110 s
+episode, i.e. repeated multi-second synchronous chunks, not one endless
+stall. Each no-commentary episode pairs a MotionEvent ANR during rapid page
+turns with a FocusEvent ANR about a minute later while still wedged, ending
+in a user-requested kill. Commentary projection runs on a worker
+(`Isolate.run`), so the load-time burn sits downstream of it. No native
+crash occurred (no tombstone/signal; the `crash_dump` lines are the
+system's all-process ANR dump being denied permission).
+
+Function-level cause is **not** established: the trace frames are
+unsymbolized and the tested builds lacked the diagnostics flag (`=1` does
+not enable a Dart boolean flag; `=true` is required), so no `READER-DX`
+phase timings exist yet. H1 vs H3 vs H4 awaits those timings plus a CPU
+profile with symbols from the flagged rebuild. No fix is validated;
+TAL-015 stays OPEN.
 
 **Working conclusion:** investigate repeated UI-isolate layout and publication first, while measuring cache/loading alternatives. Keep correctness and measured input responsiveness as separate acceptance gates.
 

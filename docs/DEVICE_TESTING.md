@@ -94,6 +94,20 @@ One line per change, newest first. Older dates are when a pass reported the chan
   reading Talmud books including Tamid; reopening the same book can freeze
   again). ANR investigation document added with bounded diagnostics and small
   safe fixes; computer tests run, no device baseline yet.
+- **16 Oct 2026 (device runs):** eighteen ANR traces in `freeze-B.zip` /
+  `freeze-B2.zip` (16:17–17:07, several app processes). Every trace shows the
+  main thread Running in app code with no locks held, GC idle, and
+  memory-copy/allocation at the top of the stack; the 16:21:37 window burned
+  100% user CPU with 28,724 minor faults, and anonymous memory grew about
+  18 MB per freeze episode. Retry with 11 commentaries opened in 3m53s with
+  ANR during load, then ANRs roughly every 90 s for 12+ minutes with brief
+  recoveries between — repeated ~10 s synchronous chunks, not one endless
+  stall. Commentary projection itself runs on a worker (`Isolate.run`), so
+  the burn is downstream of it (measure/publish/cache on the UI isolate).
+  Run A log captured; Run B log file was never saved and holds no Run B ANR,
+  so Run B must be redone with logging. Still no READER-DX lines: either the
+  `=true` rebuild never reached the device, or the pass never completes to
+  dump — so dumps are now also periodic (30 s), on suspend, and on dispose.
 - **15 Oct 2026 (merge):** kept the 7 Oct tracker structure, ported 8–11 Oct remote
   facts: TAN-004 OPEN → FIX BUILT (markup cause + 23,206-verse check). TAN-005,
   TAN-006 OPEN → FIX BUILT (`study/` subfolder). TAL-013 NEEDS INFO → FIX BUILT

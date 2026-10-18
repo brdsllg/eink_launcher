@@ -159,6 +159,12 @@ class TextReaderSession extends ReaderSession {
   /// (see [ReaderHeartbeat.start]), so normal builds pay nothing.
   final ReaderHeartbeat _heartbeat = ReaderHeartbeat();
 
+  /// Last periodic diagnostics dump. Summaries also print while a pass is
+  /// still running (a wedged pass may never reach completion), at most this
+  /// often. Only used when diagnostics are enabled.
+  DateTime? _lastDxDump;
+  static const Duration _dxDumpInterval = Duration(seconds: 30);
+
   TextReaderSession({
     required this.doc,
     BookStoreService? bookStore,
@@ -353,6 +359,7 @@ class TextReaderSession extends ReaderSession {
   @override
   void suspend() {
     if (_isSuspended || _disposed) return;
+    ReaderDiagnostics.instance.dumpToLog();
     _heartbeat.dispose();
     _lifecycleGeneration++;
     _isSuspended = true;
@@ -394,6 +401,7 @@ class TextReaderSession extends ReaderSession {
   @override
   void dispose() {
     _disposed = true;
+    ReaderDiagnostics.instance.dumpToLog();
     _heartbeat.dispose();
     _lifecycleGeneration++;
     _paginationGeneration++;
@@ -1068,6 +1076,14 @@ class TextReaderSession extends ReaderSession {
         watch.elapsed,
         count: pages.length,
       );
+      // A wedged pass may never complete, so also dump periodically while
+      // progress is being made — not only at the end of the pass.
+      final now = DateTime.now();
+      if (_lastDxDump == null ||
+          now.difference(_lastDxDump!) >= _dxDumpInterval) {
+        _lastDxDump = now;
+        diagnostics.dumpToLog();
+      }
     }
   }
 

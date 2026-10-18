@@ -44,6 +44,8 @@ void main() {
       summary['probe']!.p95Micros,
       lessThanOrEqualTo(summary['probe']!.maxMicros),
     );
+    // Dumping with samples prints bounded lines and throws nothing.
+    diagnostics.dumpToLog();
   });
 
   test('cancelled responsive run publishes nothing and returns empty', () async {
