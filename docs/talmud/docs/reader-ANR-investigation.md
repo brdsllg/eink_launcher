@@ -1,587 +1,371 @@
-# Text reader ANR investigation and next steps
+# Text reader "not responding" (ANR) investigation
 
-**Status:** Draft investigation. Suspected causes, not a confirmed diagnosis or validated fix.  
-**Updated:** October 16, 2026  
-**Project:** `brdsllg/eink_launcher`  
-**Suggested location:** `docs/talmud/docs/reader-anr-investigation.md`  
-**Bundle-reported commit:** `67e06dcd91c3e9628d95ef04694ef47d45bebb83`
-
-## Summary
-
-The owner reports recurring Android “app not responding” errors when opening or reading tractates, including Tamid. After an incident, opening the same file can trigger another ANR.
-
-The leading theory is **excessive uninterrupted and repeated UI-isolate work across pagination, visible-page rendering, publication, and cache conversion**. The paginator has genuine asynchronous yield points, but they do not cover every expensive operation.
-
-Confidence in that overall theory is **moderate, approximately 7/10**. This is a qualitative code-review judgment, not a measured probability. Confidence that the individual code patterns exist is higher than confidence that any particular pattern caused the reported ANR.
-
-**No individual five-second operation has been demonstrated. No fix, benchmark result, or regression-test pass is claimed here.** The next step is a bounded baseline and small, independently testable changes—not an immediate rewrite of the pagination boundary model.
-
-## 1. Evidence and scope
-
-### Owner-reported environment
-
-| Item | Supplied information |
+| | |
 | --- | --- |
-| Device | Bigme B751C, as identified in the issue discussion |
-| Android | Android 14 |
-| RAM | 4 GB |
-| Processor | MediaTek Helio P35 / MT6765 |
-| Display | 7-inch e-ink; reported monochrome resolution 1264 × 1680 |
-| Flutter | 3.47.0 stable; framework revision `4cf2416426` |
-| Engine | Hash `59d54a2b2896a6bbf356c94b7fac7b9e235bdacd`; revision `5f77625673` |
-| Dart / DevTools | Dart 3.13.0 / DevTools 2.60.0 |
-| Build command | `flutter run --release` |
-| Log collection | Device connected through ADB |
+| Issue | TAL-015 in [DEVICE_TESTING.md](../../DEVICE_TESTING.md). That file is the only place that says whether the problem is fixed. This document never does. |
+| Last updated | 18 Oct 2026 |
+| Device | Bigme HiBreak (model B751C), Android 14 |
+| App package | `com.example.eink_launcher` |
+| Source | Reviewed at commit `10544358bdac1d667e15be716bc695930174b2ab`, plus the uncommitted edits listed in Section 6 |
 
-These are supplied details, not independently measured hardware specifications or a verified mapping from toolchain to installed APK. Physical display resolution is not the Flutter logical viewport; record the latter during testing.
+**How facts are labelled.** *Measured* = seen in device logs or traces. *In code* = visible in the source files. *Reported* = told to us by the owner, not independently checked. *Inferred* = worked out from other facts. A fact with no label is a plain statement of what this document does.
 
-### Observed log
+## 1. In plain words
+
+When you open or read a Talmud tractate such as Tamid, the tablet sometimes freezes for several seconds and Android shows "app not responding". Opening the same book again can freeze it again.
+
+Every device trace collected so far looks the same: the reader app was busy working flat out. It was not waiting on the disk, the network or another process, and it had not crashed. The work comes in bursts of several seconds, and the app's memory use grows a little with each freeze. It is worse with commentary switched on: Tamid with 11 commentaries took almost 4 minutes to open and froze again and again. Without commentary it also froze, during rapid page turning.
+
+The most likely cause is that the app does a lot of page-layout work in one stretch, on the same thread that handles your taps, so taps wait. **We do not yet know which job is the slow one.** Three suspects fit the evidence equally well: laying out very large blocks of text, rebuilding the list of pages every time progress is reported, and saving page layouts to disk.
+
+Nothing is confirmed and no fix has been checked on the device. The next step is to repeat the freeze with the timing tools switched on, plus one experiment that lays out only the chapter you are reading (Section 7).
+
+## 2. What is established and what is not
+
+| Established | Not established |
+| --- | --- |
+| The freezes are Android input timeouts: the app did not handle a touch or focus event for 5 seconds (measured). | Which function is responsible. The traces show unnamed app code (measured). |
+| During freezes the main thread was running app code, holding no locks, with garbage collection idle (measured, 18 traces). | Whether layout, page-list rebuilding, or cache saving is the dominant cost. |
+| The suspect code patterns exist in the source (Section 4). | That any one of those patterns caused a freeze. |
+| Commentary makes it much worse (measured, Run B). | The size of the largest block of text being laid out. |
+| Memory grows about 18 MB per freeze (measured). | Whether that growth is a cause or a side effect. |
+
+**Validation status**
+
+| Item | State |
+| --- | --- |
+| Source inspection | Re-checked on 18 Oct for the paginator, the session, the page painter and the pagination cache. Other files are carried forward from the 16 Oct review (Section 4 says which). |
+| Installed APK matched to a source commit | No |
+| ANR stacks collected | Yes, 18, on 16 Oct. Not symbolized, so function names are unknown. |
+| Phase timings (READER-DX lines) | None seen. Whether the saved logs contain any is unchecked (Section 7, step 1). |
+| CPU profile | None |
+| Block-size distribution | Not measured |
+| Code changed | Yes (Section 6). Not checked on the device. |
+| Root cause confirmed, or fix validated | No |
+
+## 3. Evidence
+
+### 3.1 Device and toolchain
+
+| Item | Value | Label |
+| --- | --- | --- |
+| Device | Bigme HiBreak (B751C), Android 14 | Reported |
+| RAM / processor | 4 GB, MediaTek Helio P35 (MT6765) | Reported |
+| Display | 7-inch e-ink, 1264 x 1680 physical pixels. The Flutter viewport is a different, logical size and must be recorded for each test. | Reported |
+| Flutter / Dart | Discussion: Flutter 3.47.0, Dart 3.13.0. The 16 Oct baseline recorded Flutter 3.47.1, Dart 3.13.1. Record `flutter --version` for every run. | Reported |
+| Build command | `flutter run --release` | Reported |
+| Logs | Collected over wireless ADB | Reported |
+
+These are supplied details, not a verified mapping from toolchain to the installed APK.
+
+### 3.2 The first log (14 Oct)
 
 ```text
 10-14 18:30:26.787  1322  1446 I WindowManager: ANR in Window{8659771 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity}. Reason:Input dispatching timed out (8659771 com.example.eink_launcher/com.example.eink_launcher.MainActivity (server) is not responding. Waited 5000ms for MotionEvent)
 ```
 
-This establishes an **input-dispatch timeout**, not the function responsible. Android documents a default five-second timeout for this ANR category and several possible causes, including main-thread computation, blocking operations, and contention.[^android]
+This shows an input-dispatch timeout, not the function responsible. Android documents a five-second default for this kind of ANR and lists several possible causes, including main-thread computation, blocking calls and lock contention.[^android] The excerpt has no year or time zone; the discussion places it on 14 Oct 2026. The source reviewed here is dated later (the 15 Oct commit used as the first review point was `67e06dcd91c3e9628d95ef04694ef47d45bebb83`), so it is not necessarily the code that produced this log.
 
-The discussion places the incident on October 14, 2026; the excerpt itself contains no year or timezone. The bundle identifies a commit dated October 15, 2026 at 21:16:25 +1100. Therefore, the reviewed source is not automatically the source of the failing APK.
+### 3.3 Device runs on 16 Oct (Tamid)
 
-### Device traces collected 16 Oct 2026
+Files are in the repository root:
 
-Live Bigme B751C runs (Tamid) produced what the October 14 excerpt lacked:
-`runA-no-commentary.txt` (logcat, fresh process 16:20:07, first freeze 16:20:42
-during rapid page turns), `freeze-B.zip` (bugreport with 4 ANR traces), and
-`freeze-B2.zip` (bugreport with 14 further ANR traces, 16:26–17:02). In total,
-**eighteen main-thread stacks across several app processes**, all
-input-dispatch timeouts. Two episodes pair a MotionEvent ANR with a
-FocusEvent ANR about a minute later while still wedged, ending in a
-user-requested kill; the 11-commentary retry ANR'd during load (3m53s open)
-and then roughly every 90 s for 12+ minutes with brief recoveries between.
+- `runA-no-commentary.txt`: logcat, no commentary. Fresh process at 16:20:07; first freeze at 16:20:42 during rapid page turns.
+- `runB-commentary.txt`: logcat, 11 commentaries. The log runs from 16:55:04 to 17:11:39 (checked 18 Oct). It is saved as UTF-16 text; see Section 7, step 1.
+- `freeze-B.zip`: bug report with 4 ANR traces.
+- `freeze-B2.zip`: bug report with 14 further ANR traces (16:26 to 17:02).
 
-Caveats: per-interval CPU burn is inferred from main-thread `schedstat`
-deltas between consecutive dumps (~9–11 user CPU-seconds per ~110 s episode),
-not from a profiler. The tested builds lacked the diagnostics flag
-(`=1` does not enable a Dart boolean flag; `=true` is required), so no
-per-phase timings exist yet and the ranking below still rests on trace
-shape plus manual timings, not on measured phase durations.
+Together these hold **18 main-thread stacks across several app processes, all input-dispatch timeouts** (measured). Every trace has the same signature:
 
-### Materials reviewed
+- Main thread in the Running state, in unsymbolized app frames.
+- No locks held, garbage-collection thread idle, sibling threads asleep.
+- Top frames in memory copying and allocation (`__memcpy_aarch64_simd`, `malloc` into `mmap`, allocation atomics).
+- In the 16:21:37 window: 100% user CPU, about 0.4% kernel CPU, 28,724 minor page faults.
+- Anonymous memory grew about 18 MB per freeze (168 to 187 MB, then 164 to 182 MB).
 
-- The uploaded `reader_bundle.txt`, including the session, paginator, pagination cache, page widget, parsing/loading services, and two reader test files.
-- `block_slice_view.dart` and `reader_screen.dart`, retrieved separately at the bundle-reported commit.[^renderer][^screen]
-- The supplied responsive-reflow plan and its repository copy.[^plan]
-- Official Flutter, Dart, and Android documentation listed below.
+Pattern across episodes (from the 16 Oct write-up; per-episode times have not been re-extracted from the zip files):
 
-The bundle was generated from working-tree files. Its commit header does **not** establish that the working tree was clean. Symbol references below describe the supplied files; recheck them against the implementation branch before editing.
+- Each freeze burned about 9 to 11 CPU-seconds over roughly 110 seconds (inferred from changes in the main thread's CPU counter between dumps, not from a profiler). That fits repeated multi-second chunks of work with brief recoveries, not one endless stall.
+- In the run without commentary, at least two episodes paired a touch-event ANR with a focus-event ANR about a minute later while the app was still stuck, ending when the owner closed the app.
+- With 11 commentaries, the book took 3 min 53 s to open with ANRs during loading, then froze roughly every 90 seconds for more than 12 minutes with brief recoveries between.
+- Reported: opening Tamid with its sidecar file and no commentary took about 1 second cold, and reopening was instant.
 
-The bundle's root-level documentation reads failed because those files were not at those locations. The supplied file list places active plans under `docs/` and the old Bigme log under `docs/archived/root/`. Those command errors do not mean the documentation is absent.
+### 3.4 Limits of this evidence
 
-The earlier plan described a CPU-bound main thread with unsymbolized Dart frames. That description was not independently established from a complete ANR stack in this review.
+- Per-episode CPU figures are inferred, as above.
+- The traces do not name functions, so the suspects in Section 5 are ranked by trace shape and by how the problem scales with commentary, not by measured durations.
+- The test builds produced no READER-DX timing lines that anyone has seen. The cause is unconfirmed. The source comment for the diagnostics switch said to use `=1`, which does not turn a Dart boolean flag on (`=true` is required). That comment was corrected on 18 Oct. Other possibilities: the `=true` build never reached the device, or the saved log is unreadable to plain search tools.
+- The installed APK was never matched to a source commit.
+- Reopening after a freeze does not show whether the app process restarted.
 
-## 2. Code findings
+## 4. What the code does
 
-“Confirmed” below means visible in the reviewed source, not measured on the device.
+"In code" findings. "Re-checked 18 Oct" means read again in the current files. "Carried forward" means taken from the 16 Oct review and not re-read.
 
-### F1. The pagination budget does not bound a synchronous work interval
+### F1. The 16 ms work budget does not cap a single step (re-checked 18 Oct)
 
-**Source:** `lib/reader/services/epub_paginator_service.dart` — `_steps`, `paginateSpineResponsive`, `TextBlockLayout.measure`.[^paginator]
+`lib/reader/services/epub_paginator_service.dart`, function `_steps`.
 
-Confirmed behavior:
+- Each text block is measured in full before it is cut into pages. Measuring includes building a text painter, reading line positions, and mapping display offsets back to source offsets.
+- Pages are published on a timer (16 ms of work) only after a block finishes, and only when a page has completed. A mandatory pause happens every 16 blocks.
+- A block with no text lines (for example an image) skips the timed check.
+- So the 16 ms budget is not a hard maximum. One very large block can delay everything until it is fully measured.
+- Cancellation: the asynchronous wrapper now checks before and after each step and inside line slicing (16 Oct change). It still cannot interrupt a measurement already in progress.
 
-- `_steps` measures an entire block before entering its page-slicing loop.
-- Text measurement includes painter layout, line metrics, display/source-offset preparation, and per-line boundary lookups.
-- The slicing loop finishes processing that block before the timed publication check.
-- The timed check requires the completed-page count to have changed. Work producing no completed page relies on the mandatory block-count checkpoint.
-- Mandatory checkpoints occur between batches of 16 blocks.
-- The no-line branch uses `continue`, bypassing the timed check at the bottom of the block loop.
-- The asynchronous wrapper calls `onProgress` before its event-loop yield.
+Unknown: the size of the largest block and how long it takes to measure.
 
-Therefore, `defaultYieldBudget = 16 ms` is **not a hard maximum** for block measurement, slicing, publication, or subsequent frame work. A large block could delay even the first page it produces until the whole block has been processed.
+### F2. Visible pages measure whole blocks again (re-checked 18 Oct)
 
-Cancellation also has a blind spot: in the wrapper's `for` loop, advancing the synchronous generator happens **before** the loop-body `isCancelled()` check. A superseded run can do more generator work before observing cancellation. Checks are needed before advancement and within cooperative work boundaries.
+`lib/reader/widgets/block_slice_view.dart`.
 
-Unknown: the actual largest projected block, its measurement time, and whether this path reaches ANR-scale delays.
+- Building a visible slice measures the whole block again. Painting creates another full text painter for the whole block. Clipping only selects the visible part afterwards.
+- Selection, links and annotation hit areas create further painters.
+- The repaint check used to compare annotation lists by identity; it now compares their contents (16 Oct change), so unrelated progress should no longer repaint unchanged text.
 
-### F2. Visible-page rendering repeats whole-block layout
+Unknown: how many extra measurements happen during a freeze. There is no timer on this path yet.
 
-**Source:** `lib/reader/widgets/block_slice_view.dart`.[^renderer]
+### F3. Each progress update rebuilds global bookkeeping (re-checked 18 Oct, except where noted)
 
-Confirmed behavior:
+`lib/reader/controllers/text_reader_session.dart`.
 
-- `_BlockSliceViewState.build`, inside its `LayoutBuilder`, calls `TextBlockLayout.measure` for the complete block.
-- `_TextBlockPainter.paint` creates another laid-out painter for the complete block.
-- Clipping and translating select the visible slice; they do not eliminate those preceding layout calls.
-- Annotation hit targets and selection interactions have additional painter-creation paths.
-- `_TextBlockPainter.shouldRepaint` compares annotation lists with `!=`.
+- `_publishChapter` stores the pages, releases waiting page turns, calls `_rebuildPages`, and notifies listeners.
+- `_rebuildPages` walks the whole book and creates a new wrapper for every page published so far.
+- The paginator copies its growing page list for each progress snapshot.
+- Since 16 Oct, a progress update that adds no completed page is dropped. Completed chapters always publish.
+- Carried forward: the text page view builds fresh filtered annotation lists on every build.
 
-Consequently, a block already measured during pagination can be measured again during widget layout and again during painting. The actual number and duration of executions need instrumentation; this is not evidence that every notification causes a separate frame or ANR.
+Cost grows with the number of pages published. No measured curve exists yet.
 
-### F3. Progress publication repeats global bookkeeping and can invalidate visible content
+### F4. Background layout covers the whole book (re-checked 18 Oct)
 
-**Sources:** `text_reader_session.dart`, `text_page_view.dart`, and `reader_screen.dart`.[^session][^page][^screen]
+`_repaginate` lays out the current chapter first, then every later chapter, then earlier ones. Not waiting for the whole book changes when the caller returns; it does not stop the remaining work. The residency limit on loaded chapter text does not limit the stored page layouts, which are kept for every chapter. This multiplies work and memory but does not by itself prove a long stall.
 
-Confirmed behavior:
+Since 18 Oct a build flag can limit the background pass to the current chapter (Section 6).
 
-- `_publishChapter` replaces a chapter's published list, signals publication waiters, calls `_rebuildPages`, and notifies listeners.
-- `_rebuildPages` walks the spine and creates fresh wrappers for every previously published page, then searches for the selected position.
-- `_steps` also copies its growing chapter-page list for each yielded snapshot.
-- A mandatory batch yield can republish the same nonempty page set without adding a completed page.
-- `ReaderScreen.build` uses a `ListenableBuilder` for the session and constructs the text-page subtree through its shell.
-- `TextPageView` constructs fresh filtered annotation lists with `.toList()`.
+### F5. Cache saving and loading run on the main thread (re-checked 18 Oct)
 
-Together with F2, this gives unrelated pagination progress a path to redundant visible-page work. Flutter can coalesce rebuild requests, so notification count must not be presented as an identical rebuild or repaint count.
+`lib/reader/services/pagination_cache_service.dart`.
 
-The global list-copying and wrapping costs grow with accumulated pages. No measured scaling curve or ANR-sized publication has yet been established.
+- File reads and writes are awaited, but turning pages into JSON, JSON into bytes, and the reverse all run synchronously on the main thread.
+- The session saves in the background without waiting, which changes when the caller returns, not where the work runs.
+- A save that is too large is rejected only after the whole thing has been encoded.
 
-### F4. Background pagination is still a whole-book workload
+Unknown: how big the entries are and how long conversion takes.
 
-**Source:** `text_reader_session.dart` — `_repaginate`, `_runPagination`, `_trimResidentChapters`.[^session]
+### F6. Loading has a fallback that runs on the main thread (carried forward)
 
-`_repaginate` schedules the current chapter, then every later chapter, then earlier chapters. `awaitComplete: false` changes when the caller returns; it does not cancel the remaining whole-spine work.
+`parsed_epub_cache_service.dart` and `tanach_sqlite_cache_service.dart`. Normal parsing and projection already run on worker isolates. If the database import fails, one fallback runs the layout directly. Cache trimming also uses synchronous file calls. These are conditional checks, not established causes.
 
-The lazy-text residency policy unloads chapter blocks but retains `_chapterPages`, `_pages`, and completion metadata. A limit of three resident text chapters is therefore not a limit of three chapters' page geometry, nor a rendered-page memory budget.
+## 5. Suspects
 
-This is a workload and memory amplifier. It does not, by itself, prove a long uninterrupted main-thread stall.
+The rows overlap; they are not probabilities. "Current view" uses all the evidence in Section 3.
 
-### F5. Pagination-cache conversion remains synchronous
+| ID | Suspect | Current view | Evidence that would settle it |
+| --- | --- | --- | --- |
+| H1 | Long block measurement or slicing (F1) | Leading candidate. Repeated multi-second bursts and the commentary effect fit work that grows with block content. | One `paginator.measure` sample lasting seconds |
+| H2 | Repeated visible-page layout (F2) | Possible amplifier. No timing exists for this path. | A new timer on visible-page measure and paint |
+| H3 | Page-list rebuilding on each progress update (F3) | Co-candidate with H1. Copy-and-allocate frames and the memory growth fit it. | `session.publish` samples that grow with page count |
+| H4 | Cache conversion on the main thread (F5) | Plausible. A whole-chapter JSON encode is one of the few single large copy-and-allocate jobs. | `cache.save_encode` or `cache.load_decode` samples lasting seconds |
+| H5 | Loading fallback or other startup work (F6) | Weakened for this case: Tamid with its sidecar opened quickly, and commentary projection runs on a worker. | The fallback timer firing |
+| H6 | Memory pressure from retained layouts (F4) | Possible amplifier. Memory growth accompanies each freeze; not shown to be the trigger. | Memory growth lining up with stalls across several runs |
 
-**Source:** `lib/reader/services/pagination_cache_service.dart` — `load`, `_save`, `save`.[^cache]
+**Not seen in any of the 18 sampled traces:** waiting on disk, network or other processes; lock contention; garbage-collection pauses; a native crash (the `crash_dump` log lines are the system's all-process ANR dump being denied permission, not a crash); a loop with no forward progress (popups clear and the clock advances between episodes).
 
-File operations are awaited, but JSON decoding, page-object reconstruction, page-to-JSON conversion, and JSON/UTF-8 encoding run synchronously on the calling isolate.
+**No evidence for, which is not the same as ruled out:** damaged saved layouts (repeated work or a kept session would explain freezes on reopening); plugin or platform-channel blocking (no sign in the stacks).
 
-The session's `unawaited(_savePages(...))` does not move that conversion onto a worker. Dart's `unawaited` deliberately changes neither execution nor error behavior; it only expresses that a future is not being awaited.[^unawaited]
+**What this document does not claim:**
 
-Additional risks to measure:
+- That the paginator never yields. It pauses with `Future.delayed(Duration.zero)`, which lets other events run, but that is no guarantee of a maximum delay.[^yield]
+- That a page failing to appear in time means an endless loop. The line-fitting loop also has a forward-progress safeguard.
+- That reopening after a freeze means the cache is damaged or the process restarted.
+- That Tamid freezing means book length does not matter. Block shape, commentary and cache state matter too.
+- Anything about which build symbols are available. Keep the original logs and APK.
 
-- `_writes` serializes writes, but pending work can retain page lists.
-- The encoded-size rejection happens after constructing the encoded representation.
-- A disk byte limit does not bound temporary allocations or decoded in-memory objects.
+## 6. Code changes so far
 
-Unknown: actual entry sizes, conversion durations, queue depth, and whether a problematic reopen takes this path.
+None of these has been checked on the device. None changes page geometry or the cache format.
 
-### F6. Loading has a synchronous fallback worth instrumenting
+| Date | Change |
+| --- | --- |
+| 16 Oct | Added `lib/reader/services/reader_diagnostics.dart`: opt-in timings for `paginator.measure`, `session.publish`, `cache.load_decode`, `cache.save_encode` and `loading.fallback_ui_layout`; fixed-size buffers; an event-loop heartbeat. It records durations and counts only, never text, paths or notes. |
+| 16 Oct | The paginator checks for cancellation before and after each step and inside line slicing (F1). |
+| 16 Oct | Chapter progress is published only when a new completed page exists (F3). The pause that lets taps through still happens. |
+| 16 Oct | The page painter compares annotation contents instead of list identity (F2). |
+| 16 Oct | Periodic (30 s), on-suspend and on-dispose diagnostics dumps, so a stuck pass still reports. |
+| 18 Oct | Added the experiment switch `READER_CURRENT_CHAPTER_ONLY` to `text_reader_session.dart`. Off by default; with it on, the background pass lays out only the chapter holding the reading position and other chapters are laid out on demand. Page counts and percentages are incomplete while it is on. Never ship a build with it on. |
+| 18 Oct | Corrected the comment in `reader_diagnostics.dart`: the switch value must be the word `true`. |
 
-**Sources:** `parsed_epub_cache_service.dart` and `tanach_sqlite_cache_service.dart`.[^loading]
+Two cautions:
 
-Normal parsing, parsed-cache conversion, SQLite import/skeleton reading, and lazy chapter projection already use worker isolates in the reviewed paths. Do not describe all loading as UI-isolate work.
+- The 16 Oct changes were made before any device baseline existed, the reverse of the order recommended here. Because the installed build from the 16 Oct runs was never matched to a source commit, it is not known which of them that build contained.
+- The 18 Oct edits compile (`flutter analyze --no-pub` reports no issues) and the reader tests pass apart from two failures in code those edits do not touch (see "Code check" in Section 10). They have not been run on the device.
 
-However:
+## 7. How to run the test
 
-- After SQLite import failure, `ParsedEpubCacheService.load` directly calls `TanachLayoutService.layout(...)` in its fallback. That call is not wrapped in an isolate at that point.
-- `TanachSqliteCacheService._trim` uses synchronous file metadata calls during sorting and size accounting.
-- `_ensureChapterLoaded` has no shared in-flight load map of its own; chapter-layout deduplication does not automatically prove that every concurrent chapter-loading request is deduplicated.
+All commands are PowerShell, run from the repository root. The tablet must be connected over ADB (`adb devices` should list it).
 
-These are conditional investigation targets, not established causes. Record fallback activation, metadata time, and load counts before assigning them greater priority.
+### Step 1. Check the logs you already have
 
-## 3. Working hypothesis and limits
+The saved logs are UTF-16, which `findstr` and most search tools cannot read. `Select-String` can:
 
-The suspected sequence is:
-
-```text
-Open a book or change settings
-  → load/project content
-  → measure and slice blocks
-  → publish progress and rebuild the page index
-  → potentially rebuild/paint unchanged visible text
-  → continue through distant chapters and convert page caches
+```powershell
+Select-String -Path runA-no-commentary.txt,runB-commentary.txt -Pattern "READER-DX"
+Select-String -Path runA-no-commentary.txt,runB-commentary.txt -Pattern "ANR in"
 ```
 
-The important question is **which operation, or sequence of operations, prevents timely input processing**. Large total CPU usage alone does not prove the input timeout.
+If READER-DX lines appear, the timing tools worked and the numbers already exist: copy those lines into the results log (Section 10). If not, continue.
 
-Flutter documents merged UI/platform threads on modern Android builds, making UI-isolate blocking relevant to native input handling. Verify the actual APK/engine configuration when collecting the trace rather than treating the supplied version string as a runtime trace.[^threading]
+### Step 2. Check the code and record the build
 
-| Hypothesis | Current assessment | Evidence that would strengthen it | Evidence that would weaken it |
-| --- | --- | --- | --- |
-| H1: Long block measurement or slicing | Leading candidate | Long individual spans aligned with event-loop delay | Representative worst-case blocks remain short during reproduced incidents |
-| H2: Repeated visible-page layout | Leading amplifier | High repeated-layout counts for unchanged content; reduced stalls after isolation/reuse | Little visible-page work during the incident |
-| H3: Publication/index reconstruction | Confirmed repeated work; causal weight unknown | Publication duration grows materially with retained pages | Publication remains consistently cheap |
-| H4: Pagination-cache conversion | Plausible, including reopen cases | Decode/encode spans overlap the delay; worker conversion improves it | Incident occurs before conversion or conversion is cheap |
-| H5: Loading fallback or other startup work | Conditional candidate | Fallback flag, load spans, or metadata operations identify the stall | Normal worker path is used with short UI handoffs |
-| H6: Allocation pressure and retained geometry | Possible amplifier | Memory/GC trace and queue growth correlate with stalls | Stable residency and no relevant allocation/GC pressure |
-
-These hypotheses overlap; the rows are not probabilities.
-
-### Assessment update from the 16 Oct traces
-
-The common signature across all eighteen stacks: main thread `state=R` in
-unsymbolized app frames, no held mutexes, GC (`HeapTaskDaemon`) idle,
-sibling threads asleep, top frames in memory copy/allocation
-(`__memcpy_aarch64_simd`, `malloc` into `mmap`, atomic-compare primitives),
-100% user + ~0% kernel CPU in the sampled window with tens of thousands of
-minor page faults, and anonymous RSS ratcheting roughly 18 MB per freeze
-episode (168→187 MB, 164→182 MB).
-
-- **H1 (long block measurement/slicing): strengthened, still not isolated.**
-  Repeated ~10 s CPU bursts separated by brief recoveries fit indivisible
-  synchronous work units rather than one endless stall; the commentary
-  multiplier (no-commentary survives 10 flips, 11 commentaries ANR during
-  load) fits per-block cost scaling with projected content. The top-frame
-  allocation signature fits large painter/layout temporaries.
-- **H2 (repeated visible-page layout): unchanged.** No rebuild/paint counts
-  exist yet; needs the diagnostics build.
-- **H3 (publication/index reconstruction): strengthened as co-candidate.**
-  Same burst shape and commentary scaling as H1; per-progress full-spine
-  rebuild plus fresh wrapper allocation fits the copy/allocate top frames
-  and the RSS ratchet. H1 vs H3 is exactly what the phase timings must
-  separate.
-- **H4 (pagination-cache conversion): plausible, slightly strengthened.**
-  Whole-chapter JSON encode plus UTF-8 conversion on the UI isolate is one
-  of the few operations shaped like a single giant copy/allocate burst;
-  still needs `cache.save_encode` timings.
-- **H5 (loading fallback/other startup work): weakened for this case.**
-  Cold opens with sidecars take ~1 s, warm reopens are instant, and
-  commentary projection runs on a worker (`Isolate.run`), so the 3m53s
-  commentary load burn sits downstream of loading. The fallback flag was
-  never observed (no diagnostics); keep as a conditional check, not a lead.
-- **H6 (allocation pressure/retained geometry): strengthened as amplifier.**
-  The per-episode RSS ratchet and fault counts show accumulation accompanying
-  each stall; not established as the trigger.
-
-**Ruled out by the traces (mechanism level):** blocking file/network I/O on
-the main thread, mutex/binder contention, plugin-channel blocking, GC
-pauses, a native crash (no tombstone/signal; the `crash_dump` log lines are
-the system's all-process ANR dump being denied permission, not a crash), an
-infinite loop with no forward progress (popups clear and the clock advances
-between episodes), and cache corruption (no evidence; repeated work plus
-retained sessions suffice to explain reopen freezes).
-
-### Conclusions not supported by current evidence
-
-- The paginator is **not** merely yielding to microtasks: it explicitly uses `Future.delayed(Duration.zero)`, which schedules completion no earlier than a subsequent event-loop iteration.[^yield] That opportunity does not guarantee a maximum input latency.
-- A page failing to appear during a timed wait does not prove an infinite loop.
-- The shown line-fitting loop has an explicit forward-progress safeguard. That reduces the specific “oversized line never advances” concern, without proving all loops are safe.
-- Reopening after an ANR does not establish cache corruption or even a process restart. It can repeat expensive work or reuse a retained session.
-- Tamid reproducing does not rule out size-related costs: projected block shape, active commentary, startup work, and cache state matter as well as total book length.
-- The supplied build command does not establish which symbols or other build artifacts remain available. Preserve the original log/APK; do not discard them on the assumption that symbolization is impossible.
-
-## 4. Next steps
-
-### Step 1. Establish a comparable baseline
-
-Do this before changing layout semantics or deleting caches.
-
-- Record the installed APK identity, build mode, source commit, working-tree changes, Flutter/engine revisions, and build command.
-- Identify the exact Tamid EPUB by content fingerprint; record sidecar presence/version and saved anchor.
-- Record settings, logical viewport, font selection, commentary/translation choices, and vowel/hyphenation settings.
-- Distinguish a cold process, a reopened retained session, a pagination-cache hit, and a pagination-cache miss. A warm parse cache is a separate condition.
-- Preserve bookmarks, annotations, and settings. Prefer an isolated diagnostic cache namespace or explicit cache-bypass flag over clearing app storage.
-- Obtain a profile-mode reproduction on the same device, then validate any improvement in release mode. DevTools CPU profiling identifies where Dart execution time is spent.[^profiler]
-
-Useful commands from the project root:
-
-```bash
+```powershell
+flutter analyze --no-pub
+flutter test --no-pub test/reader
 git rev-parse HEAD
 git status --short
 flutter --version
-flutter run --profile
 ```
 
-Use the DevTools address printed by Flutter. Record the CPU profile while opening Tamid and export the result. If the issue is intermittent or the profile is inconclusive, capture the corresponding Android ANR trace/system trace. The owner can perform device runs later; they are not prerequisites for adding this investigation document.
+Paste the last three outputs into the results log. This is what ties a test run to its source.
 
-### Step 2. Add bounded diagnostics
+### Step 3. Smoke test the timing tools (about 5 minutes)
 
-Use optional fixed-size counters/ring-buffer events and monotonic timing. Keep diagnostics off by default outside investigation builds.
+Window 1 (leave it open):
 
-Measure separately:
+```powershell
+flutter run --release --dart-define=READER_DIAGNOSTICS=true
+```
 
-- Book-open stages, worker handoff, projection, and fallback activation.
-- `TextBlockLayout.measure` by call site: paginator versus visible widget.
-- Painter creation/layout, line/offset preparation, and page slicing.
-- `_publishChapter`, `_rebuildPages`, and position lookup.
-- Notifications, actual visible-widget rebuilds, actual paints, and unchanged-content layout calls.
-- Cache read/decode/reconstruction, encoding, write-queue depth, and outstanding payload size.
-- Resident blocks/pages, measurement-cache entries, native painter ownership, and memory/GC behavior.
-- Settings-to-target-layout-ready, target-first-rendered, and navigation-completed latency.
+The value must be the word `true`. Window 2:
 
-For block events, record generation, spine/block indices, character/run/line counts, duration, and cancellation status—not source text.
+```powershell
+adb logcat -c
+cmd /c "adb logcat -v time flutter:I WindowManager:I ActivityManager:I *:S > run-0-smoke.txt"
+```
 
-Add a lifecycle-aware event-loop heartbeat. Report foreground timing gaps separately from suspension. A delayed heartbeat indicates delayed callback service; it does not, alone, identify the responsible function or distinguish computation from scheduling/GC.
+On the tablet, open any small book and let it finish laying out. Stop the log with Ctrl+C, then:
 
-Report p50, p95, maximum, and sample count. Preserve a small bounded tail of recent phase information so an ANR is not documented only by a later “finished” event. Avoid per-character logging, unbounded traces, synchronous diagnostic writes, document paths, excerpts, or annotation contents.
+```powershell
+Select-String -Path run-0-smoke.txt -Pattern "READER-DX"
+```
 
-**Output:** a measured ranking of H1–H6, including the longest contiguous work intervals—not just total pagination duration.
+You should see lines starting `READER-DX`. If you see none, do not start the real runs; tell me.
 
-### Step 3. Make small, independently testable changes
+### Step 4. The real runs
 
-Choose the order using the baseline. Keep changes separable so their effects can be compared.
+Use the same scenario every time: the same Tamid file, the same settings, starting at the first page.
 
-#### A. Isolate progress from unchanged visible content
+Before each run:
 
-- Separate content invalidation from page-count/progress updates.
-- Preserve immediate target-ready, navigation, error, and completion updates.
-- Release navigation/publication waiters independently of UI-notification throttling.
-- Use stable content/annotation revisions or correct value comparisons.
-- Do not set `shouldRepaint` permanently false; genuine selection, annotation, settings, and page changes must still update.
-- Treat a repaint boundary as an optional adjunct, not a substitute for preventing unnecessary build/layout work.
+1. Close the app: `adb shell am force-stop com.example.eink_launcher`.
+2. On the tablet: Settings, Apps, the launcher, Storage, **Clear cache**. Do not choose Clear storage or Clear data. This keeps bookmarks, notes and settings but removes saved page layouts, so every run starts the same way.
+3. Start the build and the log (same two windows as step 3, with a new file name).
 
-#### B. Remove redundant publication and indexing work
+During the run: turn pages as fast as you normally would for up to 3 minutes. If a "not responding" popup appears, write down the time and tap Wait. Stop after the second popup or after 3 minutes, whichever comes first.
 
-- Avoid publishing an unchanged page set solely to give the event loop a turn.
-- Separate yielding, internal publication, and visible notifications.
-- Avoid recreating all earlier page wrappers for each append.
-- Preserve spine order and correct navigation when chapters arrive out of order.
-- Keep ordinal/index metadata separate from stable content identity where practical.
+| Run | Window 1 command | Log file |
+| --- | --- | --- |
+| 1. Baseline, no commentary | `flutter run --release --dart-define=READER_DIAGNOSTICS=true` | `run-1-baseline.txt` |
+| 2. Experiment, no commentary | `flutter run --release --dart-define=READER_DIAGNOSTICS=true --dart-define=READER_CURRENT_CHAPTER_ONLY=true` | `run-2-chapter-only.txt` |
+| 3. Baseline with the commentary set that froze before (optional) | same as run 1 | `run-3-commentary.txt` |
 
-#### C. Reuse measurements and visible layout safely
+If you can, repeat runs 1 and 2 once more. One run each proves little.
 
-- Start with immutable measurement results and a tightly bounded visible-layout cache.
-- Define keys from actual layout inputs: source identity/revision, styled runs, direction, width, typography, display transformations, relevant publisher properties, and image/page-height constraints.
-- Do not assume an unchanged block ID means unchanged content.
-- Keep native painters on the UI isolate. Give any retained painter an explicit owner and dispose it on replacement, eviction, or teardown.[^textpainter]
-- Measure memory as well as speed. An unbounded whole-book painter cache is not an acceptable fix.
-- Reuse across commentary toggles only when all relevant block/layout inputs actually match.
+After each run:
 
-#### D. Cover cooperative work and cancellation gaps
+```powershell
+Select-String -Path run-1-baseline.txt -Pattern "ANR in"
+Select-String -Path run-1-baseline.txt -Pattern "READER-DX"
+```
 
-- Check cancellation before starting/resuming expensive generator work, between block measures, during slicing, and before publication.
-- Allow a yield when elapsed work warrants it even if no page has completed.
-- Include non-text/no-line branches in the policy.
-- Keep synchronous and responsive pagination geometrically identical.
-- Remember that cooperative checks cannot interrupt a synchronous native text-layout call already in progress.
+Give me the ANR count and the last block of READER-DX lines. The READER-DX lines show, for each phase: how many samples, the median (p50), the slow end (p95) and the worst (max), in microseconds (1,000,000 = 1 second). A "heartbeat gaps" line shows how long the app was unable to run its own timer.
 
-Do not claim that adding more yields alone bounds every operation.
+**What the experiment can and cannot show.** It shows whether work on other chapters is a major contributor. It does not isolate one function. If Tamid is a single chapter in the file, the experiment changes nothing, and that result is informative too.
 
-#### E. Move suitable cache/fallback computation to workers
+## 8. Reading the results
 
-- Resolve platform-dependent cache locations before worker handoff where needed.
-- Move large JSON conversion and page reconstruction off the UI isolate.
-- Keep expensive pure projection off the UI isolate on fallback paths too.
-- Bound outstanding writes and retained payloads; coalesce superseded optional work where safe.
-- Preserve complete-entry semantics, settings/content keys, failure recovery, and safe file replacement.
-- Measure worker startup, transfer, and result-consumption costs before choosing short-lived versus persistent workers.
+| What you see | What it suggests | Next |
+| --- | --- | --- |
+| Run 1 freezes; run 2 freezes much less or not at all | Layout work on the other chapters is a major cause | Limit the background pass to a window around the reading position, then re-measure |
+| Both runs freeze about equally | The cause is inside the current chapter | Read the READER-DX numbers below |
+| One phase (`paginator.measure`, `session.publish`, `cache.save_encode` or `cache.load_decode`) has a worst sample over about 1 second (a rule of thumb, not a measured limit) | That phase is the main suspect (H1, H3 or H4) | Fix that one first |
+| Heartbeat gaps are large but no phase has a large worst sample | The time is going somewhere untimed, probably drawing visible pages (H2) | Add timing to the visible-page path (needs the owner's go-ahead) |
+| No READER-DX lines at all | The timing tools were not on, or the log is incomplete | Repeat the smoke test (step 3) |
 
-`TextPainter`/`dart:ui` layout must not be moved into `Isolate.run`; worker candidates are pure-data work.[^isolates]
+## 9. Candidate fixes
 
-#### F. Run a current-chapter-only control experiment
+Do not start these before the measurements above. Make one change at a time so each can be measured separately. Keep the final page geometry identical to today's.
 
-Temporarily suppress automatic distant-chapter pagination while retaining on-demand navigation. Compare otherwise identical runs.
+- **Separate progress from visible content.** Progress updates should not rebuild unchanged visible text. Keep immediate updates for target-ready, navigation, errors and completion. Release waiting page turns independently of any throttling. Never set the repaint check permanently to false.
+- **Remove redundant publication and indexing.** Do not republish an unchanged page set. Do not recreate every earlier page wrapper for each new page. Keep spine order correct when chapters arrive out of order.
+- **Reuse measurements safely.** Start with immutable measurement results and a small, bounded cache for visible layouts. Build keys from every real input (source revision, styled runs, direction, width, typography, display settings, image and page-height limits); an unchanged block ID does not prove unchanged content. Keep text painters on the main thread with an explicit owner that disposes them.[^textpainter] Measure memory as well as speed; an unbounded cache of the whole book is not a fix.
+- **Close cooperative-work gaps.** Allow a pause when enough time has passed even if no page completed. Include the no-text branches. A pause cannot interrupt a measurement already running, so more pauses alone will not bound every step.
+- **Move cache conversion to a worker.** Move JSON conversion and page reconstruction off the main thread, keeping complete-entry rules, keys, failure recovery and safe file replacement. Text painting itself cannot move to a worker; only plain-data work can.[^isolates] Bound queued writes and retained data. Measure worker start-up and transfer costs first.
+- **Larger design (later).** `responsive-reader-reflow-plan.md` remains the bigger track. Before adopting any segment-based pagination: keep source-based positions, keep the old page and data coherent until the new ones replace them, aim for three rendered pages behind and two ahead (not six whole chapters), bound each kind of memory separately, and do not assume restarting layout at an arbitrary offset gives the same page boundaries.
 
-Improvement would support unnecessary background workload as a contributor; it would not isolate one function. This experiment is not the finished three-behind/two-ahead feature, and incomplete page totals must not be presented as whole-book totals.
-
-**Decision point:** if traces instead implicate native/plugin blocking or another path, change the investigation priority. Do not force the evidence to fit pagination.
-
-### Step 4. Revisit the broader reflow design after the targeted work
-
-Keep `responsive-reader-reflow-plan.md` as the larger design track. Preserve its semantic anchors, shared layout requests, generation checks, coherent old-page snapshot, and page-window goals.[^plan]
-
-Before adopting sparse/segment pagination:
-
-- Preserve source-based positions and fallback behavior rather than saving page numbers as anchors.
-- Keep the old page, blocks, settings, and required resources coherent until replacement.
-- Swap the new target page and its matching data together.
-- Define the intended window as three rendered pages behind, one selected page, and two ahead—not six whole chapters.
-- Bound text, geometry, measurements, native layout objects, and in-flight work separately.
-- Preserve canonical prefix layout until restart/checkpoint equivalence or another boundary model has executable coverage proof.
-- Do not assume restarting at an arbitrary offset yields the same page boundaries.
-- Define page-number and percent-jump semantics for incomplete layouts.
-
-Splitting a large paragraph or changing projection boundaries requires geometry, source-offset, bidirectional-text, selection, and annotation regression coverage. It is not automatically a safe performance shortcut.
-
-## 5. Tests and acceptance criteria
+## 10. Tests and results log
 
 ### Automated checks
 
-Retain the existing reader tests and extend the relevant files, particularly:
+Keep the existing reader tests and extend these where relevant: `epub_paginator_service_test.dart`, `text_reader_session_test.dart`, `text_page_view_test.dart`, `pagination_cache_service_test.dart`, `tanach_session_test.dart`, `tanach_pagination_test.dart`, `annotation_selection_test.dart`, `state_and_epub_recovery_test.dart` (all under `test/reader/`).
 
-- `test/reader/epub_paginator_service_test.dart`
-- `test/reader/text_reader_session_test.dart`
-- `test/reader/text_page_view_test.dart`
-- `test/reader/pagination_cache_service_test.dart`
-- `test/reader/tanach_session_test.dart`
-- `test/reader/tanach_pagination_test.dart`
-- `test/reader/annotation_selection_test.dart`
-- `test/reader/state_and_epub_recovery_test.dart`
+Coverage any change must include:
 
-Required coverage:
+- Equivalent page geometry and ordered source coverage across the synchronous, responsive and cached paths.
+- Many small blocks, one large block, split headings, images, mixed right-to-left and left-to-right text, vowel settings, hyphenation.
+- Cancellation checked before the next step; a cancelled run never publishes.
+- Unrelated progress causes no fresh layout of unchanged visible text; real page, note, selection and settings changes still update.
+- Page turns do not depend on throttled progress notifications.
+- Cache hit, miss, invalid-entry and failure paths; no partial layout stored as complete.
+- Suspend, memory pressure, disposal and rapid settings changes release and cancel work.
+- Bookmarks, semantic anchors, search targets, links and notes still map correctly.
 
-- [ ] Responsive/synchronous/cached measurement paths produce equivalent geometry and ordered source coverage.
-- [ ] Many small blocks, one large block, split headings, images, RTL/LTR mixtures, vowel settings, and hyphenation are covered.
-- [ ] Cancellation is checked before the next generator advance/measure and no superseded work publishes.
-- [ ] A timer scheduled during an active run can execute before that run finishes; test many-block and single-block slicing cases separately.
-- [ ] Timer progress is not misrepresented as a bound on one synchronous measurement.
-- [ ] Unrelated progress does not trigger fresh text layout for unchanged visible content.
-- [ ] Genuine page, annotation, selection, and settings changes still update correctly.
-- [ ] Navigation waiters do not depend on throttled progress notifications.
-- [ ] Cache hit/miss/invalid-entry/failure paths remain correct, with no partial layout stored as complete.
-- [ ] Suspend, memory pressure, disposal, and rapid settings changes release/cancel owned work correctly.
-- [ ] Bookmarks, semantic anchors, search targets, links, and annotation mapping survive.
-- [ ] Any segment-window implementation proves gap-free/nonduplicated coverage and backward/forward chapter-edge navigation.
+Existing session tests use synthetic books and controlled futures. They do not show Bigme responsiveness or bound a single main-thread step.
 
-Existing session tests use synthetic books and controlled futures. Their presence is useful but does not demonstrate B751C responsiveness or bound a single UI-thread operation.
+### Device acceptance
 
-Before proposing an implementation as validated:
+Start with the exact Tamid file and settings that froze, then a larger tractate. Cover cold and warm opens, repeated forward and backward turns including chapter edges, commentary and font-size changes, and suspend and resume. Diagnose in profile mode and confirm in release mode. One run without a freeze proves nothing: record how many runs were made and how many froze. Agree numeric limits for responsiveness and memory before accepting a fix; the 5-second Android timeout is not a usability target.
 
-```bash
-flutter analyze
-flutter test test/reader
-```
+### Code check (18 Oct 2026)
 
-Also run affected project-level tests, including lifecycle/navigation tests, and the device checks below. Commands are proposed gates, not commands executed for this report.
+| Item | Result |
+| --- | --- |
+| Commit | `a45a5a4c99d39c8367f7aa28cac33070c81703c3`, plus uncommitted edits to the three files listed in Section 6 |
+| Flutter / Dart | 3.47.1 / 3.13.1 |
+| `flutter analyze --no-pub` | No issues found |
+| `flutter test --no-pub` | 474 passed, 3 skipped, 2 failed |
 
-### Device checks
+The two failures:
 
-Start with the exact Tamid file and settings that reproduce the issue, then include a larger tractate.
+- `pdf_runtime_service_test.dart`, "startup stays lazy; concurrent default opens and reopens initialize once": the test has no stand-in for the `eink_launcher/file_intent` platform channel.
+- `text_search_service_test.dart`, "keeps Hebrew punctuation and treats queries as literal text": the search code treats Hebrew punctuation (maqaf, paseq, sof pasuq) as removable marks.
 
-Cover:
+Neither test exercises code edited for this investigation. A run on a clean tree has not been done to confirm they already failed before the edits.
 
-- First open with cold pagination data and reopen with warm data.
-- Returning through a retained session versus a confirmed process restart.
-- Repeated forward/backward turns, including chapter edges.
-- Commentary, font-size, and vowel-display changes.
-- Suspend/resume and recovery after memory pressure.
-- Baseline, each isolated change, and the combined candidate.
-- Profile-mode diagnosis and release-mode confirmation.
+### Results log
 
-Run repeated comparable attempts; record the attempt count and failures. No ANR in one run is not proof of elimination. Agree on numerical responsiveness and memory budgets before acceptance; the five-second ANR timeout is not a usability target.
+Fill one row per run. Record outcomes as seen; do not edit old rows.
 
-| Metric | Baseline | Candidate |
-| --- | --- | --- |
-| Run count and exact reproduction scenario | Not collected | Not collected |
-| Longest foreground heartbeat delay | Not collected | Not collected |
-| Block measurement p50/p95/max and sample count | Not collected | Not collected |
-| Visible build/paint layout counts and durations | Not collected | Not collected |
-| Publication/index p50/p95/max | Not collected | Not collected |
-| Cache conversion p50/p95/max and peak queue | Not collected | Not collected |
-| Settings-to-target-ready and first-rendered latency | Not collected | Not collected |
-| Forward/backward navigation wait | Not collected | Not collected |
-| Peak resident pages, memory, and retained native objects | Not collected | Not collected |
-| ANR count and associated trace identifiers | Not collected | Not collected |
+| Run | Date | Commit and flags | Scenario | ANR count | Worst READER-DX samples | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 Baseline | Not run | | | | | |
+| 2 Chapter-only | Not run | | | | | |
+| 3 Commentary | Not run | | | | | |
 
-## 6. Documentation integration and handoff
+## 11. Where this fits in the docs
 
-Add this as a companion investigation document, not a replacement for the reflow plan.
-
-Suggested additions:
-
-In `docs/README.md`:
-
-```markdown
-- [Text reader ANR investigation](talmud/docs/reader-anr-investigation.md) — evidence, suspected causes, and validation steps.
-```
-
-In `docs/talmud/docs/responsive-reader-reflow-plan.md`:
-
-```markdown
-## Related ANR investigation
-
-See [Text reader ANR investigation](reader-anr-investigation.md) for the current
-code findings and targeted performance-validation sequence. The reflow design
-is not yet a demonstrated fix for the reported input-dispatch ANR.
-```
-
-Record new device results in the active testing documentation, such as `docs/DEVICE_TESTING.md`, or a clearly linked new run log. Do not silently edit archived results to imply that new testing occurred.
-
-### First implementation handoff
-
-1. Match the source and installed build; preserve the reproduction inputs.
-2. Add bounded per-phase timings and unchanged-page layout counters.
-3. Capture a baseline without changing pagination boundaries.
-4. Test one targeted change at a time, beginning with the measured dominant path.
-5. Re-run correctness tests and compare device evidence.
-6. Update this document with measured findings, including hypotheses weakened or rejected.
-7. Seek owner review before merging; documentation creation is not authorization for a production rewrite.
-
-## 7. Current validation status
-
-- Source inspection: completed for the files and paths identified above.
-- Exact failing APK mapped to reviewed source: not established.
-- Full ANR stack or exported CPU/system trace analyzed for this report: no.
-- Actual projected block-size distribution: not measured.
-- Application implementation changed by this report: no.
-- Confirmed root cause or validated ANR fix: no.
-
-### Implementation note (16 Oct 2026)
-
-The certain, no-regret work from Step 1–2 and Section 6 was implemented;
-nothing that changes page geometry or cache semantics was altered:
-
-- Baseline snapshot: source at `10544358bdac1d667e15be716bc695930174b2ab`
-  (two commits ahead of the bundle-reported `67e06dc`), working tree clean
-  before these changes, Flutter 3.47.1 stable / Dart 3.13.1. The failing APK
-  is still not mapped to a source commit; rebuild from the recorded commit
-  before any device comparison.
-- Added `lib/reader/services/reader_diagnostics.dart`: bounded, dormant-by-default
-  phase timings (`paginator.measure`, `session.publish`, `cache.load_decode`,
-  `cache.save_encode`, `loading.fallback_ui_layout`), fixed-size ring buffer,
-  and a lifecycle-aware heartbeat. No text, paths, or annotation contents are
-  recorded.
-- The tools are activated with a build flag, no code change or settings UI:
-  `flutter run --release --dart-define=READER_DIAGNOSTICS=true` (the value
-  must be the word `true`; `=1` leaves them dormant). Without the flag
-  everything is a dormant no-op. With it, the session runs the heartbeat
-  during each pagination pass and prints the bounded summary (`READER-DX`
-  lines) to logcat: periodically during progress, when layout finishes, and
-  on suspend/dispose — so a wedged pass that never completes still reports.
-- Small safe fixes with final geometry unchanged: cancellation is checked
-  before advancing the pagination generator and inside line slicing;
-  progress callbacks and chapter publication are skipped when no completed
-  page was added (the event-loop yield still happens); the visible-page
-  painter compares annotation contents instead of list identity.
-- Documentation: investigation linked from `docs/README.md` and the reflow
-  plan; TAL-015 opened in `docs/DEVICE_TESTING.md`.
-- `flutter analyze` and the reader test suite were run; results are recorded
-  with the change, not in this document. ANR traces were collected (see
-  below); CPU profile and phase timings are still pending (TAL-015).
-
-### Device evidence (16 Oct 2026, Bigme B751C, Tamid)
-
-Eighteen ANR traces in `freeze-B.zip` / `freeze-B2.zip` (16:17–17:07, several
-app processes; logcat in `runA-no-commentary.txt`, `runB-commentary.txt`),
-all input-dispatch timeouts with the same signature: main thread `state=R`
-in unsymbolized app frames, no held mutexes, GC (`HeapTaskDaemon`) idle,
-sibling threads asleep, top frames in memory copy/allocation
-(`__memcpy_aarch64_simd`, `malloc` into `mmap`, allocation atomics). The
-16:21:37 window measured 100% user + 0.4% kernel CPU with 28,724 minor
-faults; anonymous RSS grew roughly 18 MB per freeze episode (168 to 187 MB,
-then 164 to 182 MB). The 11-commentary retry opened in 3m53s with ANRs
-during load, then ANRs roughly every 90 s for 12+ minutes with brief
-recoveries between: per-interval burn is ~9–11 user CPU-seconds per ~110 s
-episode, i.e. repeated multi-second synchronous chunks, not one endless
-stall. Each no-commentary episode pairs a MotionEvent ANR during rapid page
-turns with a FocusEvent ANR about a minute later while still wedged, ending
-in a user-requested kill. Commentary projection runs on a worker
-(`Isolate.run`), so the load-time burn sits downstream of it. No native
-crash occurred (no tombstone/signal; the `crash_dump` lines are the
-system's all-process ANR dump being denied permission).
-
-Function-level cause is **not** established: the trace frames are
-unsymbolized and the tested builds lacked the diagnostics flag (`=1` does
-not enable a Dart boolean flag; `=true` is required), so no `READER-DX`
-phase timings exist yet. H1 vs H3 vs H4 awaits those timings plus a CPU
-profile with symbols from the flagged rebuild. No fix is validated;
-TAL-015 stays OPEN.
-
-**Working conclusion:** investigate repeated UI-isolate layout and publication first, while measuring cache/loading alternatives. Keep correctness and measured input responsiveness as separate acceptance gates.
+- Linked from `docs/README.md` and from `docs/talmud/docs/responsive-reader-reflow-plan.md`. The reflow plan is not yet a demonstrated fix for this problem.
+- Record device results as a test pass in [DEVICE_TESTING.md](../../DEVICE_TESTING.md), using its template, and update TAL-015 there. Do not edit old test passes to imply later testing.
+- Writing rules for this document: status of TAL-015 lives only in DEVICE_TESTING.md; label every fact (Measured, In code, Reported, Inferred); put new findings in Section 3 and update the suspects table in Section 5, marking weakened ideas rather than deleting them; update the "Last updated" line on every change.
+- Documentation or measurement work is not permission to rewrite pagination. Get the owner's review before merging any production change.
 
 ## References
 
-Repository paths are root-relative descriptions. Bundle-derived findings come from the owner's uploaded source, not assumptions about current `main`. The externally retrieved renderer and screen were pinned to the reported commit. Official documentation was consulted on October 16, 2026.
+Official documentation was consulted on 16 Oct 2026. Bundle-derived findings in Section 4 marked "carried forward" come from the owner's uploaded `reader_bundle.txt` at commit `67e06dcd91c3e9628d95ef04694ef47d45bebb83`.
 
-[^paginator]: Owner-supplied `reader_bundle.txt`, section `lib/reader/services/epub_paginator_service.dart`; symbols `_steps`, `paginateSpineResponsive`, and `TextBlockLayout`.
-
-[^session]: Owner-supplied `reader_bundle.txt`, section `lib/reader/controllers/text_reader_session.dart`; symbols `_repaginate`, `_runPagination`, `_publishChapter`, `_rebuildPages`, `_ensureChapterLoaded`, and `_trimResidentChapters`.
-
-[^page]: Owner-supplied `reader_bundle.txt`, section `lib/reader/widgets/text_page_view.dart`; `_TextPageViewState.build` and annotation-list construction.
-
-[^cache]: Owner-supplied `reader_bundle.txt`, section `lib/reader/services/pagination_cache_service.dart`; `load`, `save`, `_save`, and `_trim`.
-
-[^loading]: Owner-supplied `reader_bundle.txt`, sections `lib/reader/services/parsed_epub_cache_service.dart`, `lib/reader/services/tanach_sqlite_cache_service.dart`, and `lib/reader/services/epub_parser_service.dart`.
-
-[^renderer]: Commit-pinned `lib/reader/widgets/block_slice_view.dart`, especially `_BlockSliceViewState.build`, `_TextBlockPainter.paint`, and `shouldRepaint`. Source: `https://raw.githubusercontent.com/brdsllg/eink_launcher/67e06dcd91c3e9628d95ef04694ef47d45bebb83/lib/reader/widgets/block_slice_view.dart`.
-
-[^screen]: Commit-pinned `lib/reader/screens/reader_screen.dart`, especially `build`, `_buildShell`, and the `TextPageView` construction. Source: `https://raw.githubusercontent.com/brdsllg/eink_launcher/67e06dcd91c3e9628d95ef04694ef47d45bebb83/lib/reader/screens/reader_screen.dart`.
-
-[^plan]: Owner-supplied responsive-reflow plan and commit-pinned repository copy at `docs/talmud/docs/responsive-reader-reflow-plan.md`: `https://raw.githubusercontent.com/brdsllg/eink_launcher/67e06dcd91c3e9628d95ef04694ef47d45bebb83/docs/talmud/docs/responsive-reader-reflow-plan.md`.
-
-[^android]: Android Developers, “Diagnose and fix ANRs,” input-dispatch timeout section: `https://developer.android.com/topic/performance/anrs/diagnose-and-fix-anrs`.
-
-[^threading]: Flutter, “Merged threads on macOS and Windows,” context describing the preceding Android/iOS default merge: `https://docs.flutter.dev/release/breaking-changes/macos-windows-merged-threads`.
+[^android]: Android Developers, "Diagnose and fix ANRs": `https://developer.android.com/topic/performance/anrs/diagnose-and-fix-anrs`.
 
 [^yield]: Dart API, `Future.delayed` constructor: `https://api.dart.dev/dart-async/Future/Future.delayed.html`.
 
-[^unawaited]: Dart API, `unawaited` function: `https://api.dart.dev/dart-async/unawaited.html`.
+[^isolates]: Flutter, "Concurrency and isolates": `https://docs.flutter.dev/perf/isolates`.
 
-[^isolates]: Flutter, “Concurrency and isolates,” including background-isolate restrictions and transfer overhead: `https://docs.flutter.dev/perf/isolates`.
-
-[^textpainter]: Flutter API, `TextPainter` class, layout lifecycle and resource disposal: `https://api.flutter.dev/flutter/painting/TextPainter-class.html`.
-
-[^profiler]: Flutter DevTools, “Use the CPU profiler view”: `https://docs.flutter.dev/tools/devtools/cpu-profiler`.
+[^textpainter]: Flutter API, `TextPainter` class: `https://api.flutter.dev/flutter/painting/TextPainter-class.html`.

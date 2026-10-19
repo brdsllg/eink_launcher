@@ -153,6 +153,17 @@ class TextReaderSession extends ReaderSession {
   /// Upper bound on "wait for the next batch" retries inside one page turn.
   static const int _maxTurnAttempts = 64;
 
+  /// Control experiment for the ANR investigation (TAL-015). When the build
+  /// is started with `--dart-define=READER_CURRENT_CHAPTER_ONLY=true`, the
+  /// background pass lays out only the chapter holding the reading position.
+  /// Other chapters are still laid out on demand when a page turn or jump
+  /// reaches them. Off by default, so normal builds are unchanged. Page counts
+  /// and percentages are incomplete while it is on; never ship it enabled.
+  static const bool _currentChapterOnly = bool.fromEnvironment(
+    'READER_CURRENT_CHAPTER_ONLY',
+    defaultValue: false,
+  );
+
   /// Event-loop heartbeat for the ANR investigation. Started when a
   /// pagination pass begins, stopped when it ends or the session is
   /// suspended/torn down. Never started unless diagnostics are enabled
@@ -765,8 +776,10 @@ class TextReaderSession extends ReaderSession {
     // than the ones behind, and the position's own chapter matters most.
     final order = <int>[
       priority,
-      for (var i = priority + 1; i < book.spine.length; i++) i,
-      for (var i = priority - 1; i >= 0; i--) i,
+      if (!_currentChapterOnly) ...[
+        for (var i = priority + 1; i < book.spine.length; i++) i,
+        for (var i = priority - 1; i >= 0; i--) i,
+      ],
     ];
     final run = _runPagination(
       contentSize: contentSize,

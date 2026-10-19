@@ -10,8 +10,11 @@ import 'package:flutter/foundation.dart';
 /// Enable for one investigation run without touching code or settings UI:
 ///
 /// ```bash
-/// flutter run --release --dart-define=READER_DIAGNOSTICS=1
+/// flutter run --release --dart-define=READER_DIAGNOSTICS=true
 /// ```
+///
+/// The value must be the word `true`. A Dart boolean build flag ignores `=1`
+/// and stays off.
 ///
 /// When enabled, phase durations are kept in fixed-size buffers and
 /// summarized as count / p50 / p95 / max, and [dumpToLog] prints the summary
