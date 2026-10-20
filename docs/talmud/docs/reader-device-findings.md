@@ -28,6 +28,7 @@ whether the format can carry *every* commentary. **Owner** shows where a fix liv
 | TAL-012 | Continuous (the **Talmud layout** setting) changes nothing visible | Reader | **Paragraphs** keeps each body paragraph separate. **Continuous** (`mergeContinuousBlocks`) joins consecutive body paragraphs into flowing text, keeping headings and amud boundaries as breaks. Decision (Levi, 6 Oct 2026): remove the setting. |
 | TAL-013 | Vowel marks and punctuation do not show in Talmud text | Builder / Sefaria data | See "TAL-013 detail" below. |
 | TAL-014 | First open of Berakhot took 21 s | Builder / Reader | Suggests a stale or missing sidecar, so the reader fell back to importing on the device. Check the sidecar fingerprints. Full timings: DEVICE_TESTING.md, study-book measurements. |
+| TAL-015 | "App not responding" when opening or reading Talmud books | Unknown until the cause is established | The owner confirmed on 18 Oct that every Talmud EPUB is affected. Only Tamid has been measured so far; the other tractates still need testing to see whether the cause is the same. Evidence and test steps: [the ANR investigation](reader-ANR-investigation.md). |
 
 Device log of each pass: [DEVICE_TESTING.md](../../DEVICE_TESTING.md).
 

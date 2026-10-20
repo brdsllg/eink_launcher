@@ -536,6 +536,11 @@ class TextBlockLayout {
 
   /// Removes Hebrew vowel points and cantillation-era combining marks for the
   /// Talmud "hide vowels" display setting. One build only; source text stays.
+  ///
+  /// Deliberately strips the whole U+0591..U+05C7 range, including the
+  /// punctuation inside it (maqaf, paseq, sof pasuq, nun hafukha). That is the
+  /// recorded decision in docs/PLANNED_FEATURES_STATUS.md (TAL-013) and the
+  /// opposite of search normalisation, which keeps punctuation.
   static String withoutVowelPoints(String source) {
     final buffer = StringBuffer();
     for (final rune in source.runes) {
@@ -545,8 +550,7 @@ class TextBlockLayout {
     return buffer.toString();
   }
 
-  static bool _isVowelMark(int rune) =>
-      rune >= 0x0591 && rune <= 0x05c7;
+  static bool _isVowelMark(int rune) => rune >= 0x0591 && rune <= 0x05c7;
 
   static String? linkAtOffset(
     ContentBlock block,

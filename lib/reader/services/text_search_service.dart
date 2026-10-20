@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import '../models/content_block.dart';
 import '../models/parsed_book.dart';
 import '../models/reading_position.dart';
+import 'hebrew_text.dart';
 
 /// A match in the original block text, independent of pagination/typography.
 class TextSearchMatch {
@@ -135,7 +136,7 @@ _NormalizedText _normalize(String source) {
 }
 
 // Hebrew combining marks only; maqaf and other Hebrew punctuation are retained.
-bool _isHebrewMark(int rune) => rune >= 0x0591 && rune <= 0x05c7;
+bool _isHebrewMark(int rune) => isHebrewCombiningMark(rune);
 
 String _snippet(String source, int matchStart) {
   var start = math.max(0, matchStart - 40);

@@ -94,6 +94,45 @@ void main() {
   });
 
   test(
+    'SQLite search keeps Hebrew punctuation as literal text',
+    () async {
+      final service = TanachSqliteCacheService(
+        cacheDirectory: Directory('${directory.path}/cache'),
+      );
+      final book = ParsedBook(
+        title: 'Genesis',
+        contentFingerprint: 'content-fingerprint',
+        spine: [
+          ParsedSpineItem(
+            id: 'chapter-1',
+            href: 'text/chapter-1.xhtml',
+            title: 'Genesis 1',
+            blocks: const [],
+          ),
+        ],
+        studyDocuments: {
+          'text/chapter-1.xhtml': _chapter(1, 'אב־גד אב׀גד אב׃גד אבגד'),
+        },
+      );
+      final imported = await service.import(
+        doc,
+        book,
+        fingerprint: 'fingerprint-a',
+      );
+      final search = TanachSqliteSearchService(
+        databasePath: imported.tanachDatabasePath!,
+        settings: const ReaderSettings(),
+      );
+      // The maqaf, paseq and sof pasuq forms are three different strings and
+      // must not collapse onto the unpunctuated spelling.
+      for (final query in ['אב־גד', 'אב׀גד', 'אב׃גד', 'אבגד']) {
+        final results = await search.search(imported.spine, query);
+        expect(results.matches, hasLength(1), reason: 'query $query');
+      }
+    },
+  );
+
+  test(
     'SQLite searches normalized Hebrew and respects commentary filters',
     () async {
       final service = TanachSqliteCacheService(

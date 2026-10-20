@@ -14,6 +14,7 @@ import '../models/parsed_book.dart';
 import '../models/reader_settings.dart';
 import '../models/toc_entry.dart';
 import 'app_cache_directory.dart';
+import 'hebrew_text.dart';
 import 'tanach_layout_service.dart';
 
 /// A disposable, per-book SQLite cache for the large structured Tanach EPUBs.
@@ -667,7 +668,7 @@ String normalizeTanachSearchText(String source) {
   return buffer.toString().trim();
 }
 
-bool _isHebrewMark(int rune) => rune >= 0x0591 && rune <= 0x05c7;
+bool _isHebrewMark(int rune) => isHebrewCombiningMark(rune);
 
 List<Map<String, dynamic>> _encodeBlocks(List<ContentBlock> blocks) => [
   for (final block in blocks)
