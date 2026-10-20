@@ -6,6 +6,7 @@ import '../models/content_block.dart';
 import '../models/laid_out_page.dart';
 import '../models/reader_settings.dart';
 import '../models/reading_position.dart';
+import 'hebrew_text.dart';
 import 'hyphenation_service.dart';
 import 'reader_diagnostics.dart';
 
@@ -434,7 +435,7 @@ class TextBlockLayout {
     for (final run in runs) {
       final visible = settings.hideVowelPoints
           ? withoutVowelPoints(run.text)
-          : run.text;
+          : reorderHebrewMarks(run.text);
       final text = settings.hyphenate
           ? const HyphenationService().hyphenateLatinText(visible)
           : visible;
@@ -526,7 +527,7 @@ class TextBlockLayout {
         (run) {
           final base = settings.hideVowelPoints
               ? withoutVowelPoints(run.text)
-              : run.text;
+              : reorderHebrewMarks(run.text);
           return settings.hyphenate
               ? const HyphenationService().hyphenateLatinText(base)
               : base;
@@ -599,7 +600,7 @@ class TextBlockLayout {
     for (final run in block.runs) {
       final base = settings.hideVowelPoints
           ? withoutVowelPoints(run.text)
-          : run.text;
+          : reorderHebrewMarks(run.text);
       // Source offset of each base char, so removed vowels still advance.
       final baseToSource = <int>[];
       var cursor = source;
