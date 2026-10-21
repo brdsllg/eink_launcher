@@ -3,7 +3,7 @@
 The one place for everything checked on the physical device: what was tested, what
 broke, whether it is fixed, and what to check next.
 
-Last updated: 18 Oct 2026. This file was restructured into an issue tracker on 7 Oct
+Last updated: 21 Oct 2026. This file was restructured into an issue tracker on 7 Oct
 2026. Statuses and the status log were reconstructed from the older notes, so some
 change dates are the date a pass reported them, not the exact day of the fix.
 
@@ -52,7 +52,7 @@ Every issue has exactly one of these. Nothing else is allowed.
 | TAL-013 | Vowel marks and punctuation do not show in the Talmud text, although the Sefaria website shows them on all of Talmud. | **FIX BUILT** | Cause found: pipeline picked Sefaria's unpointed Aramaic edition. Fixed 11 Oct: inventory prefers Vocalized Aramaic, download-plan swapped for all 37, Berakhot cache verified (227k marks, 0 cantillation). Rebuild EPUBs + sidecars, then recheck the toggle on Berakhot 2a. Decision (Levi, 6 Oct 2026): there is no vowel setting for Tanach and there should not be one. | 11 Oct 2026 |
 | TAL-014 | First open of Berakhot took 21 s. It should be nearly instant if the sidecar file is working. | **NEEDS INFO** | Check that the Berakhot sidecar is fresh (matches the current book), then time the first open again. | 6 Oct 2026 |
 | BRW-001 | File browser acted oddly once after closing all open tabs. | **WATCHING** | Could not be repeated. If it happens again, write down the exact steps. Keep in the next device pass. | 5 Oct 2026 |
-| TAL-015 | The app shows "app not responding" when opening or reading Talmud books, and opening the same book again can freeze it again. The owner confirmed on 18 Oct that every Talmud EPUB does this. | **OPEN** | First timing run (18 Oct, Tamid, all commentaries on): one piece of text took 55 seconds to lay out. Next: find out whether that is a one-off or typical, and test the other tractates to see whether the cause is the same. See [the ANR investigation](talmud/docs/reader-ANR-investigation.md). | 18 Oct 2026 |
+| TAL-015 | The app shows "app not responding" when opening or reading Talmud books, and opening the same book again can freeze it again. The owner reported on 18 Oct that every Talmud EPUB does this; on 21 Oct Berakhot and Bava Kama did not freeze and Tamid did. | **OPEN** | Timing runs on Tamid show one paragraph of about 287,000 characters taking about 57 seconds to lay out. Berakhot has no block that large (its largest is about 19,000 characters). Next: find out why Tamid's text has such a paragraph, then limit how big a block can be. See [the ANR investigation](talmud/docs/reader-ANR-investigation.md). | 21 Oct 2026 |
 
 ### 2. Fix built, waiting for a device check
 
@@ -89,6 +89,16 @@ books first (see the [checklist](#checklist-for-the-next-device-pass)).
 ## Status log
 
 One line per change, newest first. Older dates are when a pass reported the change.
+
+- **21 Oct 2026 (later):** TAL-015 stays OPEN. Berakhot (largest block about 19,000
+  characters, no freezes) and Bava Kama did not freeze, and Tamid froze again. The earlier
+  report that every Talmud EPUB freezes was not reproduced. The Tamid freeze comes from one
+  huge paragraph; why that paragraph exists is not yet known.
+
+- **21 Oct 2026:** TAL-015 stays OPEN. A second timing run on Tamid found the piece of text
+  that freezes the app: one paragraph of about 287,000 characters, which took about 57
+  seconds to lay out. Most of that time was spent in the reader's own line-by-line step,
+  not in the text engine. Not yet known: whether the other tractates have blocks like it.
 
 - **18 Oct 2026:** TAL-015 stays OPEN. The owner confirmed every Talmud EPUB freezes; only
   Tamid has been measured, and the other tractates are still to be tested to see whether
@@ -150,7 +160,7 @@ specific problem is fixed; only the tracker does.
 | Hebrew and English dictionaries | Checked OK (5 Oct) | none |
 | Selection, notes, underlines | Partly checked. Handle size OK. Notes, underlines and text-layer PDF passed 5 Oct and were not re-run. | SEL-001 to 005 |
 | Tanach study books | Partly checked. Chapters mode, bilingual headings and chapter contents pass. | TAN-001 to 007 |
-| Talmud study books | Partly checked. Berakhot pilot starts, headings, links and commentary grouping pass. Every Talmud EPUB freezes when opened or read (TAL-015). | TAL-001 to 015 |
+| Talmud study books | Partly checked. Berakhot pilot starts, headings, links and commentary grouping pass. Tamid freezes when opened or read; Berakhot and Bava Kama did not (TAL-015). | TAL-001 to 015 |
 | Renderer preference, preview and sharpen timing, unplugged idle battery drain | Not measured (optional) | none |
 
 ## Rules for writing in this document

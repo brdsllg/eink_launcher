@@ -12,35 +12,35 @@
 
 ## 1. In plain words
 
-The owner confirmed on 18 Oct that every Talmud EPUB freezes this way. Only Tamid has been investigated so far, and whether the other tractates freeze for the same reason has not been tested. When you open or read a tractate such as Tamid, the tablet freezes, for several seconds or much longer, and Android shows "app not responding". Opening the same book again can freeze it again.
+On 18 Oct the owner reported that every Talmud EPUB freezes. On 21 Oct (device clock), Berakhot and Bava Kama did not freeze and Tamid froze again, so the freeze is currently known for Tamid only. When you open or read Tamid, the tablet freezes, for several seconds or much longer, and Android shows "app not responding". Opening the same book again can freeze it again.
 
 Every device trace collected so far looks the same: the reader app was busy working flat out. It was not waiting on the disk, the network or another process, and it had not crashed. The work comes in bursts of several seconds, and the app's memory use grows a little with each freeze. It is worse with commentary switched on: Tamid with 11 commentaries took almost 4 minutes to open and froze again and again. Without commentary it also froze, during rapid page turning.
 
-The most likely cause is that the app does a lot of page-layout work in one stretch, on the same thread that handles your taps, so taps wait. **The first timing run (18 Oct, commentary on) points at one job: laying out a single very large block of text took 55 seconds in one go.** Rebuilding the page list and saving layouts to disk were both fast in that run. It is one run, and we do not yet know how big that block is or whether drawing the page repeats the work.
+The most likely cause is that the app does a lot of page-layout work in one stretch, on the same thread that handles your taps, so taps wait. **The first timing run (18 Oct, commentary on) points at one job: laying out a single very large block of text took 55 seconds in one go.** Rebuilding the page list and saving layouts to disk were both fast in that run. A second run then showed that the block is a single paragraph of 287,099 characters, and that most of its 57 seconds goes in the reader's own line-by-line step rather than in the text engine. Berakhot has no block like it (its largest is 19,068 characters). We do not yet know why Tamid's text came out as one paragraph.
 
-No fix has been checked on the device. The next step is to find out what that block is (Sections 8 and 9).
+No fix has been checked on the device. The next step is to find out why Tamid has that paragraph by checking the book file, then limit how big a block can be (Section 9).
 
 ## 2. What is established and what is not
 
 | Established | Not established |
 | --- | --- |
-| The freezes are Android input timeouts: the app did not handle a touch or focus event for 5 seconds (measured). | Whether that one block is the only cause, how big it is, and whether drawing the page repeats the work. The 16 Oct traces show unnamed app code (measured). |
+| The freezes are Android input timeouts: the app did not handle a touch or focus event for 5 seconds (measured). | Whether that one block is the only cause, and whether drawing the page repeats the work. The 16 Oct traces show unnamed app code (measured). |
 | During freezes the main thread was running app code, holding no locks, with garbage collection idle (measured, 18 traces). | Whether layout, page-list rebuilding, or cache saving is the dominant cost. |
 | The suspect code patterns exist in the source (Section 4). One block took 55.3 s to measure in the 18 Oct run (measured, commentary on, one run). | Which of the other patterns, if any, also contribute. |
-| Commentary makes it much worse (measured, Run B). | The size of the largest block of text being laid out. |
+| Commentary makes it much worse (measured, Run B). The block that freezes Tamid is one 287,099-character paragraph with a single run of text (measured, run 4). | Whether other tractates contain such blocks, and why Tamid's text came out as one paragraph. |
 | Memory grows about 18 MB per freeze (measured). | Whether that growth is a cause or a side effect. |
-| Every Talmud EPUB freezes (reported by the owner, 18 Oct). | Whether other tractates freeze for the same reason. Only Tamid has traces and timings (opened with 11 commentaries on 16 and 18 Oct). The 6 Oct device pass recorded no freeze for Berakhot with three commentaries; why that differs from the owner's report now is unknown (DEVICE_TESTING.md). |
+| Tamid freezes (measured on 16, 18 and 20 Oct). Berakhot and Bava Kama did not freeze on 21 Oct (reported; the Berakhot log has no `ANR in` lines and its largest block is 19,068 characters). | Whether any other tractate freezes. The owner's 18 Oct report that every Talmud EPUB freezes was not reproduced. Only Berakhot has a timing log. |
 
 **Validation status**
 
 | Item | State |
 | --- | --- |
 | Source inspection | Re-checked on 18 Oct for the paginator, the session, the page painter and the pagination cache. Other files are carried forward from the 16 Oct review (Section 4 says which). |
-| Installed APK matched to a source commit | No |
+| Installed APK matched to a source commit | Not for the 16 Oct runs. Yes for runs 4 and 5 (built from commit `a45a5a4c` plus the Section 6 edits). |
 | ANR stacks collected | Yes, 18, on 16 Oct. Not symbolized, so function names are unknown. |
 | Phase timings (READER-DX lines) | None in the 16 Oct logs (checked 18 Oct). One run on 18 Oct produced them (Section 3.5). |
 | CPU profile | None |
-| Block-size distribution | Not measured |
+| Block-size distribution | Measured for Berakhot (Section 3.8) and, for two blocks only, Tamid (Section 3.7) |
 | Code changed | Yes (Section 6). Not checked on the device. |
 | Root cause confirmed, or fix validated | No |
 
@@ -122,9 +122,61 @@ What it shows:
 - The on-screen clock lagging by 3 to 4 minutes is consistent with the app being unable to redraw during the stalls.
 - The diagnostics print durations only, not block sizes, so how large the slow block is, and which chapter it is in, is unknown.
 
-### 3.6 Observation from the 21 Oct run: the popup needs a tap
+### 3.6 Observation from run 4: the popup needs a tap
 
-Reported: opening Tamid shows no popup by itself. The "not responding" popup appeared when the owner tapped the screen about 10 seconds after opening. This fits how Android works: it raises the popup only when a touch goes unanswered for 5 seconds, so the app can already be frozen before the first tap without any popup showing. The freeze therefore starts before the popup does. The timing log from this run is saved outside the repository and is still to be read.
+Reported: opening Tamid shows no popup by itself. The "not responding" popup appeared when the owner tapped the screen about 10 seconds after opening. This fits how Android works: it raises the popup only when a touch goes unanswered for 5 seconds, so the app can already be frozen before the first tap without any popup showing. The freeze therefore starts before the popup does.
+
+### 3.7 Run 4: block tally and breakdown (Tamid, device clock 20 Oct 18:35)
+
+Release build with the extended diagnostics (Section 6), commit `a45a5a4c99d39c8367f7aa28cac33070c81703c3` plus uncommitted edits. Tamid was opened with the settings it had saved, which included all commentaries. The log (`run-4-tamid.txt`, saved outside the repository) holds 3 `ANR in` lines and exactly one READER-DX dump (measured). The Tamid EPUB was the version on the tablet before the vowelled rebuild.
+
+| Item | Value |
+| --- | --- |
+| Blocks measured in this app run | 2 |
+| Slowest block | 287,099 characters, 1 run of text, paragraph, left to right |
+| `paginator.measure` for it | 57.1 s |
+| of which text layout by the engine (`measure.painter`) | 7.9 s |
+| of which the line-by-line step (`measure.lines`) | 48.9 s |
+| of which line metrics (`measure.metrics`) | 0.10 s |
+| of which offset mapping (`measure.offsets`) | 0.26 s |
+| `session.publish` | 41 microseconds |
+| Blocks over 0.1 s, 1 s, 10 s | 1, 1, 1 |
+| Blocks over 10,000 and 100,000 characters | 1, 1 |
+
+What it shows:
+
+- The block that freezes the app is one paragraph of 287,099 characters with a single unstyled run of text. A typical block measured in 2.4 ms in the 18 Oct run, so this one is far outside normal.
+- 86% of its measuring time (48.9 of 57.1 s) is the loop that finds where each line starts and ends. The text engine's own layout took 7.9 s. The loop asks the painter for each line's position and boundary; on one enormous paragraph each lookup is probably slow, so total cost likely grows much faster than the block's size (inference; the individual lookups were not timed).
+- Even with that loop free, layout alone would be about 8 s, well over Android's 5-second limit. Making the loop faster cannot be the whole fix.
+- The single dump has no `widget.*` or `cache.*` lines. No `cache.load_decode` line means the saved layout was not used. No `widget.*` lines means no visible page had been drawn when it printed (inferred from their absence), so the visible-page timers are still untested.
+- Only 2 blocks had been measured when the dump printed, so this run does not say how many other large blocks Tamid has.
+
+### 3.8 Run 5: Berakhot, Bava Kama and a Tamid recheck (device clock 21 Oct)
+
+Same build as run 4. The log was saved as `run-4-tamid.txt` in the repository folder by mistake: it holds Berakhot, and the earlier Tamid log is `C:\Users\levi\run-4-tamid.txt`. It covers one app process from 17:29:54 to 17:33:28, opened on Berakhot, and ends there. It does not cover Bava Kama or the Tamid recheck.
+
+| Item | Berakhot (measured) |
+| --- | --- |
+| `ANR in` lines | 0 |
+| Largest block | 19,068 characters (7 blocks over 10,000 characters, none over 100,000) |
+| Measurements over 0.1 s, 1 s, 10 s | 20, 0, 0 |
+| Slowest block | 351 ms, for 12,852 characters in 152 runs |
+| Worst `paginator.measure` | 65.6 ms |
+| Worst `session.publish` | 8.4 ms |
+| Worst `cache.save_encode` | 17.3 ms |
+| Heartbeat gaps | None printed |
+
+The tally counts measurements, including repeated measurements of the same blocks, not distinct blocks.
+
+Reported: Bava Kama did not freeze (no log). Tamid froze again when rechecked (no log).
+
+What it shows:
+
+- Berakhot has no block anywhere near Tamid's 287,099 characters, and it did not freeze. The 18 Oct report that every Talmud EPUB freezes was not reproduced. Tamid is the only book shown to freeze so far.
+- Cost per character: Berakhot's slowest block took about 27 microseconds per character (351 ms for 12,852 characters). Tamid's took about 199 microseconds per character (57.1 s for 287,099), about seven times more. That fits the cost growing faster than block size (inference from two data points).
+- Berakhot's large blocks cost tens to hundreds of milliseconds each: noticeable, but far below the 5-second limit.
+
+Other observation (reported, not reproduced): after leaving a book for the home screen, the app briefly crashed and then worked normally again. The owner also could not reproduce an earlier failure in Berakhot. This log ends at 17:33:28 and its filter did not include crash messages, so it holds no evidence either way. The log filter in Section 7 now includes `AndroidRuntime:E`.
 
 ## 4. What the code does
 
@@ -192,7 +244,7 @@ Unknown: how big the entries are and how long conversion takes.
 - Nothing caps the length. Block size therefore depends entirely on how the book's markup is written, and a commentary note body without paragraph tags is one block.
 - The earlier crash when switching to the Continuous layout (TAL-011) was the same kind of problem: a code comment in this file records that a whole amud became one block and the launcher ran out of memory.
 
-Unknown: which markup produced the 55-second block in Tamid.
+Unknown: why Tamid's text came out as one paragraph. Run 4 found the slow block is one paragraph of 287,099 characters with a single run of text; which markup or build step produced it is not yet known.
 
 ## 5. Suspects
 
@@ -200,7 +252,7 @@ The rows overlap; they are not probabilities. "Current view" uses all the eviden
 
 | ID | Suspect | Current view | Evidence that would settle it |
 | --- | --- | --- | --- |
-| H1 | Long block measurement or slicing (F1) | Strongest candidate: one block took 55.3 s to measure in the 18 Oct run (measured, one run, commentary on). | The size and content of that block; repeat runs |
+| H1 | Long block measurement or slicing (F1) | Strongly supported for Tamid: one block took 55.3 s (18 Oct) and 57.1 s (run 4) to measure. In run 4 it is a 287,099-character paragraph, and 86% of the time was in the line-by-line step (Section 3.7). | Why Tamid's text has one huge paragraph (check the book file) |
 | H2 | Repeated visible-page layout (F2) | Possible amplifier. The longest app stall (109.9 s) was about twice the slow measurement, which fits the same block being measured again when drawn. Inference only; this path has no timer. | A new timer on visible-page measure and paint |
 | H3 | Page-list rebuilding on each progress update (F3) | Not the main cause in the 18 Oct run: the worst `session.publish` sample was 0.18 ms. Could matter in larger books. | `session.publish` samples that grow with page count |
 | H4 | Cache conversion on the main thread (F5) | Not the main cause in the 18 Oct run: the worst `cache.save_encode` sample was 8.8 ms. | `cache.save_encode` or `cache.load_decode` samples lasting seconds |
@@ -232,7 +284,7 @@ None of these has been checked on the device. None changes page geometry or the 
 | 16 Oct | Periodic (30 s), on-suspend and on-dispose diagnostics dumps, so a stuck pass still reports. |
 | 18 Oct | Added the experiment switch `READER_CURRENT_CHAPTER_ONLY` to `text_reader_session.dart`. Off by default; with it on, the background pass lays out only the chapter holding the reading position and other chapters are laid out on demand. Page counts and percentages are incomplete while it is on. Never ship a build with it on. |
 | 18 Oct | Corrected the comment in `reader_diagnostics.dart`: the switch value must be the word `true`. |
-| 21 Oct | Extended the diagnostics (still off by default). A tally of block measurements since the app started (`READER-DX blocks ...` and `slowest#` lines: how many took over 0.1 s, 1 s and 10 s, how large blocks are, and the size and kind of the slowest five). The measuring step is split into `measure.painter`, `measure.metrics`, `measure.offsets` and `measure.lines`. Timers on drawing visible pages: `widget.measure`, `widget.paint_layout`, `widget.paint_total`. Not yet compiled or tested. |
+| 20 Oct | Extended the diagnostics (still off by default). A tally of block measurements since the app started (`READER-DX blocks ...` and `slowest#` lines: how many took over 0.1 s, 1 s and 10 s, how large blocks are, and the size and kind of the slowest five). The measuring step is split into `measure.painter`, `measure.metrics`, `measure.offsets` and `measure.lines`. Timers on drawing visible pages: `widget.measure`, `widget.paint_layout`, `widget.paint_total`. `flutter analyze --no-pub` reported no issues and the build ran on the device (Section 3.7); `flutter test` was not rerun. |
 
 Two cautions:
 
@@ -278,7 +330,7 @@ The value must be the word `true`. Window 2:
 
 ```powershell
 adb logcat -c
-cmd /c "adb logcat -v time flutter:I WindowManager:I ActivityManager:I *:S > run-0-smoke.txt"
+cmd /c "adb logcat -v time flutter:I WindowManager:I ActivityManager:I AndroidRuntime:E *:S > run-0-smoke.txt"
 ```
 
 On the tablet, open any small book and let it finish laying out. Stop the log with Ctrl+C, then:
@@ -306,7 +358,7 @@ During the run: turn pages as fast as you normally would for up to 3 minutes. If
 | 1. Baseline, no commentary | `flutter run --release --dart-define=READER_DIAGNOSTICS=true` | `run-1-baseline.txt` |
 | 2. Experiment, no commentary | `flutter run --release --dart-define=READER_DIAGNOSTICS=true --dart-define=READER_CURRENT_CHAPTER_ONLY=true` | `run-2-chapter-only.txt` |
 | 3. Baseline with the commentary set that froze before (optional) | same as run 1 | `run-3-commentary.txt` |
-| 4. Each other Talmud tractate, one run each, same settings as run 1 | same as run 1 | `run-4-<tractate>.txt` |
+| 5. Each other Talmud tractate, one run each, same settings as run 1 | same as run 1 | `run-5-<tractate>.txt` |
 
 If you can, repeat runs 1 and 2 once more. One run each proves little.
 
@@ -327,19 +379,19 @@ Give me the ANR count and the last block of READER-DX lines. The READER-DX lines
 
 | What you see | What it suggests | Next |
 | --- | --- | --- |
-| One block's `paginator.measure` worst sample is tens of seconds (seen on 18 Oct: 55.3 s) | A single oversized block is the main cause (H1) | Find out how big it is and what it contains, then split or bound such blocks (Section 9) |
+| One block's `paginator.measure` worst sample is tens of seconds (seen: 55.3 s on 18 Oct, 57.1 s in run 4) | A single oversized block is the main cause (H1) | Check the block's size with the tally, then split or bound such blocks (Section 9) |
 | Run 1 freezes; run 2 freezes much less or not at all | Layout work on the other chapters is a major cause | Limit the background pass to a window around the reading position, then re-measure |
 | Both runs freeze about equally | The cause is inside the current chapter | Read the READER-DX numbers below |
 | One phase (`paginator.measure`, `session.publish`, `cache.save_encode` or `cache.load_decode`) has a worst sample over about 1 second (a rule of thumb, not a measured limit) | That phase is the main suspect (H1, H3 or H4) | Fix that one first |
-| Heartbeat gaps are large but no phase has a large worst sample | The time is going somewhere untimed, probably drawing visible pages (H2) | Timers for the visible-page path were added 21 Oct (Section 6); compare `widget.*` with `paginator.measure` |
+| Heartbeat gaps are large but no phase has a large worst sample | The time is going somewhere untimed, probably drawing visible pages (H2) | Timers for the visible-page path were added 20 Oct (Section 6); compare `widget.*` with `paginator.measure` |
 | No READER-DX lines at all | The timing tools were not on, or the log is incomplete | Repeat the smoke test (step 3) |
-| The slow block's size is unknown, and one run cannot show whether it is an outlier or one of many | A tally is needed, not just the worst value | Add to the diagnostics a tally of blocks measured and how many took over 100 ms, 1 s and 10 s, plus the size of the slowest few (added 21 Oct; see Section 6) |
+| The slow block's size is unknown | A tally is needed, not just the worst value | Read the `blocks measured` and `slowest#` lines (added 20 Oct; see Section 6). Runs 4 and 5 show Tamid's 287,099-character block against Berakhot's 19,068-character maximum |
 
 ## 9. Candidate fixes
 
-Do not start these until the size and content of the slow block are known. Make one change at a time so each can be measured separately. Keep the final page geometry identical to today's.
+Do not start these until we know why Tamid has a 287,099-character paragraph (Section 3.7). If it is a one-off in the book file, correcting that file may fix Tamid, but the reader should still be protected against giant blocks. Make one change at a time so each can be measured separately. Keep the final page geometry identical to today's.
 
-- **Bound the size of a single block.** If the slow block is one huge paragraph, split it into smaller pieces before measuring (for example by sentence or segment), keeping reading positions and page boundaries correct, or measure it in slices that can pause. Options: correct the markup in the builder (one paragraph per comment); split long blocks in the parser (this changes block numbers, so saved bookmarks, notes and search positions in affected books need care); or measure a long block in slices. This needs the owner's decision once the block is identified.
+- **Bound the size of a single block.** The slow block is one huge paragraph (287,099 characters in run 4). Of its 57.1 s, 48.9 s was our line-by-line step and 7.9 s was the text engine, so a faster line step alone would still leave about 8 s. Split it into smaller pieces before measuring (for example by sentence or segment), keeping reading positions and page boundaries correct, or measure it in slices that can pause. Options: correct the markup in the builder (one paragraph per comment); split long blocks in the parser (this changes block numbers, so saved bookmarks, notes and search positions in affected books need care); or measure a long block in slices. This needs the owner's decision once the block is identified.
 - **Separate progress from visible content.** Progress updates should not rebuild unchanged visible text. Keep immediate updates for target-ready, navigation, errors and completion. Release waiting page turns independently of any throttling. Never set the repaint check permanently to false.
 - **Remove redundant publication and indexing.** Do not republish an unchanged page set. Do not recreate every earlier page wrapper for each new page. Keep spine order correct when chapters arrive out of order.
 - **Reuse measurements safely.** Start with immutable measurement results and a small, bounded cache for visible layouts. Build keys from every real input (source revision, styled runs, direction, width, typography, display settings, image and page-height limits); an unchanged block ID does not prove unchanged content. Keep text painters on the main thread with an explicit owner that disposes them.[^textpainter] Measure memory as well as speed; an unbounded cache of the whole book is not a fix.
@@ -395,7 +447,11 @@ Fill one row per run. Record outcomes as seen; do not edit old rows.
 | 1 Baseline | Not run | | | | | |
 | 2 Chapter-only | Not run | | | | | |
 | 3 Commentary (meant as run 1, but all commentaries were already saved as on) | 18 Oct | `a45a5a4c...` plus Section 6 edits; `READER_DIAGNOSTICS=true` | Tamid opened with all commentaries on, then page turns | At least 3 popup appearances (owner's count; no log file saved) | `paginator.measure` 55.3 s; `session.publish` 0.18 ms; `cache.save_encode` 8.8 ms; heartbeat gap 109.9 s | See Section 3.5 |
-| 4 Other tractates (one run each) | Not run | | | | | |
+| Tamid with extended diagnostics (`run-4-tamid.txt`) | 20 Oct, device clock | `a45a5a4c...` plus Section 6 edits; `READER_DIAGNOSTICS=true` | Tamid opened as saved (all commentaries on), tapped after about 10 s | 3 `ANR in` lines | `paginator.measure` 57.1 s (`measure.lines` 48.9 s, `measure.painter` 7.9 s); slowest block 287,099 characters, 1 run | See Section 3.7 |
+| Berakhot (`run-4-tamid.txt` in the repository folder, mislabelled) | 21 Oct, device clock | `a45a5a4c...` plus Section 6 edits; `READER_DIAGNOSTICS=true` | Berakhot opened; commentary setting not recorded | 0 `ANR in` lines | Largest block 19,068 characters; slowest block 351 ms; worst `paginator.measure` 65.6 ms | See Section 3.8 |
+| Bava Kama | 21 Oct, device clock | same | Opened | No freeze (reported) | No log | |
+| Tamid recheck | 21 Oct, device clock | same | Opened | Froze again (reported) | No log | |
+| 5 More tractates | Not run | | | | | |
 
 ## 11. Where this fits in the docs
 
