@@ -8,6 +8,7 @@ import '../models/content_block.dart';
 import '../models/laid_out_page.dart';
 import '../models/reader_settings.dart';
 import '../services/epub_paginator_service.dart';
+import '../services/reader_diagnostics.dart';
 import '../services/text_word_selection.dart';
 import '../services/annotation_text_mapping.dart';
 import 'selection_toolbar.dart';
@@ -475,6 +476,9 @@ class _BlockSliceViewState extends State<BlockSliceView> {
       height: slice.height,
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final diagnostics = ReaderDiagnostics.instance;
+          final measureWatch =
+              diagnostics.enabled ? (Stopwatch()..start()) : null;
           final layout = TextBlockLayout.measure(
             block: block,
             width: constraints.maxWidth,
@@ -482,6 +486,13 @@ class _BlockSliceViewState extends State<BlockSliceView> {
             settings: settings,
             imageSize: widget.imageSize,
           );
+          if (measureWatch != null) {
+            diagnostics.record(
+              'widget.measure',
+              measureWatch.elapsed,
+              count: block.characterCount,
+            );
+          }
           return OverlayPortal(
             controller: _overlay,
             overlayChildBuilder: (context) =>
@@ -746,7 +757,16 @@ class _TextBlockPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final diagnostics = ReaderDiagnostics.instance;
+    final paintWatch = diagnostics.enabled ? (Stopwatch()..start()) : null;
     final painter = TextBlockLayout.createPainter(block, settings, size.width);
+    if (paintWatch != null) {
+      diagnostics.record(
+        'widget.paint_layout',
+        paintWatch.elapsed,
+        count: block.characterCount,
+      );
+    }
     final mapping = annotations.isEmpty
         ? null
         : AnnotationTextMapping(block, settings);
@@ -790,6 +810,13 @@ class _TextBlockPainter extends CustomPainter {
     }
     hyphen.dispose();
     painter.dispose();
+    if (paintWatch != null) {
+      diagnostics.record(
+        'widget.paint_total',
+        paintWatch.elapsed,
+        count: block.characterCount,
+      );
+    }
   }
 
   @override

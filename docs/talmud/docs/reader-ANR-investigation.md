@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | Issue | TAL-015 in [DEVICE_TESTING.md](../../DEVICE_TESTING.md). That file is the only place that says whether the problem is fixed. This document never does. |
-| Last updated | 18 Oct 2026 |
+| Last updated | 21 Oct 2026 |
 | Device | Bigme HiBreak (model B751C), Android 14 |
 | App package | `com.example.eink_launcher` |
 | Source | Reviewed at commit `10544358bdac1d667e15be716bc695930174b2ab`, plus the uncommitted edits listed in Section 6 |
@@ -122,6 +122,10 @@ What it shows:
 - The on-screen clock lagging by 3 to 4 minutes is consistent with the app being unable to redraw during the stalls.
 - The diagnostics print durations only, not block sizes, so how large the slow block is, and which chapter it is in, is unknown.
 
+### 3.6 Observation from the 21 Oct run: the popup needs a tap
+
+Reported: opening Tamid shows no popup by itself. The "not responding" popup appeared when the owner tapped the screen about 10 seconds after opening. This fits how Android works: it raises the popup only when a touch goes unanswered for 5 seconds, so the app can already be frozen before the first tap without any popup showing. The freeze therefore starts before the popup does. The timing log from this run is saved outside the repository and is still to be read.
+
 ## 4. What the code does
 
 "In code" findings. "Re-checked 18 Oct" means read again in the current files. "Carried forward" means taken from the 16 Oct review and not re-read.
@@ -228,6 +232,7 @@ None of these has been checked on the device. None changes page geometry or the 
 | 16 Oct | Periodic (30 s), on-suspend and on-dispose diagnostics dumps, so a stuck pass still reports. |
 | 18 Oct | Added the experiment switch `READER_CURRENT_CHAPTER_ONLY` to `text_reader_session.dart`. Off by default; with it on, the background pass lays out only the chapter holding the reading position and other chapters are laid out on demand. Page counts and percentages are incomplete while it is on. Never ship a build with it on. |
 | 18 Oct | Corrected the comment in `reader_diagnostics.dart`: the switch value must be the word `true`. |
+| 21 Oct | Extended the diagnostics (still off by default). A tally of block measurements since the app started (`READER-DX blocks ...` and `slowest#` lines: how many took over 0.1 s, 1 s and 10 s, how large blocks are, and the size and kind of the slowest five). The measuring step is split into `measure.painter`, `measure.metrics`, `measure.offsets` and `measure.lines`. Timers on drawing visible pages: `widget.measure`, `widget.paint_layout`, `widget.paint_total`. Not yet compiled or tested. |
 
 Two cautions:
 
@@ -326,9 +331,9 @@ Give me the ANR count and the last block of READER-DX lines. The READER-DX lines
 | Run 1 freezes; run 2 freezes much less or not at all | Layout work on the other chapters is a major cause | Limit the background pass to a window around the reading position, then re-measure |
 | Both runs freeze about equally | The cause is inside the current chapter | Read the READER-DX numbers below |
 | One phase (`paginator.measure`, `session.publish`, `cache.save_encode` or `cache.load_decode`) has a worst sample over about 1 second (a rule of thumb, not a measured limit) | That phase is the main suspect (H1, H3 or H4) | Fix that one first |
-| Heartbeat gaps are large but no phase has a large worst sample | The time is going somewhere untimed, probably drawing visible pages (H2) | Add timing to the visible-page path (needs the owner's go-ahead) |
+| Heartbeat gaps are large but no phase has a large worst sample | The time is going somewhere untimed, probably drawing visible pages (H2) | Timers for the visible-page path were added 21 Oct (Section 6); compare `widget.*` with `paginator.measure` |
 | No READER-DX lines at all | The timing tools were not on, or the log is incomplete | Repeat the smoke test (step 3) |
-| The slow block's size is unknown, and one run cannot show whether it is an outlier or one of many | A tally is needed, not just the worst value | Add to the diagnostics a tally of blocks measured and how many took over 100 ms, 1 s and 10 s, plus the size of the slowest few (proposed; needs the owner's go-ahead) |
+| The slow block's size is unknown, and one run cannot show whether it is an outlier or one of many | A tally is needed, not just the worst value | Add to the diagnostics a tally of blocks measured and how many took over 100 ms, 1 s and 10 s, plus the size of the slowest few (added 21 Oct; see Section 6) |
 
 ## 9. Candidate fixes
 

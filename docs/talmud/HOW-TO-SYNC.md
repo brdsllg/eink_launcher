@@ -61,9 +61,17 @@ fetch normally. Commentary downloads are English + Hebrew only.)
 
 **4. Build**
 
+Normalize into the database first, then generate the EPUBs in parallel:
+
 ```powershell
-python talmud/work/build.py --pilot
+python talmud/work/build.py --normalize-only
+python talmud/work/generate_all.py --workers 8
 ```
+
+`generate_all.py` builds one tractate per worker process (default = all but two
+cores, capped at 6; `--workers 8` uses more of a 16-thread laptop). Finished books
+survive Ctrl-C, and `--skip-existing` resumes. The serial route still works:
+`python talmud/work/build.py` (add `--pilot` for the six pilot tractates).
 
 Produces `talmud/work/talmud.sqlite` (the working database), one EPUB per tractate in
 `talmud/outputs/books/` (pilot: six tractates), and `talmud/outputs/build-report.json`
@@ -83,10 +91,12 @@ checks structure. Results go to `talmud/work/validation/` and
 **6. Prebuild the on-device index (recommended)**
 
 ```powershell
-dart run tool/build_study_index.dart talmud/outputs/books --out talmud/outputs/books/study
+python talmud/work/sidecars_all.py --jobs 4 --skip-existing
 ```
 
-Writes one `<tractate>.study.sqlite` file into the `study` subfolder (the same
+This runs `dart run tool/build_study_index.dart` over shards of books in parallel
+(the Dart tool remains usable directly for one book). It writes one
+`<tractate>.study.sqlite` file into the `study` subfolder (the same
 index the reader would otherwise build on first open, so opening on the Bigme
 is instant). Copy the EPUBs plus the `study` folder onto the device:
 

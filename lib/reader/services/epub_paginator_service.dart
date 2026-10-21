@@ -165,6 +165,12 @@ class EpubPaginatorService {
           measureWatch.elapsed,
           count: block.characterCount,
         );
+        diagnostics.recordBlockMeasure(
+          measureWatch.elapsed,
+          characters: block.characterCount,
+          runs: block.runs.length,
+          blockKind: '${block.type.name}/${block.direction.name}',
+        );
       }
 
       if (layout.lines.isEmpty) {
@@ -375,10 +381,23 @@ class TextBlockLayout {
     }
 
     final prefix = prefixFor(block, settings);
+    // Diagnostics only: split one measurement into its steps. These
+    // measure.* phases include measurements made by the visible page too.
+    final diagnostics = ReaderDiagnostics.instance;
+    final watch = diagnostics.enabled ? (Stopwatch()..start()) : null;
+    void mark(String phase, int size) {
+      if (watch == null) return;
+      diagnostics.record(phase, watch.elapsed, count: size);
+      watch.reset();
+    }
+
     final painter = createPainter(block, settings, width);
+    mark('measure.painter', block.characterCount);
     final lineMetrics = painter.computeLineMetrics();
+    mark('measure.metrics', lineMetrics.length);
     final lines = <TextLineLayout>[];
     final sourceOffsets = sourceOffsetsForDisplay(block, settings);
+    mark('measure.offsets', block.characterCount);
     for (final metric in lineMetrics) {
       final top = math.max(0.0, metric.baseline - metric.ascent);
       final bottom = math.max(top, metric.baseline + metric.descent);
@@ -403,6 +422,7 @@ class TextBlockLayout {
         ),
       );
     }
+    mark('measure.lines', lineMetrics.length);
     final textHeight = painter.height;
     painter.dispose();
     return TextBlockLayout(

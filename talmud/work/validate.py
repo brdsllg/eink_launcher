@@ -13,6 +13,7 @@ Usage:
 """
 import argparse
 import json
+import os
 import posixpath
 import re
 import subprocess
@@ -177,7 +178,8 @@ def main():
     results = []
 
     if java and jar:
-        with ThreadPoolExecutor(max_workers=3) as pool:
+        workers = int(os.environ.get('VALIDATE_WORKERS') or 6)
+        with ThreadPoolExecutor(max_workers=workers) as pool:
             codes = dict(pool.map(lambda p: _epubcheck(p, java, jar), epub_paths))
     else:
         print('WARNING: Java or EPUBCheck not found; skipping EPUBCheck validation.')

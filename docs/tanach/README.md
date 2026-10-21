@@ -39,9 +39,11 @@ Run from this folder (`cd tanach`) in PowerShell. Paths are worked out from each
 script's own location, so nothing needs configuring.
 
 ```powershell
-python -X utf8 work/regenerate.py                  # redraw EPUBs from work/tanach.sqlite
+python -X utf8 work/regenerate.py                  # redraw EPUBs from work/tanach.sqlite (one at a time)
 python -X utf8 work/regenerate.py --book Obadiah   # rebuild one book as a trial
-python -X utf8 work/build.py                       # refresh the database from the cache, then redraw
+python -X utf8 work/generate_all.py --workers 8    # redraw all 39 in parallel (fast; add --skip-existing to resume)
+python -X utf8 work/build.py                       # refresh the database from the cache, then redraw sequentially
+python -X utf8 work/build.py --normalize-only      # refresh the database only, then use generate_all.py
 python -X utf8 work/validate.py                    # EPUBCheck + structure and link checks on outputs/books
 python -X utf8 work/package_full.py                # checksums + outputs/tanach-39-epubs.zip
 python -X utf8 work/package_samples.py             # guides + sample and pipeline ZIPs

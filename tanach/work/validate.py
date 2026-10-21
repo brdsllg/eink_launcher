@@ -1,4 +1,4 @@
-import collections,json,posixpath,re,sqlite3,subprocess,urllib.parse,zipfile
+import collections,json,os,posixpath,re,sqlite3,subprocess,urllib.parse,zipfile
 from concurrent.futures import ThreadPoolExecutor
 from xml.etree import ElementTree as ET
 from sync import ROOT
@@ -20,7 +20,7 @@ def check(p):
     (reports/(p.stem+'.txt')).write_text(run.stdout+'\n'+run.stderr,encoding='utf-8')
     print(p.name,'EPUBCheck exit',run.returncode,flush=True)
     return p.name,run.returncode
-with ThreadPoolExecutor(max_workers=3) as pool:
+with ThreadPoolExecutor(max_workers=int(os.environ.get('VALIDATE_WORKERS') or 6)) as pool:
     codes=dict(pool.map(check,sorted(books.glob('*.epub'))))
 for p in sorted(books.glob('*.epub')):
     structural=[]

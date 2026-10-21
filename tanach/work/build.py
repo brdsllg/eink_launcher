@@ -144,6 +144,10 @@ def in_range(loc,start,end):
     return start<=loc[:n]<=end
 
 def main():
+    import argparse
+    parser=argparse.ArgumentParser(description='Normalize cached Sefaria data and generate every Tanach EPUB.')
+    parser.add_argument('--normalize-only',action='store_true',help='Fill work/tanach.sqlite but skip EPUB generation (run generate_all.py afterwards for parallel output).')
+    args=parser.parse_args()
     dbpath=ROOT/'work/tanach.sqlite'
     conn=sqlite3.connect(dbpath)
     conn.executescript('''
@@ -327,6 +331,7 @@ def main():
     (OUT/'build-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps({k:v for k,v in report.items() if k not in ('warnings','unresolved_links')}))
     print('Warnings by kind:',json.dumps(dict(collections.Counter(w['kind'] for w in WARN)),ensure_ascii=False),flush=True)
+    if args.normalize_only:return
     generate(conn,edition_info,chapters_by_book)
 
 # ─── Parasha / aliyah data (generated) ─────────────────────────────────────
@@ -771,6 +776,7 @@ def generate(conn,editions,chapters_by_book=None,books=None):
     if books is None:
         (OUT/'full-coverage.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding='utf-8')
     print('Generated',len(summary),'complete book EPUBs',flush=True)
+    return summary
 
 def category_slug(c):return {'Rishonim on Tanakh':'rishon','Acharonim on Tanakh':'acharon','Modern Commentary on Tanakh':'modern'}.get(c,'other')
 

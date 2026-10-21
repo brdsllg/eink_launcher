@@ -46,6 +46,45 @@ class ReaderDiagnostics {
   int _heartbeatGaps = 0;
   int _maxHeartbeatGapMicros = 0;
 
+  // Block-measurement tally since the process started (not limited to the
+  // last [maxPhaseSamples] samples): how many measurements were slow, how
+  // big blocks are, and the slowest few with their size.
+  static const int maxSlowest = 5;
+  int _measuredBlocks = 0;
+  int _blocksOver100ms = 0;
+  int _blocksOver1s = 0;
+  int _blocksOver10s = 0;
+  int _largestChars = 0;
+  int _blocksOver10kChars = 0;
+  int _blocksOver100kChars = 0;
+  final List<_SlowBlock> _slowest = <_SlowBlock>[];
+
+  /// Records one block measurement for the tally. Sizes only: [characters]
+  /// and [runs] are counts, [blockKind] is a type/direction label such as
+  /// `paragraph/rtl`. Never pass block text.
+  void recordBlockMeasure(
+    Duration duration, {
+    required int characters,
+    required int runs,
+    required String blockKind,
+  }) {
+    if (!enabled) return;
+    final micros = duration.inMicroseconds;
+    _measuredBlocks++;
+    if (characters > _largestChars) _largestChars = characters;
+    if (characters >= 10000) _blocksOver10kChars++;
+    if (characters >= 100000) _blocksOver100kChars++;
+    if (micros >= 100000) _blocksOver100ms++;
+    if (micros >= 1000000) _blocksOver1s++;
+    if (micros >= 10000000) _blocksOver10s++;
+    if (micros < 100000) return;
+    _slowest.add(_SlowBlock(micros, characters, runs, blockKind));
+    _slowest.sort((a, b) => b.micros.compareTo(a.micros));
+    if (_slowest.length > maxSlowest) {
+      _slowest.removeRange(maxSlowest, _slowest.length);
+    }
+  }
+
   /// Records one phase duration. [count] carries a size signal (for example
   /// characters measured or pages published), never text.
   void record(String phase, Duration duration, {int count = 1}) {
@@ -136,6 +175,23 @@ class ReaderDiagnostics {
         'max=${_maxHeartbeatGapMicros}us',
       );
     }
+    if (_measuredBlocks > 0) {
+      debugPrint(
+        'READER-DX blocks measured=$_measuredBlocks '
+        'over100ms=$_blocksOver100ms over1s=$_blocksOver1s '
+        'over10s=$_blocksOver10s largestChars=$_largestChars '
+        'over10kChars=$_blocksOver10kChars '
+        'over100kChars=$_blocksOver100kChars',
+      );
+      for (var i = 0; i < _slowest.length; i++) {
+        final block = _slowest[i];
+        debugPrint(
+          'READER-DX slowest#${i + 1} ms=${block.micros ~/ 1000} '
+          'chars=${block.characters} runs=${block.runs} '
+          'kind=${block.blockKind}',
+        );
+      }
+    }
   }
 
   void reset() {
@@ -143,6 +199,14 @@ class ReaderDiagnostics {
     _phaseSamples.clear();
     _heartbeatGaps = 0;
     _maxHeartbeatGapMicros = 0;
+    _measuredBlocks = 0;
+    _blocksOver100ms = 0;
+    _blocksOver1s = 0;
+    _blocksOver10s = 0;
+    _largestChars = 0;
+    _blocksOver10kChars = 0;
+    _blocksOver100kChars = 0;
+    _slowest.clear();
   }
 }
 
@@ -159,6 +223,15 @@ class PhaseSummary {
     required this.p95Micros,
     required this.maxMicros,
   });
+}
+
+class _SlowBlock {
+  final int micros;
+  final int characters;
+  final int runs;
+  final String blockKind;
+
+  const _SlowBlock(this.micros, this.characters, this.runs, this.blockKind);
 }
 
 class _DiagnosticEvent {

@@ -57,6 +57,29 @@ Wait for a line such as `Generated 39 complete book EPUBs` and for the prompt to
 return. The old files in `outputs/books/` are replaced in place. Some commands run for
 a while without printing anything; that is normal.
 
+## Step 2b: the faster way (use all the processors)
+
+The commands above redraw **one book at a time**. This one redraws all 39 at once,
+8 books in parallel (about 2–3 minutes on this laptop):
+
+```powershell
+python -X utf8 work/generate_all.py --workers 8
+```
+
+It writes exactly the same files. If it is interrupted, re-run with
+`--skip-existing` and it continues where it stopped. If the **text** changed, run
+`build.py --normalize-only` first (that step is still one process), then
+`generate_all.py`:
+
+```powershell
+python -X utf8 work/build.py --normalize-only
+python -X utf8 work/generate_all.py --workers 8
+```
+
+`--workers` can be as high as the number of processor cores; 8 is a good balance
+for 16 logical cores and 16 GB of memory. Validation already checks 6 books at a
+time; set `$env:VALIDATE_WORKERS = 4` if the laptop runs hot.
+
 ## Step 3: check the new books
 
 ```powershell
@@ -85,12 +108,13 @@ python -X utf8 work/package_samples.py
 
 ## The whole routine in one block
 
-The second command below is `build.py`, the safe choice. If only the appearance
-changed, you can swap it for `regenerate.py`.
+This is the fast routine: refresh the database, redraw all books in parallel,
+check them, then repackage. If only the appearance changed, skip the first line.
 
 ```powershell
 cd C:\Users\levi\eink_launcher\tanach
-python -X utf8 work/build.py
+python -X utf8 work/build.py --normalize-only
+python -X utf8 work/generate_all.py --workers 8 --skip-existing
 python -X utf8 work/validate.py
 python -X utf8 work/package_full.py
 ```
