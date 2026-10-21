@@ -51,6 +51,11 @@ class _HtmlWalker {
     'div',
     'nav',
     'aside',
+    // A definition list is a container: without this, every term and
+    // definition inside it ran together into ONE giant paragraph (the
+    // Talmud Credits page became a single 289,000-character block that froze
+    // the reader for about a minute).
+    'dl',
   };
   static const _ignoredTags = {
     'script',
@@ -74,6 +79,8 @@ class _HtmlWalker {
     'pre',
     'address',
     'figcaption',
+    'dt',
+    'dd',
   };
 
   final bool honorPublisherCss;

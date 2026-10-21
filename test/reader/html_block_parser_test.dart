@@ -173,4 +173,24 @@ void main() {
     expect(comment.fontSizeMultiplier, 1.1);
     expect(comment.spacingAfterEm, 0.6);
   });
+
+  test('a definition list becomes one block per term and definition', () {
+    final blocks = HtmlBlockParser.parseSync('''
+      <h1>Credits</h1>
+      <dl>
+        <dt>First edition — Version A</dt>
+        <dd class="colophon">Language: he; License: CC0</dd>
+        <dt>Second edition — Version B</dt>
+        <dd class="colophon">Language: en; License: CC-BY</dd>
+      </dl>
+    ''');
+
+    expect(blocks.map((block) => block.plainText), [
+      'Credits',
+      'First edition — Version A',
+      'Language: he; License: CC0',
+      'Second edition — Version B',
+      'Language: en; License: CC-BY',
+    ]);
+  });
 }

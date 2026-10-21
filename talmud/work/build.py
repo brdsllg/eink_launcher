@@ -534,19 +534,51 @@ def generate(conn, editions, masechtos=None):
                 ''.join(body) + ''.join(aside_blocks),
             )
 
-        # Credits page
-        credit_rows = list(conn.execute('SELECT * FROM editions'))
+        # Credits page: list only the editions this masechta actually uses.
+        # (Listing every edition in the shared table made this page about
+        # 289,000 characters in every book.) One paragraph per edition keeps
+        # each reader block small.
+        used_editions = set()
+        for _r in conn.execute(
+            'SELECT DISTINCT he_edition FROM segments WHERE masechta=?',
+            (masechta,),
+        ):
+            used_editions.add(_r[0])
+        for _r in conn.execute(
+            'SELECT DISTINCT edition FROM translations WHERE masechta=?',
+            (masechta,),
+        ):
+            used_editions.add(_r[0])
+        for _r in conn.execute(
+            '''SELECT DISTINCT n.he_edition, n.en_edition
+               FROM notes n JOIN note_refs r ON r.note_id = n.id
+               WHERE r.masechta = ?''',
+            (masechta,),
+        ):
+            for _col in (_r[0], _r[1]):
+                try:
+                    used_editions.update(json.loads(_col or '[]'))
+                except (TypeError, ValueError):
+                    pass
+        credit_rows = [
+            r for r in conn.execute('SELECT * FROM editions')
+            if r['id'] in used_editions
+        ]
+        if not credit_rows:
+            # Never publish an empty credits page: fall back to every edition.
+            credit_rows = list(conn.execute('SELECT * FROM editions'))
         credit_lines = [
-            f'<dt>{e(r["title"])} — {e(r["version_title"])}</dt>'
-            f'<dd class="colophon">Language: {e(r["language"])}; '
+            f'<p class="colophon"><strong>{e(r["title"])} — '
+            f'{e(r["version_title"])}</strong><br />'
+            f'Language: {e(r["language"])}; '
             f'License: {e(r["license"] or "unknown")}; '
             f'Source: {e(r["source_url"] or "")}; '
-            f'SHA-256: {e(r["sha256"] or "")}</dd>'
+            f'SHA-256: {e(r["sha256"] or "")}</p>'
             for r in credit_rows
         ]
         files['credits.xhtml'] = xhtml(
             'Credits',
-            '<h1>Credits</h1><dl>' + ''.join(credit_lines) + '</dl>',
+            '<h1>Credits</h1>' + ''.join(credit_lines),
         )
 
         # OPF manifest + spine
