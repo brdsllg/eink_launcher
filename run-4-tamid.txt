@@ -1,117 +1,169 @@
 --------- beginning of system
-10-21 17:29:54.027 I/ActivityManager( 1322): Start proc 27945:com.example.eink_launcher/u0a232 for next-activity {com.example.eink_launcher/com.example.eink_launcher.MainActivity}
-10-21 17:29:54.091 W/WindowManager( 1322): Changing focus from Window{4b768c6 u0 com.android.settings/com.android.settings.spa.SpaActivity} to null displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.ActivityTaskManagerService.setLastResumedActivityUncheckLocked:4914 com.android.server.wm.ActivityTaskSupervisor.updateTopResumedActivityIfNeeded:2409 
-10-21 17:29:54.253 I/ActivityManager( 1322): Flag disabled. Ignoring finishAttachApplication from uid: 10232. pid: 27945
+10-20 18:32:12.035 I/ActivityManager( 1322): Start proc 21140:com.example.eink_launcher/u0a232 for next-top-activity {com.example.eink_launcher/com.example.eink_launcher.MainActivity}
+10-20 18:32:12.074 W/WindowManager( 1322): Changing focus from Window{f5e237b u0 com.android.settings/com.android.settings.spa.SpaActivity} to null displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.WindowManagerService.relayoutWindow:2555 com.android.server.wm.Session.relayout:259 
+10-20 18:32:12.127 W/WindowManager( 1322): finishDrawingWindow: Window{899495f u0 Splash Screen com.example.eink_launcher} mDrawState=DRAW_PENDING
+10-20 18:32:12.132 W/WindowManager( 1322): real show surface:Surface(name=Splash Screen com.example.eink_launcher)/@0xb379d2d
+10-20 18:32:12.224 I/ActivityManager( 1322): Flag disabled. Ignoring finishAttachApplication from uid: 10232. pid: 21140
 --------- beginning of main
-10-21 17:29:54.386 I/flutter (27945): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
-10-21 17:29:54.464 W/WindowManager( 1322): Failed looking up window session=Session{564b35 27945:u0a10232} callers=com.android.server.wm.WindowManagerService.windowForClientLocked:6215 com.android.server.wm.Session.updateRequestedVisibleTypes:700 android.view.IWindowSession$Stub.onTransact:1051 
-10-21 17:29:54.523 W/WindowManager( 1322): Changing focus from null to Window{c234058 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.WindowManagerService.relayoutWindow:2555 com.android.server.wm.Session.relayout:259 
-10-21 17:29:54.534 I/WindowManager( 1322): Relayout Window{c234058 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity}: oldVis=4 newVis=0 focusMayChange = true requestedWidth = 1264 requestedHeight = 1680 outFrames = ClientWindowFrames{frame=[0,0][1264,1680] display=[0,0][1264,1680] parentFrame=[0,0][0,0]} outSurfaceControl = Surface(name=com.example.eink_launcher/com.example.eink_launcher.MainActivity)/@0x2f8366e
-10-21 17:29:57.451 W/WindowManager( 1322): finishDrawingWindow: Window{c234058 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} mDrawState=DRAW_PENDING
-10-21 17:29:57.455 W/WindowManager( 1322): real show surface:Surface(name=com.example.eink_launcher/com.example.eink_launcher.MainActivity)/@0xa91e307
-10-21 17:30:28.263 I/flutter (27945): READER-DX measure.lines count=3 p50=120us p95=122us max=122us
-10-21 17:30:28.264 I/flutter (27945): READER-DX measure.metrics count=3 p50=50us p95=64us max=64us
-10-21 17:30:28.264 I/flutter (27945): READER-DX measure.offsets count=3 p50=40us p95=71us max=71us
-10-21 17:30:28.264 I/flutter (27945): READER-DX measure.painter count=3 p50=6698us p95=111244us max=111244us
-10-21 17:30:28.264 I/flutter (27945): READER-DX paginator.measure count=3 p50=7005us p95=111595us max=111595us
-10-21 17:30:28.264 I/flutter (27945): READER-DX session.publish count=1 p50=37us p95=37us max=37us
-10-21 17:30:28.264 I/flutter (27945): READER-DX blocks measured=3 over100ms=1 over1s=0 over10s=0 largestChars=10 over10kChars=0 over100kChars=0
-10-21 17:30:28.264 I/flutter (27945): READER-DX slowest#1 ms=111 chars=8 runs=1 kind=heading1/ltr
-10-21 17:30:58.329 I/flutter (27945): READER-DX cache.save_encode count=34 p50=1372us p95=1792us max=2303us
-10-21 17:30:58.329 I/flutter (27945): READER-DX measure.lines count=256 p50=169us p95=1174us max=1737us
-10-21 17:30:58.329 I/flutter (27945): READER-DX measure.metrics count=256 p50=97us p95=448us max=655us
-10-21 17:30:58.329 I/flutter (27945): READER-DX measure.offsets count=256 p50=263us p95=757us max=1443us
-10-21 17:30:58.329 I/flutter (27945): READER-DX measure.painter count=256 p50=920us p95=19249us max=32637us
-10-21 17:30:58.329 I/flutter (27945): READER-DX paginator.measure count=256 p50=2426us p95=25229us max=47293us
-10-21 17:30:58.329 I/flutter (27945): READER-DX session.publish count=256 p50=129us p95=235us max=378us
-10-21 17:30:58.329 I/flutter (27945): READER-DX widget.measure count=256 p50=1048us p95=4848us max=6924us
-10-21 17:30:58.329 I/flutter (27945): READER-DX widget.paint_layout count=256 p50=399us p95=2101us max=4701us
-10-21 17:30:58.330 I/flutter (27945): READER-DX widget.paint_total count=256 p50=650us p95=5810us max=13450us
-10-21 17:30:58.330 I/flutter (27945): READER-DX blocks measured=2740 over100ms=6 over1s=0 over10s=0 largestChars=1559 over10kChars=0 over100kChars=0
-10-21 17:30:58.330 I/flutter (27945): READER-DX slowest#1 ms=150 chars=1559 runs=32 kind=paragraph/ltr
-10-21 17:30:58.330 I/flutter (27945): READER-DX slowest#2 ms=139 chars=1458 runs=45 kind=paragraph/ltr
-10-21 17:30:58.330 I/flutter (27945): READER-DX slowest#3 ms=117 chars=1007 runs=29 kind=paragraph/ltr
-10-21 17:30:58.330 I/flutter (27945): READER-DX slowest#4 ms=113 chars=1148 runs=17 kind=paragraph/ltr
-10-21 17:30:58.330 I/flutter (27945): READER-DX slowest#5 ms=111 chars=8 runs=1 kind=heading1/ltr
-10-21 17:31:28.339 I/flutter (27945): READER-DX cache.save_encode count=61 p50=1255us p95=6903us max=8469us
-10-21 17:31:28.339 I/flutter (27945): READER-DX measure.lines count=256 p50=151us p95=966us max=11394us
-10-21 17:31:28.339 I/flutter (27945): READER-DX measure.metrics count=256 p50=85us p95=378us max=2123us
-10-21 17:31:28.339 I/flutter (27945): READER-DX measure.offsets count=256 p50=121us p95=1443us max=9831us
-10-21 17:31:28.339 I/flutter (27945): READER-DX measure.painter count=256 p50=1005us p95=4347us max=24915us
-10-21 17:31:28.339 I/flutter (27945): READER-DX paginator.measure count=256 p50=1720us p95=9363us max=48313us
-10-21 17:31:28.339 I/flutter (27945): READER-DX session.publish count=256 p50=123us p95=250us max=1742us
-10-21 17:31:28.339 I/flutter (27945): READER-DX widget.measure count=256 p50=1194us p95=5828us max=14385us
-10-21 17:31:28.339 I/flutter (27945): READER-DX widget.paint_layout count=256 p50=380us p95=1219us max=8261us
-10-21 17:31:28.339 I/flutter (27945): READER-DX widget.paint_total count=256 p50=688us p95=2305us max=9123us
-10-21 17:31:28.339 I/flutter (27945): READER-DX blocks measured=6605 over100ms=7 over1s=0 over10s=0 largestChars=7553 over10kChars=0 over100kChars=0
-10-21 17:31:28.339 I/flutter (27945): READER-DX slowest#1 ms=150 chars=1559 runs=32 kind=paragraph/ltr
-10-21 17:31:28.339 I/flutter (27945): READER-DX slowest#2 ms=139 chars=1458 runs=45 kind=paragraph/ltr
-10-21 17:31:28.339 I/flutter (27945): READER-DX slowest#3 ms=117 chars=1007 runs=29 kind=paragraph/ltr
-10-21 17:31:28.339 I/flutter (27945): READER-DX slowest#4 ms=114 chars=4097 runs=1 kind=paragraph/ltr
-10-21 17:31:28.339 I/flutter (27945): READER-DX slowest#5 ms=113 chars=1148 runs=17 kind=paragraph/ltr
-10-21 17:31:58.343 I/flutter (27945): READER-DX cache.save_encode count=74 p50=1372us p95=7970us max=17303us
-10-21 17:31:58.343 I/flutter (27945): READER-DX measure.lines count=256 p50=163us p95=1745us max=7487us
-10-21 17:31:58.343 I/flutter (27945): READER-DX measure.metrics count=256 p50=89us p95=647us max=4121us
-10-21 17:31:58.343 I/flutter (27945): READER-DX measure.offsets count=256 p50=122us p95=3355us max=10564us
-10-21 17:31:58.343 I/flutter (27945): READER-DX measure.painter count=256 p50=1174us p95=6087us max=17491us
-10-21 17:31:58.343 I/flutter (27945): READER-DX paginator.measure count=256 p50=1819us p95=8974us max=37086us
-10-21 17:31:58.343 I/flutter (27945): READER-DX session.publish count=256 p50=336us p95=508us max=2013us
-10-21 17:31:58.343 I/flutter (27945): READER-DX widget.measure count=256 p50=1225us p95=10508us max=27891us
-10-21 17:31:58.343 I/flutter (27945): READER-DX widget.paint_layout count=256 p50=431us p95=2198us max=4025us
-10-21 17:31:58.343 I/flutter (27945): READER-DX widget.paint_total count=256 p50=788us p95=3576us max=5829us
-10-21 17:31:58.343 I/flutter (27945): READER-DX blocks measured=11632 over100ms=10 over1s=0 over10s=0 largestChars=19068 over10kChars=1 over100kChars=0
-10-21 17:31:58.343 I/flutter (27945): READER-DX slowest#1 ms=176 chars=19068 runs=2 kind=paragraph/rtl
-10-21 17:31:58.343 I/flutter (27945): READER-DX slowest#2 ms=150 chars=1559 runs=32 kind=paragraph/ltr
-10-21 17:31:58.343 I/flutter (27945): READER-DX slowest#3 ms=139 chars=1458 runs=45 kind=paragraph/ltr
-10-21 17:31:58.344 I/flutter (27945): READER-DX slowest#4 ms=135 chars=4590 runs=1 kind=paragraph/ltr
-10-21 17:31:58.344 I/flutter (27945): READER-DX slowest#5 ms=120 chars=4884 runs=1 kind=paragraph/ltr
-10-21 17:32:13.509 W/WindowManager( 1322): finishDrawingWindow: Window{1c3d73e u0 Sys2003:com.xrz.hoverballdemo/com.xrz.hoverball.ui.MainActivity} mDrawState=DRAW_PENDING
-10-21 17:32:13.516 W/WindowManager( 1322): real show surface:Surface(name=Sys2003:com.xrz.hoverballdemo/com.xrz.hoverball.ui.MainActivity)/@0x5dc50bb
-10-21 17:32:28.351 I/flutter (27945): READER-DX cache.save_encode count=87 p50=1420us p95=8469us max=17303us
-10-21 17:32:28.351 I/flutter (27945): READER-DX measure.lines count=256 p50=150us p95=1565us max=4333us
-10-21 17:32:28.351 I/flutter (27945): READER-DX measure.metrics count=256 p50=84us p95=519us max=3133us
-10-21 17:32:28.351 I/flutter (27945): READER-DX measure.offsets count=256 p50=110us p95=2177us max=4784us
-10-21 17:32:28.351 I/flutter (27945): READER-DX measure.painter count=256 p50=1041us p95=5087us max=14648us
-10-21 17:32:28.351 I/flutter (27945): READER-DX paginator.measure count=256 p50=1567us p95=8240us max=22800us
-10-21 17:32:28.351 I/flutter (27945): READER-DX session.publish count=256 p50=525us p95=759us max=2690us
-10-21 17:32:28.351 I/flutter (27945): READER-DX widget.measure count=256 p50=1467us p95=12783us max=25839us
-10-21 17:32:28.351 I/flutter (27945): READER-DX widget.paint_layout count=256 p50=430us p95=2043us max=6738us
-10-21 17:32:28.351 I/flutter (27945): READER-DX widget.paint_total count=256 p50=767us p95=5161us max=14294us
-10-21 17:32:28.351 I/flutter (27945): READER-DX blocks measured=16699 over100ms=12 over1s=0 over10s=0 largestChars=19068 over10kChars=2 over100kChars=0
-10-21 17:32:28.352 I/flutter (27945): READER-DX slowest#1 ms=351 chars=12852 runs=152 kind=paragraph/ltr
-10-21 17:32:28.352 I/flutter (27945): READER-DX slowest#2 ms=255 chars=8294 runs=131 kind=paragraph/ltr
-10-21 17:32:28.352 I/flutter (27945): READER-DX slowest#3 ms=176 chars=19068 runs=2 kind=paragraph/rtl
-10-21 17:32:28.352 I/flutter (27945): READER-DX slowest#4 ms=150 chars=1559 runs=32 kind=paragraph/ltr
-10-21 17:32:28.352 I/flutter (27945): READER-DX slowest#5 ms=139 chars=1458 runs=45 kind=paragraph/ltr
-10-21 17:32:58.370 I/flutter (27945): READER-DX cache.save_encode count=101 p50=1617us p95=8469us max=17303us
-10-21 17:32:58.370 I/flutter (27945): READER-DX measure.lines count=256 p50=161us p95=1487us max=5073us
-10-21 17:32:58.370 I/flutter (27945): READER-DX measure.metrics count=256 p50=86us p95=472us max=1205us
-10-21 17:32:58.370 I/flutter (27945): READER-DX measure.offsets count=256 p50=115us p95=1961us max=3579us
-10-21 17:32:58.370 I/flutter (27945): READER-DX measure.painter count=256 p50=1162us p95=5463us max=56584us
-10-21 17:32:58.370 I/flutter (27945): READER-DX paginator.measure count=256 p50=1760us p95=11273us max=65576us
-10-21 17:32:58.371 I/flutter (27945): READER-DX session.publish count=256 p50=832us p95=1178us max=6880us
-10-21 17:32:58.371 I/flutter (27945): READER-DX widget.measure count=256 p50=1643us p95=6638us max=36123us
-10-21 17:32:58.371 I/flutter (27945): READER-DX widget.paint_layout count=256 p50=444us p95=1808us max=2423us
-10-21 17:32:58.371 I/flutter (27945): READER-DX widget.paint_total count=256 p50=777us p95=5882us max=23960us
-10-21 17:32:58.371 I/flutter (27945): READER-DX blocks measured=21404 over100ms=18 over1s=0 over10s=0 largestChars=19068 over10kChars=6 over100kChars=0
-10-21 17:32:58.371 I/flutter (27945): READER-DX slowest#1 ms=351 chars=12852 runs=152 kind=paragraph/ltr
-10-21 17:32:58.371 I/flutter (27945): READER-DX slowest#2 ms=255 chars=8294 runs=131 kind=paragraph/ltr
-10-21 17:32:58.371 I/flutter (27945): READER-DX slowest#3 ms=247 chars=12619 runs=150 kind=paragraph/ltr
-10-21 17:32:58.371 I/flutter (27945): READER-DX slowest#4 ms=243 chars=10240 runs=93 kind=paragraph/ltr
-10-21 17:32:58.371 I/flutter (27945): READER-DX slowest#5 ms=176 chars=19068 runs=2 kind=paragraph/rtl
-10-21 17:33:28.394 I/flutter (27945): READER-DX cache.save_encode count=115 p50=4594us p95=8469us max=17303us
-10-21 17:33:28.394 I/flutter (27945): READER-DX measure.lines count=256 p50=140us p95=1060us max=3128us
-10-21 17:33:28.394 I/flutter (27945): READER-DX measure.metrics count=256 p50=74us p95=369us max=868us
-10-21 17:33:28.394 I/flutter (27945): READER-DX measure.offsets count=256 p50=118us p95=945us max=11234us
-10-21 17:33:28.394 I/flutter (27945): READER-DX measure.painter count=256 p50=1073us p95=6077us max=19022us
-10-21 17:33:28.394 I/flutter (27945): READER-DX paginator.measure count=256 p50=1505us p95=9597us max=27876us
-10-21 17:33:28.394 I/flutter (27945): READER-DX session.publish count=256 p50=936us p95=1107us max=8434us
-10-21 17:33:28.394 I/flutter (27945): READER-DX widget.measure count=256 p50=2071us p95=10814us max=13114us
-10-21 17:33:28.394 I/flutter (27945): READER-DX widget.paint_layout count=256 p50=509us p95=1905us max=2672us
-10-21 17:33:28.394 I/flutter (27945): READER-DX widget.paint_total count=256 p50=960us p95=3695us max=5287us
-10-21 17:33:28.394 I/flutter (27945): READER-DX blocks measured=27144 over100ms=20 over1s=0 over10s=0 largestChars=19068 over10kChars=7 over100kChars=0
-10-21 17:33:28.394 I/flutter (27945): READER-DX slowest#1 ms=351 chars=12852 runs=152 kind=paragraph/ltr
-10-21 17:33:28.394 I/flutter (27945): READER-DX slowest#2 ms=255 chars=8294 runs=131 kind=paragraph/ltr
-10-21 17:33:28.394 I/flutter (27945): READER-DX slowest#3 ms=247 chars=12619 runs=150 kind=paragraph/ltr
-10-21 17:33:28.394 I/flutter (27945): READER-DX slowest#4 ms=243 chars=10240 runs=93 kind=paragraph/ltr
-10-21 17:33:28.394 I/flutter (27945): READER-DX slowest#5 ms=176 chars=19068 runs=2 kind=paragraph/rtl
+10-20 18:32:12.423 I/flutter (21140): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+10-20 18:32:12.498 W/WindowManager( 1322): Failed looking up window session=Session{dfe0c28 21140:u0a10232} callers=com.android.server.wm.WindowManagerService.windowForClientLocked:6215 com.android.server.wm.Session.updateRequestedVisibleTypes:700 android.view.IWindowSession$Stub.onTransact:1051 
+10-20 18:32:12.556 W/WindowManager( 1322): Changing focus from null to Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.WindowManagerService.relayoutWindow:2555 com.android.server.wm.Session.relayout:259 
+10-20 18:32:12.566 I/WindowManager( 1322): Relayout Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity}: oldVis=4 newVis=0 focusMayChange = true requestedWidth = 1264 requestedHeight = 1680 outFrames = ClientWindowFrames{frame=[0,0][1264,1680] display=[0,0][1264,1680] parentFrame=[0,0][0,0]} outSurfaceControl = Surface(name=com.example.eink_launcher/com.example.eink_launcher.MainActivity)/@0x2d5fe35
+10-20 18:32:15.542 W/WindowManager( 1322): finishDrawingWindow: Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} mDrawState=DRAW_PENDING
+10-20 18:32:15.551 W/WindowManager( 1322): real show surface:Surface(name=com.example.eink_launcher/com.example.eink_launcher.MainActivity)/@0x63f8904
+10-20 18:35:13.116 I/WindowManager( 1322): ANR in Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity}. Reason:Input dispatching timed out (c182027 com.example.eink_launcher/com.example.eink_launcher.MainActivity (server) is not responding. Waited 5002ms for MotionEvent)
+10-20 18:35:13.124 I/ActivityManager( 1322): Collecting stacks for pid 21140 into temporary file temp_anr_357100804468568377.txt
+10-20 18:35:13.346 I/ActivityManager( 1322): dumpStackTraces pids={1845=true, 1959=true, 1960=true, 2130=true, 2352=true, 2355=true, 6361=true, 6423=true, 6457=true, 7141=true, 7144=true, 7341=true, 7615=true, 7627=true, 7686=true, 8208=true, 9095=true, 9198=true, 9284=true, 9613=true, 11191=true, 13475=true, 13555=true, 13614=true, 13854=true, 13913=true, 14890=true, 14940=true, 15136=true, 15186=true, 15491=true, 15512=true, 15545=true, 15591=true, 16099=true, 16182=true, 17003=true, 17097=true, 17781=true, 19771=true, 20214=true, 20371=true, 20372=true, 20594=true, 20807=true, 20935=true, 22599=true, 25137=true, 26627=true, 32429=true}
+10-20 18:35:13.348 I/ActivityManager( 1322): Dumping to /data/anr/anr_2026-10-20-18-35-13-346
+10-20 18:35:13.588 I/ActivityManager( 1322): Collecting stacks for pid 1322
+10-20 18:35:14.428 I/ActivityManager( 1322): Collecting stacks for pid 2291
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 1322
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 222
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 21140
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 149
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 223
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 226
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 229
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 230
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 232
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 233
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 2291
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 231
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 285
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 934
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 261
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 438
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 1819
+10-20 18:35:14.536 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 21133
+10-20 18:35:15.419 I/ActivityManager( 1322): Collecting stacks for pid 2397
+10-20 18:35:15.521 I/ActivityManager( 1322): Collecting stacks for pid 2393
+10-20 18:35:15.609 I/ActivityManager( 1322): Collecting stacks for pid 1819
+10-20 18:35:15.765 I/ActivityManager( 1322): Collecting stacks for pid 1812
+10-20 18:35:15.853 I/ActivityManager( 1322): Collecting stacks for pid 1797
+10-20 18:35:15.941 I/ActivityManager( 1322): Collecting stacks for pid 1742
+10-20 18:35:16.037 I/ActivityManager( 1322): Collecting stacks for pid 1567
+10-20 18:35:16.358 I/ActivityManager( 1322): dumpStackTraces nativepids=[452, 916, 917, 937, 949, 955, 1070, 1138, 1167, 1168, 1179, 1180, 1209]
+10-20 18:35:16.358 I/ActivityManager( 1322): Collecting stacks for native pid 452
+10-20 18:35:16.396 I/ActivityManager( 1322): Collecting stacks for native pid 916
+10-20 18:35:16.468 I/ActivityManager( 1322): Collecting stacks for native pid 917
+10-20 18:35:16.554 I/ActivityManager( 1322): Collecting stacks for native pid 937
+10-20 18:35:16.816 I/ActivityManager( 1322): Collecting stacks for native pid 949
+10-20 18:35:16.920 I/ActivityManager( 1322): Collecting stacks for native pid 955
+10-20 18:35:17.050 I/ActivityManager( 1322): Collecting stacks for native pid 1070
+10-20 18:35:17.119 I/ActivityManager( 1322): Collecting stacks for native pid 1138
+10-20 18:35:17.184 I/ActivityManager( 1322): Collecting stacks for native pid 1167
+10-20 18:35:17.260 I/ActivityManager( 1322): Collecting stacks for native pid 1168
+10-20 18:35:17.315 I/ActivityManager( 1322): Collecting stacks for native pid 1179
+10-20 18:35:17.393 I/ActivityManager( 1322): Collecting stacks for native pid 1180
+10-20 18:35:17.513 I/ActivityManager( 1322): Collecting stacks for native pid 1209
+10-20 18:35:17.718 I/ActivityManager( 1322): dumpStackTraces extraPids=[]
+10-20 18:35:17.718 I/ActivityManager( 1322): Done dumping
+10-20 18:35:17.723 W/ActivityManager( 1322): Unable to prune stale trace file: /data/anr/SF_RTT
+10-20 18:35:17.774 W/WindowManager( 1322): Changing focus from Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} to Window{8960b09 u0 Application Not Responding: com.example.eink_launcher} displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.WindowManagerService.addWindow:1842 com.android.server.wm.Session.addToDisplayAsUser:224 
+10-20 18:35:17.881 W/WindowManager( 1322): finishDrawingWindow: Window{8960b09 u0 Application Not Responding: com.example.eink_launcher} mDrawState=DRAW_PENDING
+10-20 18:35:17.884 W/WindowManager( 1322): real show surface:Surface(name=Application Not Responding: com.example.eink_launcher)/@0xd2fad27
+10-20 18:35:54.240 I/flutter (21140): READER-DX measure.lines count=2 p50=48882321us p95=48882321us max=48882321us
+10-20 18:35:54.240 I/flutter (21140): READER-DX measure.metrics count=2 p50=97397us p95=97397us max=97397us
+10-20 18:35:54.240 I/flutter (21140): READER-DX measure.offsets count=2 p50=257305us p95=257305us max=257305us
+10-20 18:35:54.240 I/flutter (21140): READER-DX measure.painter count=2 p50=7888492us p95=7888492us max=7888492us
+10-20 18:35:54.240 I/flutter (21140): READER-DX paginator.measure count=2 p50=57141580us p95=57141580us max=57141580us
+10-20 18:35:54.240 I/flutter (21140): READER-DX session.publish count=1 p50=41us p95=41us max=41us
+10-20 18:35:54.240 I/flutter (21140): READER-DX blocks measured=2 over100ms=1 over1s=1 over10s=1 largestChars=287099 over10kChars=1 over100kChars=1
+10-20 18:35:54.240 I/flutter (21140): READER-DX slowest#1 ms=57141 chars=287099 runs=1 kind=paragraph/ltr
+10-20 18:35:54.260 W/WindowManager( 1322): Changing focus from Window{8960b09 u0 Application Not Responding: com.example.eink_launcher} to Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:774 com.android.server.wm.RootWindowContainer.performSurfacePlacement:756 
+10-20 18:35:59.301 I/WindowManager( 1322): ANR in Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity}. Reason:Input dispatching timed out (c182027 com.example.eink_launcher/com.example.eink_launcher.MainActivity (server) is not responding. Waited 5003ms for FocusEvent(hasFocus=true))
+10-20 18:35:59.304 I/ActivityManager( 1322): Collecting stacks for pid 21140 into temporary file temp_anr_4799661548347629411.txt
+10-20 18:35:59.445 I/ActivityManager( 1322): dumpStackTraces pids={1845=true, 1959=true, 1960=true, 2130=true, 2352=true, 2355=true, 6361=true, 6423=true, 6457=true, 7141=true, 7144=true, 7341=true, 7615=true, 7627=true, 7686=true, 8208=true, 9095=true, 9198=true, 9284=true, 9613=true, 11191=true, 13475=true, 13555=true, 13614=true, 13854=true, 13913=true, 14890=true, 14940=true, 15136=true, 15186=true, 15491=true, 15512=true, 15545=true, 15591=true, 16099=true, 16182=true, 17003=true, 17097=true, 17781=true, 19771=true, 20214=true, 20371=true, 20372=true, 20594=true, 20807=true, 20935=true, 22599=true, 25137=true, 26627=true, 32429=true}
+10-20 18:35:59.447 I/ActivityManager( 1322): Dumping to /data/anr/anr_2026-10-20-18-35-59-445
+10-20 18:35:59.583 I/ActivityManager( 1322): Collecting stacks for pid 1322
+10-20 18:36:00.269 I/ActivityManager( 1322): Collecting stacks for pid 2291
+10-20 18:36:00.518 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 1322
+10-20 18:36:00.518 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 21140
+10-20 18:36:00.518 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 2291
+10-20 18:36:00.518 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 149
+10-20 18:36:00.518 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 222
+10-20 18:36:00.518 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 226
+10-20 18:36:00.519 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 223
+10-20 18:36:00.519 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 229
+10-20 18:36:00.519 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 230
+10-20 18:36:00.519 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 231
+10-20 18:36:00.519 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 232
+10-20 18:36:00.519 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 233
+10-20 18:36:00.519 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 934
+10-20 18:36:00.519 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 955
+10-20 18:36:01.210 I/ActivityManager( 1322): Collecting stacks for pid 2397
+10-20 18:36:01.296 I/ActivityManager( 1322): Collecting stacks for pid 2393
+10-20 18:36:01.373 I/ActivityManager( 1322): Collecting stacks for pid 1819
+10-20 18:36:01.513 I/ActivityManager( 1322): Collecting stacks for pid 1812
+10-20 18:36:01.589 I/ActivityManager( 1322): Collecting stacks for pid 1797
+10-20 18:36:01.669 I/ActivityManager( 1322): Collecting stacks for pid 1742
+10-20 18:36:01.761 I/ActivityManager( 1322): Collecting stacks for pid 1567
+10-20 18:36:02.062 I/ActivityManager( 1322): dumpStackTraces nativepids=[452, 916, 917, 937, 949, 955, 1070, 1138, 1167, 1168, 1179, 1180, 1209]
+10-20 18:36:02.062 I/ActivityManager( 1322): Collecting stacks for native pid 452
+10-20 18:36:02.089 I/ActivityManager( 1322): Collecting stacks for native pid 916
+10-20 18:36:02.149 I/ActivityManager( 1322): Collecting stacks for native pid 917
+10-20 18:36:02.225 I/ActivityManager( 1322): Collecting stacks for native pid 937
+10-20 18:36:02.533 I/ActivityManager( 1322): Collecting stacks for native pid 949
+10-20 18:36:02.622 I/ActivityManager( 1322): Collecting stacks for native pid 955
+10-20 18:36:02.761 I/ActivityManager( 1322): Collecting stacks for native pid 1070
+10-20 18:36:02.817 I/ActivityManager( 1322): Collecting stacks for native pid 1138
+10-20 18:36:02.885 I/ActivityManager( 1322): Collecting stacks for native pid 1167
+10-20 18:36:02.969 I/ActivityManager( 1322): Collecting stacks for native pid 1168
+10-20 18:36:03.027 I/ActivityManager( 1322): Collecting stacks for native pid 1179
+10-20 18:36:03.105 I/ActivityManager( 1322): Collecting stacks for native pid 1180
+10-20 18:36:03.257 I/ActivityManager( 1322): Collecting stacks for native pid 1209
+10-20 18:36:03.489 I/ActivityManager( 1322): dumpStackTraces extraPids=[9095]
+10-20 18:36:03.489 I/ActivityManager( 1322): Collecting stacks for extra pid 9095
+10-20 18:36:03.697 I/ActivityManager( 1322): Done dumping
+10-20 18:36:03.701 W/ActivityManager( 1322): Unable to prune stale trace file: /data/anr/SF_RTT
+10-20 18:36:03.743 W/WindowManager( 1322): Changing focus from Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} to Window{3b5ef76 u0 Application Not Responding: com.example.eink_launcher} displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.WindowManagerService.addWindow:1842 com.android.server.wm.Session.addToDisplayAsUser:224 
+10-20 18:36:03.804 W/WindowManager( 1322): finishDrawingWindow: Window{3b5ef76 u0 Application Not Responding: com.example.eink_launcher} mDrawState=DRAW_PENDING
+10-20 18:36:03.806 W/WindowManager( 1322): real show surface:Surface(name=Application Not Responding: com.example.eink_launcher)/@0xe7ba5a
+10-20 18:37:36.813 W/WindowManager( 1322): Changing focus from Window{3b5ef76 u0 Application Not Responding: com.example.eink_launcher} to Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:774 com.android.server.wm.RootWindowContainer.performSurfacePlacement:756 
+10-20 18:37:41.833 W/WindowManager( 1322): Changing focus from Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} to Window{64e7a3c u0 Application Not Responding: com.example.eink_launcher} displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.WindowManagerService.addWindow:1842 com.android.server.wm.Session.addToDisplayAsUser:224 
+10-20 18:37:41.885 W/WindowManager( 1322): finishDrawingWindow: Window{64e7a3c u0 Application Not Responding: com.example.eink_launcher} mDrawState=DRAW_PENDING
+10-20 18:37:41.887 W/WindowManager( 1322): real show surface:Surface(name=Application Not Responding: com.example.eink_launcher)/@0xf916a40
+10-20 18:37:43.321 W/WindowManager( 1322): Changing focus from Window{64e7a3c u0 Application Not Responding: com.example.eink_launcher} to Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:774 com.android.server.wm.RootWindowContainer.performSurfacePlacement:756 
+10-20 18:37:48.353 I/WindowManager( 1322): ANR in Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity}. Reason:Input dispatching timed out (c182027 com.example.eink_launcher/com.example.eink_launcher.MainActivity (server) is not responding. Waited 5005ms for FocusEvent(hasFocus=true))
+10-20 18:37:48.356 I/ActivityManager( 1322): Collecting stacks for pid 21140 into temporary file temp_anr_3744031157699865005.txt
+10-20 18:37:48.509 I/ActivityManager( 1322): dumpStackTraces pids={1845=true, 1959=true, 1960=true, 2130=true, 2352=true, 2355=true, 6361=true, 6423=true, 6457=true, 7141=true, 7144=true, 7341=true, 7615=true, 7627=true, 7686=true, 8208=true, 9095=true, 9198=true, 9284=true, 9613=true, 11191=true, 13475=true, 13555=true, 13614=true, 13854=true, 13913=true, 14890=true, 14940=true, 15136=true, 15186=true, 15491=true, 15512=true, 15545=true, 15591=true, 16099=true, 16182=true, 17003=true, 17097=true, 17781=true, 19771=true, 20214=true, 20371=true, 20372=true, 20594=true, 20807=true, 20935=true, 22599=true, 25137=true, 26627=true, 32429=true}
+10-20 18:37:48.510 I/ActivityManager( 1322): Dumping to /data/anr/anr_2026-10-20-18-37-48-509
+10-20 18:37:48.674 I/ActivityManager( 1322): Collecting stacks for pid 1322
+10-20 18:37:49.271 I/ActivityManager( 1322): Collecting stacks for pid 2291
+10-20 18:37:49.489 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 1322
+10-20 18:37:49.489 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 21140
+10-20 18:37:49.489 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 2291
+10-20 18:37:49.489 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 226
+10-20 18:37:49.489 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 285
+10-20 18:37:49.489 I/ActivityManager( 1322): Skipping next CPU consuming process, not a java proc: 21133
+10-20 18:37:50.149 I/ActivityManager( 1322): Collecting stacks for pid 2397
+10-20 18:37:50.237 I/ActivityManager( 1322): Collecting stacks for pid 2393
+10-20 18:37:50.317 I/ActivityManager( 1322): Collecting stacks for pid 1819
+10-20 18:37:50.461 I/ActivityManager( 1322): Collecting stacks for pid 1812
+10-20 18:37:50.537 I/ActivityManager( 1322): Collecting stacks for pid 1797
+10-20 18:37:50.617 I/ActivityManager( 1322): Collecting stacks for pid 1742
+10-20 18:37:50.740 I/ActivityManager( 1322): Collecting stacks for pid 1567
+10-20 18:37:51.054 I/ActivityManager( 1322): dumpStackTraces nativepids=[452, 916, 917, 937, 949, 955, 1070, 1138, 1167, 1168, 1179, 1180, 1209]
+10-20 18:37:51.054 I/ActivityManager( 1322): Collecting stacks for native pid 452
+10-20 18:37:51.080 I/ActivityManager( 1322): Collecting stacks for native pid 916
+10-20 18:37:51.161 I/ActivityManager( 1322): Collecting stacks for native pid 917
+10-20 18:37:51.241 I/ActivityManager( 1322): Collecting stacks for native pid 937
+10-20 18:37:51.557 I/ActivityManager( 1322): Collecting stacks for native pid 949
+10-20 18:37:51.665 I/ActivityManager( 1322): Collecting stacks for native pid 955
+10-20 18:37:51.825 I/ActivityManager( 1322): Collecting stacks for native pid 1070
+10-20 18:37:51.878 I/ActivityManager( 1322): Collecting stacks for native pid 1138
+10-20 18:37:51.961 I/ActivityManager( 1322): Collecting stacks for native pid 1167
+10-20 18:37:52.045 I/ActivityManager( 1322): Collecting stacks for native pid 1168
+10-20 18:37:52.101 I/ActivityManager( 1322): Collecting stacks for native pid 1179
+10-20 18:37:52.177 I/ActivityManager( 1322): Collecting stacks for native pid 1180
+10-20 18:37:52.325 I/ActivityManager( 1322): Collecting stacks for native pid 1209
+10-20 18:37:52.561 I/ActivityManager( 1322): dumpStackTraces extraPids=[]
+10-20 18:37:52.562 I/ActivityManager( 1322): Done dumping
+10-20 18:37:52.566 W/ActivityManager( 1322): Unable to prune stale trace file: /data/anr/SF_RTT
+10-20 18:37:52.614 W/WindowManager( 1322): Changing focus from Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} to Window{41d0d87 u0 Application Not Responding: com.example.eink_launcher} displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.WindowManagerService.addWindow:1842 com.android.server.wm.Session.addToDisplayAsUser:224 
+10-20 18:37:52.709 W/WindowManager( 1322): finishDrawingWindow: Window{41d0d87 u0 Application Not Responding: com.example.eink_launcher} mDrawState=DRAW_PENDING
+10-20 18:37:52.711 W/WindowManager( 1322): real show surface:Surface(name=Application Not Responding: com.example.eink_launcher)/@0xfaaab9b
+10-20 18:38:42.533 W/WindowManager( 1322): Changing focus from Window{41d0d87 u0 Application Not Responding: com.example.eink_launcher} to Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:774 com.android.server.wm.RootWindowContainer.performSurfacePlacement:756 
+10-20 18:38:47.549 W/WindowManager( 1322): Changing focus from Window{c182027 u0 com.example.eink_launcher/com.example.eink_launcher.MainActivity} to Window{1df1947 u0 Application Not Responding: com.example.eink_launcher} displayId=0 Callers=com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:455 com.android.server.wm.WindowManagerService.updateFocusedWindowLocked:6327 com.android.server.wm.WindowManagerService.addWindow:1842 com.android.server.wm.Session.addToDisplayAsUser:224 
+10-20 18:38:47.601 W/WindowManager( 1322): finishDrawingWindow: Window{1df1947 u0 Application Not Responding: com.example.eink_launcher} mDrawState=DRAW_PENDING
+10-20 18:38:47.603 W/WindowManager( 1322): real show surface:Surface(name=Application Not Responding: com.example.eink_launcher)/@0xb42eb5b
