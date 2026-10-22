@@ -19,6 +19,10 @@ void main() {
         'flutter.baseflow.com/permissions/methods',
       );
       const battery = MethodChannel('eink_launcher/battery_events');
+      // The real startup path listens for "open with" intents. There is no
+      // Android side in a unit test, so answer as if nothing was opened.
+      const fileIntent = MethodChannel('eink_launcher/file_intent');
+      const fileIntentEvents = MethodChannel('eink_launcher/file_intent_events');
       final messenger = tester.binding.defaultBinaryMessenger;
       messenger.setMockMethodCallHandler(permissions, (call) async {
         if (call.method == 'requestPermissions') {
@@ -29,9 +33,13 @@ void main() {
         return 0;
       });
       messenger.setMockMethodCallHandler(battery, (_) async => null);
+      messenger.setMockMethodCallHandler(fileIntent, (_) async => null);
+      messenger.setMockMethodCallHandler(fileIntentEvents, (_) async => null);
       addTearDown(() {
         messenger.setMockMethodCallHandler(permissions, null);
         messenger.setMockMethodCallHandler(battery, null);
+        messenger.setMockMethodCallHandler(fileIntent, null);
+        messenger.setMockMethodCallHandler(fileIntentEvents, null);
       });
 
       // Exercise the real Flutter initializer and default document opener,
