@@ -91,83 +91,87 @@ void main() {
     expect(trimmed.endOffset, 9);
   });
 
-  testWidgets('PDF text-layer ranges can be adjusted, underlined and reopened', (
-    tester,
-  ) async {
-    PdfWordSelection? annotated;
-    var opened = false;
-    const selection = PdfWordSelection(
-      'hello',
-      [Rect.fromLTWH(90, 90, 40, 20)],
-      pageIndex: 2,
-      startOffset: 4,
-      endOffset: 9,
-      sourceBoxes: [Rect.fromLTRB(.1, .2, .3, .25)],
-    );
-    const extendedSelection = PdfWordSelection(
-      'hello world',
-      [Rect.fromLTWH(90, 90, 90, 20)],
-      pageIndex: 2,
-      startOffset: 4,
-      endOffset: 15,
-      sourceBoxes: [Rect.fromLTRB(.1, .2, .5, .25)],
-    );
-    final annotation = Annotation(
-      id: 'pdf-note',
-      docId: 'pdf',
-      createdAt: DateTime(2026),
-      spineIndex: 2,
-      blockIndex: -1,
-      startOffset: 4,
-      endOffset: 9,
-      text: 'hello',
-      pdfPageIndex: 2,
-      pdfRects: [Rect.fromLTRB(.1, .2, .3, .25)],
-    );
+  testWidgets(
+    'PDF text-layer ranges can be adjusted, underlined and reopened',
+    (tester) async {
+      PdfWordSelection? annotated;
+      var opened = false;
+      const selection = PdfWordSelection(
+        'hello',
+        [Rect.fromLTWH(90, 90, 40, 20)],
+        pageIndex: 2,
+        startOffset: 4,
+        endOffset: 9,
+        sourceBoxes: [Rect.fromLTRB(.1, .2, .3, .25)],
+      );
+      const extendedSelection = PdfWordSelection(
+        'hello world',
+        [Rect.fromLTWH(90, 90, 90, 20)],
+        pageIndex: 2,
+        startOffset: 4,
+        endOffset: 15,
+        sourceBoxes: [Rect.fromLTRB(.1, .2, .5, .25)],
+      );
+      final annotation = Annotation(
+        id: 'pdf-note',
+        docId: 'pdf',
+        createdAt: DateTime(2026),
+        spineIndex: 2,
+        blockIndex: -1,
+        startOffset: 4,
+        endOffset: 9,
+        text: 'hello',
+        pdfPageIndex: 2,
+        pdfRects: [Rect.fromLTRB(.1, .2, .3, .25)],
+      );
 
-    Widget view({required int identity, bool showAnnotation = false}) =>
-        MaterialApp(
-          home: Scaffold(
-            body: PdfDictionaryRegion(
-              identity: identity,
-              selectWord: (_) async => selection,
-              adjustSelection: (_, start, _) async =>
-                  start ? selection : extendedSelection,
-              onAnnotate: (value, _) async => annotated = value,
-              loadAnnotations: () async => showAnnotation
-                  ? [
-                      PdfAnnotationRegion(annotation, [
-                        const Rect.fromLTWH(90, 90, 40, 20),
-                      ]),
-                    ]
-                  : const [],
-              onOpenAnnotation: (_) async => opened = true,
-              child: const ColoredBox(color: Colors.white),
+      Widget view({required int identity, bool showAnnotation = false}) =>
+          MaterialApp(
+            home: Scaffold(
+              body: PdfDictionaryRegion(
+                identity: identity,
+                selectWord: (_) async => selection,
+                adjustSelection: (_, start, _) async =>
+                    start ? selection : extendedSelection,
+                onAnnotate: (value, _) async => annotated = value,
+                loadAnnotations: () async => showAnnotation
+                    ? [
+                        PdfAnnotationRegion(annotation, [
+                          const Rect.fromLTWH(90, 90, 40, 20),
+                        ]),
+                      ]
+                    : const [],
+                onOpenAnnotation: (_) async => opened = true,
+                child: const ColoredBox(color: Colors.white),
+              ),
             ),
-          ),
-        );
+          );
 
-    await tester.pumpWidget(view(identity: 1));
-    await tester.longPressAt(const Offset(100, 100));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('selection-underline')), findsOneWidget);
-    expect(find.byKey(const Key('pdf-selection-start-handle')), findsOneWidget);
-    expect(find.byKey(const Key('pdf-selection-end-handle')), findsOneWidget);
-    await tester.drag(
-      find.byKey(const Key('pdf-selection-end-handle')),
-      const Offset(60, 0),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('selection-underline')));
-    await tester.pumpAndSettle();
-    expect(annotated, same(extendedSelection));
+      await tester.pumpWidget(view(identity: 1));
+      await tester.longPressAt(const Offset(100, 100));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('selection-underline')), findsOneWidget);
+      expect(
+        find.byKey(const Key('pdf-selection-start-handle')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('pdf-selection-end-handle')), findsOneWidget);
+      await tester.drag(
+        find.byKey(const Key('pdf-selection-end-handle')),
+        const Offset(60, 0),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('selection-underline')));
+      await tester.pumpAndSettle();
+      expect(annotated, same(extendedSelection));
 
-    await tester.pumpWidget(view(identity: 2, showAnnotation: true));
-    await tester.pumpAndSettle();
-    await tester.tapAt(const Offset(100, 100));
-    await tester.pumpAndSettle();
-    expect(opened, isTrue);
-  });
+      await tester.pumpWidget(view(identity: 2, showAnnotation: true));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(100, 100));
+      await tester.pumpAndSettle();
+      expect(opened, isTrue);
+    },
+  );
 
   testWidgets('PDF long press wins over tap and pan; stale lookup is ignored', (
     tester,

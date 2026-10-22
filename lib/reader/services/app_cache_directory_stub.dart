@@ -10,7 +10,7 @@ Future<Directory> getAppCacheDirectory() async {
   final base = env['XDG_CACHE_HOME']?.isNotEmpty == true
       ? env['XDG_CACHE_HOME']!
       : home != null && home.isNotEmpty
-          ? '$home/.cache'
-          : Directory.systemTemp.path;
+      ? '$home/.cache'
+      : Directory.systemTemp.path;
   return Directory('$base/eink_launcher');
 }

@@ -69,7 +69,11 @@ class FileOperationsService {
         value.contains('/') ||
         value.contains('\\') ||
         value.contains('\u0000')) {
-      throw ArgumentError.value(value, paramName, 'Expected a single file name');
+      throw ArgumentError.value(
+        value,
+        paramName,
+        'Expected a single file name',
+      );
     }
   }
 

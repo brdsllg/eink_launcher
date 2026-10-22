@@ -417,6 +417,94 @@ void main() {
         expect(store.tabsState.selectedTabId, 'c');
       },
     );
+
+    test('moveTab shifts one tab, stops at the ends and persists', () async {
+      final registry = makeRegistry();
+      await registry.restoreTabs();
+      for (final id in ['a', 'b', 'c']) {
+        registry.selectTab(docFor(id));
+      }
+      var changes = 0;
+      registry.addListener(() => changes++);
+      expect(registry.moveTab('c', -1), isTrue);
+      expect(registry.tabs.map((doc) => doc.id), ['a', 'c', 'b']);
+      expect(registry.moveTab('a', -1), isFalse);
+      expect(registry.moveTab('b', 1), isFalse);
+      expect(registry.moveTab('missing', 1), isFalse);
+      expect(changes, 1);
+      expect(store.tabsState.documents.map((doc) => doc.id), ['a', 'c', 'b']);
+      expect(registry.selectedTabId, 'c');
+    });
+
+    test('closed tabs are listed newest first, reopened without selecting, and persisted', () async {
+      final registry = makeRegistry();
+      await registry.restoreTabs();
+      for (final id in ['a', 'b', 'c']) {
+        registry.selectTab(docFor(id));
+      }
+      registry.closeTab('a');
+      registry.closeTab('b');
+      expect(registry.recentlyClosedTabs.map((doc) => doc.id), ['b', 'a']);
+      expect(store.tabsState.recentlyClosed.map((doc) => doc.id), ['b', 'a']);
+      expect(registry.reopenClosedTab('a')?.id, 'a');
+      expect(registry.tabs.map((doc) => doc.id), ['c', 'a']);
+      expect(registry.selectedTabId, 'c');
+      expect(registry.recentlyClosedTabs.map((doc) => doc.id), ['b']);
+      expect(registry.reopenClosedTab('a'), isNull);
+      registry.forgetClosedTab('b');
+      expect(registry.recentlyClosedTabs, isEmpty);
+      expect(store.tabsState.recentlyClosed, isEmpty);
+    });
+
+    test('the closed list is capped and selecting a tab removes it', () async {
+      final registry = makeRegistry();
+      await registry.restoreTabs();
+      for (var i = 0; i < ReaderSessionRegistry.maxRecentlyClosed + 2; i++) {
+        registry.selectTab(docFor('d$i'));
+        registry.closeTab('d$i');
+      }
+      final lastId = 'd${ReaderSessionRegistry.maxRecentlyClosed + 1}';
+      expect(
+        registry.recentlyClosedTabs.length,
+        ReaderSessionRegistry.maxRecentlyClosed,
+      );
+      expect(registry.recentlyClosedTabs.first.id, lastId);
+      registry.selectTab(docFor(lastId));
+      expect(
+        registry.recentlyClosedTabs.any((doc) => doc.id == lastId),
+        isFalse,
+      );
+    });
+
+    test('restores saved closed tabs and hides any that are open', () async {
+      store.saveTabsState(
+        ReaderTabsState(
+          documents: [docFor('a')],
+          recentlyClosed: [docFor('b'), docFor('a')],
+        ),
+      );
+      final registry = makeRegistry();
+      await registry.restoreTabs();
+      expect(registry.tabs.map((doc) => doc.id), ['a']);
+      expect(registry.recentlyClosedTabs.map((doc) => doc.id), ['b']);
+    });
+
+    test('tabs state round-trips closed tabs and skips damaged ones', () {
+      final state = ReaderTabsState.fromJson({
+        'documents': [docFor('a').toJson()],
+        'recentlyClosed': [
+          docFor('b').toJson(),
+          {'unexpected': 1},
+        ],
+      });
+      expect(state.recentlyClosed.map((doc) => doc.id), ['b']);
+      final again = ReaderTabsState.fromJson(state.toJson());
+      expect(again.recentlyClosed.map((doc) => doc.id), ['b']);
+      expect(
+        ReaderTabsState.fromJson({'documents': []}).recentlyClosed,
+        isEmpty,
+      );
+    });
   });
 }
 

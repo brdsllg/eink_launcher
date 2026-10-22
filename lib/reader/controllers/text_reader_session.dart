@@ -1069,9 +1069,7 @@ class TextReaderSession extends ReaderSession {
     if (!_paginationCurrent(generation)) return;
     if (!complete && pages.isEmpty) return;
     final existing = _chapterPages[spineIndex];
-    if (!complete &&
-        existing != null &&
-        existing.length == pages.length) {
+    if (!complete && existing != null && existing.length == pages.length) {
       return;
     }
     final diagnostics = ReaderDiagnostics.instance;
@@ -1084,11 +1082,7 @@ class TextReaderSession extends ReaderSession {
     notifyListeners();
     if (watch != null) {
       watch.stop();
-      diagnostics.record(
-        'session.publish',
-        watch.elapsed,
-        count: pages.length,
-      );
+      diagnostics.record('session.publish', watch.elapsed, count: pages.length);
       // A wedged pass may never complete, so also dump periodically while
       // progress is being made — not only at the end of the pass.
       final now = DateTime.now();

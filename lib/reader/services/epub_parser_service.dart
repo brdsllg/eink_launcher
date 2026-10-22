@@ -134,8 +134,8 @@ class EpubParserService {
     final studyUnit = !hasStudy
         ? null
         : studyPaths.any(
-                (path) => TanachLayoutService.usesSegments(xhtmlDocuments[path]!),
-              )
+            (path) => TanachLayoutService.usesSegments(xhtmlDocuments[path]!),
+          )
         ? 'segment'
         : 'verse';
     final spine = <ParsedSpineItem>[];
@@ -578,7 +578,9 @@ List<TocEntry> _synthesizedTehillimToc(
   }
   final lower = title.toLowerCase();
   final titleLooksLikePsalms =
-      lower.contains('psalm') || lower.contains('tehill') || lower.contains('תהל');
+      lower.contains('psalm') ||
+      lower.contains('tehill') ||
+      lower.contains('תהל');
   var refsLookLikePsalms = false;
   for (final source in studySources.values) {
     final probe = source.toLowerCase();
@@ -599,11 +601,12 @@ List<TocEntry> _synthesizedTehillimToc(
     // still require the title to look like Psalms.
     if (studySources.isEmpty) return const [];
   }
-  if (!titleLooksLikePsalms && byChapter.values.every(
-    (entry) =>
-        !_chapterTitleLooksLikePsalms(entry.title) &&
-        !((entry.targetHref ?? '').toLowerCase().contains('psalm')),
-  )) {
+  if (!titleLooksLikePsalms &&
+      byChapter.values.every(
+        (entry) =>
+            !_chapterTitleLooksLikePsalms(entry.title) &&
+            !((entry.targetHref ?? '').toLowerCase().contains('psalm')),
+      )) {
     // Without any Psalms signal in titles, only synthesize when the book
     // title itself says Psalms/Tehillim.
     return const [];
@@ -612,20 +615,17 @@ List<TocEntry> _synthesizedTehillimToc(
   final days = <TocEntry>[];
   for (var day = 1; day <= 30; day++) {
     final chapters = TehillimDaily.dayChapters[day - 1];
-    final firstChapter = day == 26
-        ? 119
-        : chapters.first;
+    final firstChapter = day == 26 ? 119 : chapters.first;
     final firstEntry = byChapter[firstChapter]!;
     final base = (firstEntry.targetHref ?? '').split('#').first;
     final parentTarget = base.isEmpty ? null : '$base#tehillim-day-$day';
     final children = <TocEntry>[];
     for (final chapter in chapters) {
       final chapterEntry = byChapter[chapter]!;
-      final chapterBase =
-          (chapterEntry.targetHref ?? '').split('#').first;
+      final chapterBase = (chapterEntry.targetHref ?? '').split('#').first;
       String? childTarget = chapterEntry.targetHref;
-      TextReadingPosition? childPosition = chapterEntry.position
-          is TextReadingPosition
+      TextReadingPosition? childPosition =
+          chapterEntry.position is TextReadingPosition
           ? chapterEntry.position as TextReadingPosition
           : null;
       if (day == 25 && chapter == 119) {
@@ -728,9 +728,8 @@ String? _verseAnchorFor(
   }
   // Fall back to the builder's conventional verse id when the source uses
   // it (new EPUBs): v-psalms-119-97.
-  final conventional = RegExp(
-    'id="(v-[a-z0-9-]+-$chapter-$verse)"',
-  ).firstMatch(source);
+  final conventional = RegExp('id="(v-[a-z0-9-]+-$chapter-$verse)"')
+      .firstMatch(source);
   return conventional?.group(1);
 }
 

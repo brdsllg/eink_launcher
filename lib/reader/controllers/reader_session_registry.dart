@@ -25,6 +25,9 @@ class ReaderSessionRegistry extends ChangeNotifier {
 
   static const int maxActiveSessions = 4;
 
+  /// How many closed tabs are remembered for "reopen".
+  static const int maxRecentlyClosed = 10;
+
   final ReaderSessionFactory _sessionFactory;
   final BookStoreService? _store;
   final Map<String, ReaderSession> _sessions = {};
@@ -32,6 +35,7 @@ class ReaderSessionRegistry extends ChangeNotifier {
   final Set<ReaderSession> _requestedActive = {};
   final List<String> _lruOrder = []; // least-recent first
   final List<DocRef> _tabs = [];
+  final List<DocRef> _recentlyClosed = []; // most recently closed first
   final Set<String> _closedBeforeRestore = {};
   String? _selectedTabId;
   Future<void>? _restoration;
@@ -46,6 +50,7 @@ class ReaderSessionRegistry extends ChangeNotifier {
   BookStoreService get _bookStore => _store ?? BookStoreService.instance;
 
   List<DocRef> get tabs => List.unmodifiable(_tabs);
+  List<DocRef> get recentlyClosedTabs => List.unmodifiable(_recentlyClosed);
   String? get selectedTabId => _selectedTabId;
 
   DocRef? get mostRecentlyReadTab {
@@ -78,6 +83,17 @@ class ReaderSessionRegistry extends ChangeNotifier {
     _tabs
       ..clear()
       ..addAll(byId.values);
+    final seenClosed = <String>{};
+    final mergedClosed = [
+      for (final doc in [
+        ...List<DocRef>.of(_recentlyClosed),
+        ...saved.recentlyClosed,
+      ])
+        if (!byId.containsKey(doc.id) && seenClosed.add(doc.id)) doc,
+    ];
+    _recentlyClosed
+      ..clear()
+      ..addAll(mergedClosed.take(maxRecentlyClosed));
 
     // Older state may omit recency. BookState supplies reading timestamps,
     // while DocRef supplies the title (BookState intentionally has no title).
@@ -115,6 +131,7 @@ class ReaderSessionRegistry extends ChangeNotifier {
   void selectTab(DocRef doc) {
     if (_disposed) return;
     _closedBeforeRestore.remove(doc.id);
+    _recentlyClosed.removeWhere((closed) => closed.id == doc.id);
     final index = _tabs.indexWhere((tab) => tab.id == doc.id);
     if (index < 0) {
       _tabs.add(doc);
@@ -135,6 +152,15 @@ class ReaderSessionRegistry extends ChangeNotifier {
   DocRef? closeTab(String id) {
     if (_disposed) return null;
     if (!_tabsRestored) _closedBeforeRestore.add(id);
+    final closedIndex = _tabs.indexWhere((doc) => doc.id == id);
+    if (closedIndex >= 0) {
+      _recentlyClosed
+        ..removeWhere((closed) => closed.id == id)
+        ..insert(0, _tabs[closedIndex]);
+      if (_recentlyClosed.length > maxRecentlyClosed) {
+        _recentlyClosed.removeRange(maxRecentlyClosed, _recentlyClosed.length);
+      }
+    }
     _tabs.removeWhere((doc) => doc.id == id);
     evict(id);
     if (_selectedTabId == id || !_tabs.any((doc) => doc.id == _selectedTabId)) {
@@ -148,6 +174,44 @@ class ReaderSessionRegistry extends ChangeNotifier {
       if (doc.id == _selectedTabId) return doc;
     }
     return null;
+  }
+
+  /// Moves one open tab [offset] places (negative = toward the start),
+  /// stopping at either end. Returns whether the order changed.
+  bool moveTab(String id, int offset) {
+    if (_disposed || offset == 0) return false;
+    final from = _tabs.indexWhere((doc) => doc.id == id);
+    if (from < 0) return false;
+    final to = (from + offset).clamp(0, _tabs.length - 1).toInt();
+    if (to == from) return false;
+    _tabs.insert(to, _tabs.removeAt(from));
+    _persistTabs();
+    notifyListeners();
+    return true;
+  }
+
+  /// Puts a recently closed tab back at the end of the open tabs. The current
+  /// selection is left alone. Returns null if [id] is not in the closed list.
+  DocRef? reopenClosedTab(String id) {
+    if (_disposed) return null;
+    final index = _recentlyClosed.indexWhere((doc) => doc.id == id);
+    if (index < 0) return null;
+    final doc = _recentlyClosed.removeAt(index);
+    _closedBeforeRestore.remove(doc.id);
+    if (!_tabs.any((tab) => tab.id == doc.id)) _tabs.add(doc);
+    _persistTabs();
+    notifyListeners();
+    return doc;
+  }
+
+  /// Drops one entry from the recently closed list without reopening it.
+  void forgetClosedTab(String id) {
+    if (_disposed) return;
+    final before = _recentlyClosed.length;
+    _recentlyClosed.removeWhere((doc) => doc.id == id);
+    if (_recentlyClosed.length == before) return;
+    _persistTabs();
+    notifyListeners();
   }
 
   static ReaderSession _defaultFactory(DocRef doc) {
@@ -261,6 +325,7 @@ class ReaderSessionRegistry extends ChangeNotifier {
     _sessions.clear();
     _lruOrder.clear();
     _tabs.clear();
+    _recentlyClosed.clear();
     if (identical(_instance, this)) _instance = null;
     super.dispose();
   }
@@ -297,6 +362,7 @@ class ReaderSessionRegistry extends ChangeNotifier {
         documents: _tabs,
         selectedTabId: _selectedTabId,
         recency: _lruOrder,
+        recentlyClosed: _recentlyClosed,
       ),
     );
     // Explicit tab actions should survive an immediate process restart;

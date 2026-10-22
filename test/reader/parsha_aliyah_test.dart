@@ -297,9 +297,7 @@ void main() {
     testWidgets('parsha parents collapse and aliyot expand on tap', (
       tester,
     ) async {
-      final book = EpubParserService.parseBytesSync(
-        _fixture(parshaList: true),
-      );
+      final book = EpubParserService.parseBytesSync(_fixture(parshaList: true));
       expect(book.hasParshaToc, isTrue);
       TocEntry? selected;
       await tester.pumpWidget(
@@ -309,9 +307,8 @@ void main() {
               onPressed: () async {
                 selected = await Navigator.of(context).push<TocEntry>(
                   MaterialPageRoute(
-                    builder: (_) => ReaderTocScreen(
-                      entries: book.parshaTableOfContents,
-                    ),
+                    builder: (_) =>
+                        ReaderTocScreen(entries: book.parshaTableOfContents),
                   ),
                 );
               },

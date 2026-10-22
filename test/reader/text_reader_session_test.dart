@@ -262,29 +262,26 @@ void main() {
     expect(BookStoreService.instance.getBookState(doc.id)?.bookmarks, isEmpty);
   });
 
-  test(
-    'openLink to another spine chapter produces a laid-out page immediately',
-    () async {
-      // Regression: synchronous _goToPosition called by the old openLink left
-      // the page blank (grey) when the target chapter had not yet been paginated.
-      // The fix makes openLink async and calls _ensureChapterPages before
-      // navigating, so content is ready by the time the call returns.
-      await session.open();
-      await session.prepareViewport(const Size(220, 180));
+  test('openLink to another spine chapter produces a laid-out page immediately', () async {
+    // Regression: synchronous _goToPosition called by the old openLink left
+    // the page blank (grey) when the target chapter had not yet been paginated.
+    // The fix makes openLink async and calls _ensureChapterPages before
+    // navigating, so content is ready by the time the call returns.
+    await session.open();
+    await session.prepareViewport(const Size(220, 180));
 
-      // Start on chapter one (spineIndex 0).
-      expect((session.position as TextReadingPosition).spineIndex, 0);
+    // Start on chapter one (spineIndex 0).
+    expect((session.position as TextReadingPosition).spineIndex, 0);
 
-      // Follow a link to two.xhtml (spineIndex 1). No anchor needed — block 0.
-      final opened = await session.openLink('two.xhtml');
-      expect(opened, isTrue);
-      expect((session.position as TextReadingPosition).spineIndex, 1);
-      // The page must be laid out — not null/grey — and must match the position.
-      final page = session.currentLaidOutPage;
-      expect(page, isNotNull);
-      expect(page!.start.spineIndex, 1);
-    },
-  );
+    // Follow a link to two.xhtml (spineIndex 1). No anchor needed — block 0.
+    final opened = await session.openLink('two.xhtml');
+    expect(opened, isTrue);
+    expect((session.position as TextReadingPosition).spineIndex, 1);
+    // The page must be laid out — not null/grey — and must match the position.
+    final page = session.currentLaidOutPage;
+    expect(page, isNotNull);
+    expect(page!.start.spineIndex, 1);
+  });
 
   test(
     'openLink with a fragment anchor navigates to the correct block',
@@ -458,36 +455,39 @@ void main() {
     },
   );
 
-  test('typography changes do not hold page turns for the whole book', () async {
-    session.dispose();
-    final cache = _GatedCache(
-      cacheDirectory: Directory('${directory.path}/settings'),
-    );
-    session = TextReaderSession(
-      doc: doc,
-      bookStore: BookStoreService.instance,
-      paginationCache: cache,
-      bookLoader: (_, _) async => _readingBook,
-    );
-    cache.blockFrom = null;
-    await session.open();
-    await session.prepareViewport(const Size(220, 180));
+  test(
+    'typography changes do not hold page turns for the whole book',
+    () async {
+      session.dispose();
+      final cache = _GatedCache(
+        cacheDirectory: Directory('${directory.path}/settings'),
+      );
+      session = TextReaderSession(
+        doc: doc,
+        bookStore: BookStoreService.instance,
+        paginationCache: cache,
+        bookLoader: (_, _) async => _readingBook,
+      );
+      cache.blockFrom = null;
+      await session.open();
+      await session.prepareViewport(const Size(220, 180));
 
-    // Keep the second chapter of the new layout unfinished so the reader is
-    // provably turning pages while the background pass is still running.
-    cache.blockFrom = cache.loadCount + 2;
-    await session.applySettings(session.settings.copyWith(fontSizeStep: 6));
+      // Keep the second chapter of the new layout unfinished so the reader is
+      // provably turning pages while the background pass is still running.
+      cache.blockFrom = cache.loadCount + 2;
+      await session.applySettings(session.settings.copyWith(fontSizeStep: 6));
 
-    expect(session.settings.fontSizeStep, 6);
-    expect(session.currentLaidOutPage, isNotNull);
-    expect(session.isPaginating, isTrue);
-    final before = session.currentPage;
-    await session.nextPage();
-    expect(session.currentPage, before + 1);
+      expect(session.settings.fontSizeStep, 6);
+      expect(session.currentLaidOutPage, isNotNull);
+      expect(session.isPaginating, isTrue);
+      final before = session.currentPage;
+      await session.nextPage();
+      expect(session.currentPage, before + 1);
 
-    cache.release.complete();
-    await _waitUntil(() => !session.isPaginating);
-  });
+      cache.release.complete();
+      await _waitUntil(() => !session.isPaginating);
+    },
+  );
 
   test('no page is shown before the reader\'s own page is laid out', () async {
     session.dispose();

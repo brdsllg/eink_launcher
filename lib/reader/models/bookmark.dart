@@ -18,7 +18,8 @@ class Bookmark {
   /// A unique-enough id for a newly created bookmark. Microsecond epoch time
   /// is sufficient for a personal, single-user library: two bookmarks would
   /// need to be created in the same microsecond to collide.
-  static String generateId() => DateTime.now().microsecondsSinceEpoch.toString();
+  static String generateId() =>
+      DateTime.now().microsecondsSinceEpoch.toString();
 
   Map<String, dynamic> toJson() => {
     'id': id,

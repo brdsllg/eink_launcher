@@ -542,18 +542,14 @@ class TextBlockLayout {
   static String displayedPlainText(
     ContentBlock block,
     ReaderSettings settings,
-  ) => block.runs
-      .map(
-        (run) {
-          final base = settings.hideVowelPoints
-              ? withoutVowelPoints(run.text)
-              : reorderHebrewMarks(run.text);
-          return settings.hyphenate
-              ? const HyphenationService().hyphenateLatinText(base)
-              : base;
-        },
-      )
-      .join();
+  ) => block.runs.map((run) {
+    final base = settings.hideVowelPoints
+        ? withoutVowelPoints(run.text)
+        : reorderHebrewMarks(run.text);
+    return settings.hyphenate
+        ? const HyphenationService().hyphenateLatinText(base)
+        : base;
+  }).join();
 
   /// Removes Hebrew vowel points and cantillation-era combining marks for the
   /// Talmud "hide vowels" display setting. One build only; source text stays.

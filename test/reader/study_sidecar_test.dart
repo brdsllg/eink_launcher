@@ -32,17 +32,12 @@ void main() {
 
   test('subfolder sidecar path lives under the study directory', () {
     expect(
-      TanachSqliteCacheService.sidecarSubdirPathForEpub(
-        '/books/berakhot.epub',
-      ),
+      TanachSqliteCacheService.sidecarSubdirPathForEpub('/books/berakhot.epub'),
       '/books/study/berakhot.study.sqlite',
     );
     expect(
       TanachSqliteCacheService.sidecarCandidatesForEpub('/books/berakhot.epub'),
-      [
-        '/books/study/berakhot.study.sqlite',
-        '/books/berakhot.study.sqlite',
-      ],
+      ['/books/study/berakhot.study.sqlite', '/books/berakhot.study.sqlite'],
     );
   });
 
@@ -61,8 +56,7 @@ void main() {
   test('adoptSidecar copies a current sidecar into the cache', () async {
     final epub = File('${directory.path}/tamid.epub');
     await epub.writeAsString('epub bytes');
-    final fingerprint =
-        (await sha256.bind(epub.openRead()).first).toString();
+    final fingerprint = (await sha256.bind(epub.openRead()).first).toString();
     final doc = DocRef(
       id: 'tamid-test',
       path: epub.path,
@@ -99,8 +93,7 @@ void main() {
   test('adoptSidecar ignores stale and corrupt sidecars', () async {
     final epub = File('${directory.path}/tamid.epub');
     await epub.writeAsString('epub bytes');
-    final fingerprint =
-        (await sha256.bind(epub.openRead()).first).toString();
+    final fingerprint = (await sha256.bind(epub.openRead()).first).toString();
     final doc = DocRef(
       id: 'tamid-test',
       path: epub.path,
@@ -118,36 +111,23 @@ void main() {
       _book(),
       'stale-fingerprint',
     );
-    expect(
-      await service.adoptSidecar(doc, fingerprint: fingerprint),
-      isNull,
-    );
+    expect(await service.adoptSidecar(doc, fingerprint: fingerprint), isNull);
     expect(await service.loadIfCurrent(doc, fingerprint: fingerprint), isNull);
 
     // Corrupt: not a database at all.
-    await File(
-      TanachSqliteCacheService.sidecarPathForEpub(epub.path),
-    ).writeAsString('not a database');
-    expect(
-      await service.adoptSidecar(doc, fingerprint: fingerprint),
-      isNull,
-    );
+    await File(TanachSqliteCacheService.sidecarPathForEpub(epub.path))
+        .writeAsString('not a database');
+    expect(await service.adoptSidecar(doc, fingerprint: fingerprint), isNull);
 
     // Missing: no sidecar file.
-    await File(
-      TanachSqliteCacheService.sidecarPathForEpub(epub.path),
-    ).delete();
-    expect(
-      await service.adoptSidecar(doc, fingerprint: fingerprint),
-      isNull,
-    );
+    await File(TanachSqliteCacheService.sidecarPathForEpub(epub.path)).delete();
+    expect(await service.adoptSidecar(doc, fingerprint: fingerprint), isNull);
   });
 
   test('adoptSidecar finds the sidecar in the study subfolder', () async {
     final epub = File('${directory.path}/tamid.epub');
     await epub.writeAsString('epub bytes');
-    final fingerprint =
-        (await sha256.bind(epub.openRead()).first).toString();
+    final fingerprint = (await sha256.bind(epub.openRead()).first).toString();
     final doc = DocRef(
       id: 'tamid-test',
       path: epub.path,
@@ -173,91 +153,94 @@ void main() {
     expect(adopted!.hasLazyTanachContent, isTrue);
   });
 
-  test('adoptSidecar prefers the subfolder but falls back next to the EPUB',
-      () async {
-    final epub = File('${directory.path}/tamid.epub');
-    await epub.writeAsString('epub bytes');
-    final fingerprint =
-        (await sha256.bind(epub.openRead()).first).toString();
-    final doc = DocRef(
-      id: 'tamid-test',
-      path: epub.path,
-      format: DocFormat.epub,
-      title: 'Tamid',
-      fileSize: await epub.length(),
-    );
-    final service = TanachSqliteCacheService(
-      cacheDirectory: Directory('${directory.path}/cache'),
-    );
+  test(
+    'adoptSidecar prefers the subfolder but falls back next to the EPUB',
+    () async {
+      final epub = File('${directory.path}/tamid.epub');
+      await epub.writeAsString('epub bytes');
+      final fingerprint = (await sha256.bind(epub.openRead()).first).toString();
+      final doc = DocRef(
+        id: 'tamid-test',
+        path: epub.path,
+        format: DocFormat.epub,
+        title: 'Tamid',
+        fileSize: await epub.length(),
+      );
+      final service = TanachSqliteCacheService(
+        cacheDirectory: Directory('${directory.path}/cache'),
+      );
 
-    // Only the legacy next-to-EPUB sidecar exists: still adopted.
-    await TanachSqliteCacheService.writeDatabaseForExport(
-      TanachSqliteCacheService.sidecarPathForEpub(epub.path),
-      _book(),
-      fingerprint,
-    );
-    expect(
-      await service.adoptSidecar(doc, fingerprint: fingerprint),
-      isNotNull,
-    );
-  });
+      // Only the legacy next-to-EPUB sidecar exists: still adopted.
+      await TanachSqliteCacheService.writeDatabaseForExport(
+        TanachSqliteCacheService.sidecarPathForEpub(epub.path),
+        _book(),
+        fingerprint,
+      );
+      expect(
+        await service.adoptSidecar(doc, fingerprint: fingerprint),
+        isNotNull,
+      );
+    },
+  );
 
-  test('ParsedEpubCacheService.load uses the sidecar without parsing',
-      () async {
-    final epub = File('${directory.path}/tamid.epub');
-    await epub.writeAsString('epub bytes');
-    final doc = DocRef(
-      id: 'tamid-load-test',
-      path: epub.path,
-      format: DocFormat.epub,
-      title: 'Tamid',
-      fileSize: await epub.length(),
-    );
-    final fingerprint =
-        (await sha256.bind(epub.openRead()).first).toString();
-    await TanachSqliteCacheService.writeDatabaseForExport(
-      TanachSqliteCacheService.sidecarPathForEpub(epub.path),
-      _book(),
-      fingerprint,
-    );
+  test(
+    'ParsedEpubCacheService.load uses the sidecar without parsing',
+    () async {
+      final epub = File('${directory.path}/tamid.epub');
+      await epub.writeAsString('epub bytes');
+      final doc = DocRef(
+        id: 'tamid-load-test',
+        path: epub.path,
+        format: DocFormat.epub,
+        title: 'Tamid',
+        fileSize: await epub.length(),
+      );
+      final fingerprint = (await sha256.bind(epub.openRead()).first).toString();
+      await TanachSqliteCacheService.writeDatabaseForExport(
+        TanachSqliteCacheService.sidecarPathForEpub(epub.path),
+        _book(),
+        fingerprint,
+      );
 
-    final cache = ParsedEpubCacheService(
-      cacheDirectory: Directory('${directory.path}/parsed'),
-    );
-    final book = await cache.load(
-      doc,
-      true,
-      parser: () => throw StateError('must not parse when sidecar exists'),
-    );
-    expect(book.hasLazyTanachContent, isTrue);
-    expect(book.spine, hasLength(2));
-  });
+      final cache = ParsedEpubCacheService(
+        cacheDirectory: Directory('${directory.path}/parsed'),
+      );
+      final book = await cache.load(
+        doc,
+        true,
+        parser: () => throw StateError('must not parse when sidecar exists'),
+      );
+      expect(book.hasLazyTanachContent, isTrue);
+      expect(book.spine, hasLength(2));
+    },
+  );
 }
 
 ParsedBook _book() => ParsedBook(
-      title: 'Genesis',
-      contentFingerprint: 'content-fingerprint',
-      spine: [
-        ParsedSpineItem(
-          id: 'chapter-1',
-          href: 'text/chapter-1.xhtml',
-          title: 'Genesis 1',
-          blocks: [],
-        ),
-        ParsedSpineItem(
-          id: 'chapter-2',
-          href: 'text/chapter-2.xhtml',
-          title: 'Genesis 2',
-          blocks: [],
-        ),
-      ],
-      studyDocuments: {
-        'text/chapter-1.xhtml': _chapter(1),
-        'text/chapter-2.xhtml': _chapter(2),
-      },
-    );
+  title: 'Genesis',
+  contentFingerprint: 'content-fingerprint',
+  spine: [
+    ParsedSpineItem(
+      id: 'chapter-1',
+      href: 'text/chapter-1.xhtml',
+      title: 'Genesis 1',
+      blocks: [],
+    ),
+    ParsedSpineItem(
+      id: 'chapter-2',
+      href: 'text/chapter-2.xhtml',
+      title: 'Genesis 2',
+      blocks: [],
+    ),
+  ],
+  studyDocuments: {
+    'text/chapter-1.xhtml': _chapter(1),
+    'text/chapter-2.xhtml': _chapter(2),
+  },
+);
 
-String _chapter(int chapter) => '''
+String _chapter(int chapter) =>
+    '''
 <html xmlns="http://www.w3.org/1999/xhtml"
       xmlns:epub="http://www.idpf.org/2007/ops">
 <body>

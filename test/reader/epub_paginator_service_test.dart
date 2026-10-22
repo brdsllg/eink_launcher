@@ -180,11 +180,7 @@ void main() {
       pageHeight: 500,
       settings: settings,
     );
-    final painters = TextBlockLayout.createSplitPainters(
-      block,
-      settings,
-      320,
-    );
+    final painters = TextBlockLayout.createSplitPainters(block, settings, 320);
     addTearDown(painters.dispose);
 
     expect(layout.lines, hasLength(1));

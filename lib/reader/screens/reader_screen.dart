@@ -32,6 +32,7 @@ import '../widgets/text_page_view.dart';
 import 'reader_bookmarks_screen.dart';
 import 'reader_search_screen.dart';
 import 'reader_settings_screen.dart';
+import 'reader_tabs_screen.dart';
 import 'reader_toc_screen.dart';
 
 /// Full-bleed, format-agnostic reader shell.
@@ -457,6 +458,21 @@ class _ReaderScreenState extends State<ReaderScreen>
     );
   }
 
+  Future<void> _openTabs() async {
+    final result = await Navigator.of(context).push<ReaderTabsResult>(
+      noTransitionRoute(
+        ReaderTabsScreen(registry: widget.registry, currentTabId: _doc.id),
+      ),
+    );
+    if (result == null || !mounted) return;
+    if (result.closesCurrentTab) {
+      _closeTab(_doc);
+      return;
+    }
+    final target = result.tabToOpen;
+    if (target != null) _switchTab(target);
+  }
+
   Future<void> _openSearch() async {
     final session = _session;
     if (session is! TextReaderSession || session.book == null) return;
@@ -647,6 +663,8 @@ class _ReaderScreenState extends State<ReaderScreen>
                   settings.copyWith(landscape: !settings.landscape),
                 ),
                 onOpenSettings: _openSettings,
+                onOpenTabs: _openTabs,
+                tabCount: widget.registry.tabs.length,
                 showPdfControls: isPdf,
                 onOpenToc: session == null || session.toc.isEmpty
                     ? null

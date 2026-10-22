@@ -15,8 +15,14 @@ void main() {
     const shown = ReaderSettings();
     const hidden = ReaderSettings(hideVowelPoints: true);
     expect(TextBlockLayout.displayedPlainText(block, shown), contains('ְ'));
-    expect(TextBlockLayout.displayedPlainText(block, hidden), isNot(contains('ְ')));
-    expect(TextBlockLayout.displayedPlainText(block, hidden), contains('בראשית'));
+    expect(
+      TextBlockLayout.displayedPlainText(block, hidden),
+      isNot(contains('ְ')),
+    );
+    expect(
+      TextBlockLayout.displayedPlainText(block, hidden),
+      contains('בראשית'),
+    );
     // Offsets still map: display length shorter, source offsets monotonic.
     final offsets = TextBlockLayout.sourceOffsetsForDisplay(block, hidden);
     expect(offsets.length, greaterThan(1));
@@ -70,9 +76,18 @@ void main() {
       id: 'c',
       href: 'chapter.xhtml',
       blocks: const [
-        ContentBlock(type: BlockType.paragraph, runs: [InlineRun(text: 'aaa')]),
-        ContentBlock(type: BlockType.paragraph, runs: [InlineRun(text: 'bbb')]),
-        ContentBlock(type: BlockType.paragraph, runs: [InlineRun(text: 'ccc')]),
+        ContentBlock(
+          type: BlockType.paragraph,
+          runs: [InlineRun(text: 'aaa')],
+        ),
+        ContentBlock(
+          type: BlockType.paragraph,
+          runs: [InlineRun(text: 'bbb')],
+        ),
+        ContentBlock(
+          type: BlockType.paragraph,
+          runs: [InlineRun(text: 'ccc')],
+        ),
       ],
     );
     final annotation = Annotation(
@@ -103,10 +118,7 @@ void main() {
     const settings = ReaderSettings(hideVowelPoints: true);
     final restored = ReaderSettings.fromJson(settings.toJson());
     expect(restored.hideVowelPoints, isTrue);
-    expect(
-      restored.copyWith(hideVowelPoints: false).hideVowelPoints,
-      isFalse,
-    );
+    expect(restored.copyWith(hideVowelPoints: false).hideVowelPoints, isFalse);
     // Legacy studyContinuous keys are ignored (feature removed).
     final legacy = ReaderSettings.fromJson({
       ...settings.toJson(),
@@ -182,9 +194,6 @@ void main() {
   test('vowel hiding strips full 0591-05C7 range', () {
     // 05BE maqaf, 05C0 paseq, 05C3 sof pasuq, 05C6 nun-hafukha were missed.
     const withMarks = 'א\u05beב\u05c0ג\u05c3ד\u05c6ה';
-    expect(
-      TextBlockLayout.withoutVowelPoints(withMarks),
-      'אבגדה',
-    );
+    expect(TextBlockLayout.withoutVowelPoints(withMarks), 'אבגדה');
   });
 }

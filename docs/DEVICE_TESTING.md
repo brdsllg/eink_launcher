@@ -3,7 +3,7 @@
 The one place for everything checked on the physical device: what was tested, what
 broke, whether it is fixed, and what to check next.
 
-Last updated: 21 Oct 2026. This file was restructured into an issue tracker on 7 Oct
+Last updated: 22 Oct 2026. This file was restructured into an issue tracker on 7 Oct
 2026. Statuses and the status log were reconstructed from the older notes, so some
 change dates are the date a pass reported them, not the exact day of the fix.
 
@@ -38,12 +38,32 @@ Every issue has exactly one of these. Nothing else is allowed.
 
 ### 1. Not fixed yet
 
+SEL-006 to SEL-023 come from a code review on 22 Oct 2026, not from device testing. Nothing was run, and none of them has been seen on the HiBreak yet.
+
 | ID | Problem | Status | Next step | Updated |
 | --- | --- | --- | --- | --- |
-| SEL-002 | Selection cannot be stretched over several paragraphs. The **More** button does not do what you asked for. | **FIX BUILT** | Rebuilt 11 Oct: **More** stretches the selection itself across paragraphs (repeatable), then Copy, Dictionary, Add Note and Underline apply to the whole range. Needs device check. Dragging the handles across paragraphs is a separate, later feature. | 11 Oct 2026 |
-| SEL-003 | Selection handles: flipping one handle past the other makes the other handle jump a few letters or a whole word. | **OPEN** | A fix was built 6 Oct and did not cure it. Needs another attempt. | 6 Oct 2026 |
-| SEL-004 | Selection handles in Hebrew: dragging the right handle pulls the left handle along (and the reverse) before they flip. | **OPEN** | Needs a fix. | 6 Oct 2026 |
-| SEL-005 | Selection handles in a paragraph that mixes Hebrew and English behave strangely. | **OPEN** | Write down one exact paragraph (book and place) where it happens, then fix. | 6 Oct 2026 |
+| SEL-002 | Selection cannot be stretched over several paragraphs. The **More** button does not do what you asked for. | **FIX BUILT** | Rebuilt 11 Oct: **More** stretches the selection itself across paragraphs (repeatable), then Copy, Dictionary, Add Note and Underline apply to the whole range. Needs device check. Dragging the handles across paragraphs is a separate, later feature. See also SEL-009 to SEL-012. | 22 Oct 2026 |
+| SEL-003 | Selection handles: flipping one handle past the other makes the other handle jump a few letters or a whole word. | **OPEN** | A fix was built 6 Oct and did not cure it. The code review found two likely causes: the dragged edge follows the finger instead of keeping the gap between finger and text edge, and the flip rule freezes the selection inside a 2-character dead zone. Next: rework the handle drag. | 22 Oct 2026 |
+| SEL-004 | Selection handles in Hebrew: dragging the right handle pulls the left handle along (and the reverse) before they flip. | **OPEN** | The code review could not find the cause by reading. Next: on the HiBreak, in one Hebrew paragraph, record the finger position and both selection ends on every drag step, then fix. | 22 Oct 2026 |
+| SEL-005 | Selection handles in a paragraph that mixes Hebrew and English behave strangely. | **OPEN** | Write down one exact paragraph (book and place) where it happens, then fix. The code review found that handles are placed from the paragraph's overall direction and the first and last drawn box, which goes wrong when Hebrew and English share a line. | 22 Oct 2026 |
+| SEL-006 | Long-pressing a number, punctuation mark or symbol (for example "3a" or "2:1") does nothing and gives no hint why. | **OPEN** | Decide whether a selection should be able to start on these. | 22 Oct 2026 |
+| SEL-007 | Hebrew abbreviations such as רש״י may select as two pieces, and a maqaf (the Hebrew hyphen) splits a phrase while an ordinary hyphen joins one. | **NEEDS INFO** | Find out which characters the Talmud text uses for the abbreviation marks, then long-press רש״י on the HiBreak. | 22 Oct 2026 |
+| SEL-008 | With vowels hidden, Copy and Underline may leave the vowels off the last letter of the selection. | **NEEDS INFO** | On a Talmud page with vowels hidden, copy a selection and check its last letter. Needs the rebuilt books (see TAL-013). | 22 Oct 2026 |
+| SEL-009 | After pressing **More**, Dictionary looks up the rest of the paragraph instead of the word you first selected. | **OPEN** | Make it use the first selected word, as the plan says. | 22 Oct 2026 |
+| SEL-010 | After pressing **More**, touching a handle silently throws away the extra paragraphs. | **OPEN** | Decide: keep the range, or show that it was cleared. | 22 Oct 2026 |
+| SEL-011 | **More** may include paragraphs on the next page, so Copy could copy text you cannot see. | **NEEDS INFO** | Press **More** at the bottom of a page on the HiBreak and check what is highlighted and what is copied. | 22 Oct 2026 |
+| SEL-012 | **More** only reaches forward and always to the end of a whole paragraph. It cannot stop in the middle of one or go backward. | **OPEN** | Owner to decide whether this is enough until dragging across paragraphs exists. | 22 Oct 2026 |
+| SEL-013 | Saved underlines and notes are matched by their exact position and text, so rebuilding a book (see TAN-004 and TAL-013) would make older ones disappear from the page. They would be hidden, not deleted. | **OPEN** | Decide how to handle this before the rebuilt books are installed. | 22 Oct 2026 |
+| SEL-014 | An underline with a note looks the same as an underline without one. | **OPEN** | Owner to decide whether a black-and-white marker for notes is wanted. | 22 Oct 2026 |
+| SEL-015 | When two underlines overlap, only one of them can be tapped to read its note. | **OPEN** | Owner to decide how overlapping notes should be reached. | 22 Oct 2026 |
+| SEL-016 | The underline may sit on top of the Hebrew vowel marks below the letters. | **NEEDS INFO** | Look at an underlined pointed Hebrew word on the HiBreak. | 22 Oct 2026 |
+| SEL-017 | Dragging a handle inside a very large paragraph, such as the 287,000-character one in Tamid, would likely freeze the app, because every drag step lays out the whole paragraph again. | **OPEN** | Not tested on the device. Recheck once the block-size limit planned in TAL-015 is built. | 22 Oct 2026 |
+| SEL-018 | In PDFs the two selection handles cannot cross each other, but in EPUB, TXT and Markdown they can. | **OPEN** | Decide whether PDFs should match the text handles. | 22 Oct 2026 |
+| SEL-019 | In PDFs the selection handles may sit on the wrong side of right-to-left text. | **OPEN** | Fix together with SEL-018. | 22 Oct 2026 |
+| SEL-020 | Hebrew PDFs may store their text backwards, so selecting or copying gives reversed or jumbled words. | **NEEDS INFO** | Try a real Hebrew PDF with a text layer and write down the file and page. | 22 Oct 2026 |
+| SEL-021 | In two-column PDFs a selection follows the PDF's hidden text order, not what is on the screen, so it may grab the wrong lines. | **NEEDS INFO** | Try one two-column PDF and write down the file and page. | 22 Oct 2026 |
+| SEL-022 | In PDFs, hyphens and line breaks are cleaned from a long-pressed word but not after you drag a handle, so Copy and Dictionary get the raw breaks. | **OPEN** | Make both paths clean the text the same way. | 22 Oct 2026 |
+| SEL-023 | PDF underlines are drawn one letter at a time, so they may look dashed, and each note saves a very large amount of data. | **NEEDS INFO** | Underline a sentence in a text-layer PDF on the HiBreak and look at the line. | 22 Oct 2026 |
 | TAN-004 | Literal words `span`, `class` and `nbsp` appear inside Hebrew verses. Exact places: Genesis 7:2 (twice), 7:11, 7:23, 8:14, 9:17. `span` search returns 202 matches in Genesis; all books affected. | **FIX BUILT** | Cause found 11 Oct: `hebrew()` in `tanach/work/build.py` escaped raw source markup; now strips to clean text (section markers kept), host-verified over 23,206 verses. Rebuild EPUBs + sidecars into `study/`, then recheck verses clean and `span` search 0. | 11 Oct 2026 |
 | TAN-005 | First open of Genesis takes 1 min 45 s (later opens take about 2 s) because no Tanach sidecar files have been built. | **FIX BUILT** | Reader checks `<books-dir>/study/<book>.study.sqlite` first with next-to-EPUB fallback; build with `dart run tool/build_study_index.dart <books-dir> --out <books-dir>/study` after the rebuilt books exist and copy them to the device. Expected result: first open close to the 2 s reopen time. | 11 Oct 2026 |
 | TAN-006 | Request: keep the sidecar files in their own folder instead of next to each book. | **FIX BUILT** | Built 11 Oct: `study/` subfolder checked first with next-to-EPUB fallback. See `docs/tanach/docs/tanach-epub.md`. Needs rebuilt books + device check. | 11 Oct 2026 |
@@ -89,6 +109,8 @@ books first (see the [checklist](#checklist-for-the-next-device-pass)).
 ## Status log
 
 One line per change, newest first. Older dates are when a pass reported the change.
+
+- **22 Oct 2026:** SEL-006 to SEL-023 added from a code review of selection, handles, **More**, underlines and PDF selection. Nothing was run and none was seen on the HiBreak. SEL-003, SEL-004 and SEL-005 stay OPEN with notes on likely causes. SEL-002 stays FIX BUILT; see also SEL-009 to SEL-012.
 
 - **21 Oct 2026 (later):** TAL-015 stays OPEN. Berakhot (largest block about 19,000
   characters, no freezes) and Bava Kama did not freeze, and Tamid froze again. The earlier
@@ -158,7 +180,7 @@ specific problem is fixed; only the tracker does.
 | Physical page buttons | Checked OK, with the button assignment in BTN-001 | BTN-001 |
 | Tabs and newer screen layouts | Checked OK by owner, several times. Skip in future passes unless something regresses. | none |
 | Hebrew and English dictionaries | Checked OK (5 Oct) | none |
-| Selection, notes, underlines | Partly checked. Handle size OK. Notes, underlines and text-layer PDF passed 5 Oct and were not re-run. | SEL-001 to 005 |
+| Selection, notes, underlines | Partly checked. Handle size OK. Notes, underlines and text-layer PDF passed 5 Oct and were not re-run. | SEL-001 to 023 |
 | Tanach study books | Partly checked. Chapters mode, bilingual headings and chapter contents pass. | TAN-001 to 007 |
 | Talmud study books | Partly checked. Berakhot pilot starts, headings, links and commentary grouping pass. Tamid freezes when opened or read; Berakhot and Bava Kama did not (TAL-015). | TAL-001 to 015 |
 | Renderer preference, preview and sharpen timing, unplugged idle battery drain | Not measured (optional) | none |

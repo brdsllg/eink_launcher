@@ -95,9 +95,7 @@ class ReaderDiagnostics {
     if (samples.length > maxPhaseSamples) {
       samples.removeRange(0, samples.length - maxPhaseSamples);
     }
-    _recent.add(
-      _DiagnosticEvent(phase, micros, count, DateTime.now()),
-    );
+    _recent.add(_DiagnosticEvent(phase, micros, count, DateTime.now()));
     if (_recent.length > maxEvents) {
       _recent.removeRange(0, _recent.length - maxEvents);
     }

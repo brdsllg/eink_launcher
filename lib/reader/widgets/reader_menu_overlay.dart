@@ -18,6 +18,8 @@ class ReaderMenuOverlay extends StatelessWidget {
   final ValueChanged<PdfFitMode> onSelectFitMode;
   final VoidCallback onToggleOrientation;
   final VoidCallback onOpenSettings;
+  final VoidCallback? onOpenTabs;
+  final int tabCount;
   final bool showPdfControls;
   final VoidCallback? onOpenToc;
   final VoidCallback? onOpenSearch;
@@ -39,6 +41,8 @@ class ReaderMenuOverlay extends StatelessWidget {
     required this.onSelectFitMode,
     required this.onToggleOrientation,
     required this.onOpenSettings,
+    this.onOpenTabs,
+    this.tabCount = 0,
     this.showPdfControls = true,
     this.onOpenToc,
     this.onOpenSearch,
@@ -175,6 +179,14 @@ class ReaderMenuOverlay extends StatelessWidget {
                             onPressed: controlsEnabled ? onOpenSearch : null,
                           ),
                         _MenuButton(
+                          width: iconWidth,
+                          key: const Key('reader-tabs-button'),
+                          icon: Icons.tab,
+                          label: 'Tabs',
+                          caption: tabCount > 0 ? '$tabCount' : null,
+                          onPressed: controlsEnabled ? onOpenTabs : null,
+                        ),
+                        _MenuButton(
                           // Rotation shows the current orientation; tapping
                           // switches to the other one.
                           width: iconWidth + 40,
@@ -301,6 +313,7 @@ class _MenuBar extends StatelessWidget {
 class _MenuButton extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? caption;
   final VoidCallback? onPressed;
   final bool showLabel;
   final double? width;
@@ -310,6 +323,7 @@ class _MenuButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.caption,
     this.showLabel = true,
     this.width,
   });
@@ -347,7 +361,7 @@ class _MenuButton extends StatelessWidget {
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        label,
+                        caption ?? label,
                         style: const TextStyle(fontSize: 13),
                         maxLines: 1,
                       ),

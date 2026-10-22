@@ -161,11 +161,7 @@ void main() {
         projectStudy: false,
       );
       final book = await cache.import(doc, source, fingerprint: 'a');
-      final loaded = await cache.loadChapter(
-        book,
-        0,
-        const ReaderSettings(),
-      );
+      final loaded = await cache.loadChapter(book, 0, const ReaderSettings());
       expect(loaded.characterCount, book.spine[0].characterCount);
     },
   );
@@ -184,9 +180,7 @@ void main() {
   test(
     'stable annotation anchor follows the annotated text after filtering',
     () {
-      final raw = EpubParserService.parseBytesSync(
-        compatibility.fixture(),
-      );
+      final raw = EpubParserService.parseBytesSync(compatibility.fixture());
       final original = TanachLayoutService.layout(
         raw,
         const ReaderSettings(commentarySources: ['Rashi on Genesis']),

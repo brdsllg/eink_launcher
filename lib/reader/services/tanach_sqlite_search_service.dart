@@ -71,9 +71,10 @@ TextSearchResults _searchDatabase(
     } catch (_) {
       // Pre-v6 cache without the split columns: fall back to full text.
       candidates = database
-          .select('SELECT path FROM documents WHERE instr(search_text, ?) > 0', [
-            needle,
-          ])
+          .select(
+            'SELECT path FROM documents WHERE instr(search_text, ?) > 0',
+            [needle],
+          )
           .map((row) => row['path'] as String)
           .toSet();
     }

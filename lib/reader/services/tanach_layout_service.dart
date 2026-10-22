@@ -192,8 +192,12 @@ class TanachLayoutService {
           // index-link order which put Steinsaltz before Tosafot.
           final orderedNotes = linked.entries.toList()
             ..sort((a, b) {
-              final rankA = _sourceRank(a.value.attributes['data-source'] ?? '');
-              final rankB = _sourceRank(b.value.attributes['data-source'] ?? '');
+              final rankA = _sourceRank(
+                a.value.attributes['data-source'] ?? '',
+              );
+              final rankB = _sourceRank(
+                b.value.attributes['data-source'] ?? '',
+              );
               if (rankA != rankB) return rankA.compareTo(rankB);
               final aIsTrans =
                   a.value.attributes['data-category'] == 'translation' ? 0 : 1;
@@ -411,8 +415,7 @@ class TanachLayoutService {
     required bool showDailyTehillim,
   }) {
     if (showDailyTehillim) {
-      final hasDaily =
-          document.querySelector('.tehillim-day-heading') != null;
+      final hasDaily = document.querySelector('.tehillim-day-heading') != null;
       if (hasDaily) {
         for (final heading in document.querySelectorAll('h1')) {
           if (!heading.classes.contains('tehillim-day-heading')) {

@@ -19,7 +19,6 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
   List<LauncherApp>? _apps;
   List<LauncherApp>? _filteredApps;
   int _currentPage = 0;
-  bool _includeSystemApps = false;
   bool _searchOpen = false;
   String? _error;
   int _loadGeneration = 0;
@@ -42,7 +41,7 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
     try {
       final apps = await AppListService.getLaunchableApps(
         forceRefresh: forceRefresh,
-        includeSystemApps: _includeSystemApps,
+        includeSystemApps: true,
       );
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
@@ -81,16 +80,6 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
       _filteredApps = null;
     });
     _loadApps(forceRefresh: true);
-  }
-
-  void _toggleSystemApps() {
-    setState(() {
-      _includeSystemApps = !_includeSystemApps;
-      _currentPage = 0;
-      _apps = null;
-      _filteredApps = null;
-    });
-    _loadApps();
   }
 
   // Substring matching a few hundred in-memory app names is cheap enough to do
@@ -285,49 +274,6 @@ class _AppDrawerScreenState extends State<AppDrawerScreen> {
                 icon: const Icon(Icons.refresh, size: kReaderChromeIconSize),
                 tooltip: 'Refresh apps',
                 onPressed: _refresh,
-              ),
-            ),
-            iconCell(
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, size: kReaderChromeIconSize),
-                tooltip: 'More options',
-                padding: EdgeInsets.zero,
-                popUpAnimationStyle: AnimationStyle.noAnimation,
-                position: PopupMenuPosition.under,
-                menuPadding: EdgeInsets.zero,
-                elevation: 0,
-                constraints: const BoxConstraints.tightFor(width: 240),
-                shape: const RoundedRectangleBorder(
-                  side: BorderSide(color: Colors.black),
-                ),
-                onSelected: (value) {
-                  if (value == 'toggleSystem') _toggleSystemApps();
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem<String>(
-                    value: 'toggleSystem',
-                    height: kReaderChromeRowHeight,
-                    padding: EdgeInsets.zero,
-                    child: InvertingPressListener(
-                      child: Container(
-                        width: double.infinity,
-                        height: kReaderChromeRowHeight,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _includeSystemApps
-                                  ? Icons.check_box
-                                  : Icons.check_box_outline_blank,
-                            ),
-                            const SizedBox(width: 12),
-                            const Text('Show system apps'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ],

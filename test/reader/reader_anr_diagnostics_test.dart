@@ -29,10 +29,7 @@ void main() {
     for (var i = 0; i < ReaderDiagnostics.maxEvents + 20; i++) {
       diagnostics.record('probe', Duration(microseconds: i + 1));
     }
-    expect(
-      diagnostics.recent().length,
-      ReaderDiagnostics.maxEvents,
-    );
+    expect(diagnostics.recent().length, ReaderDiagnostics.maxEvents);
     final summary = diagnostics.summary();
     expect(summary['probe']!.count, lessThanOrEqualTo(256));
     expect(summary['probe']!.maxMicros, ReaderDiagnostics.maxEvents + 20);
@@ -48,68 +45,70 @@ void main() {
     diagnostics.dumpToLog();
   });
 
-  test('cancelled responsive run publishes nothing and returns empty', () async {
-    const paginator = EpubPaginatorService();
-    final blocks = List.generate(
-      64,
-      (i) => ContentBlock(
-        type: BlockType.paragraph,
-        runs: [InlineRun(text: 'Block $i with enough words to measure. ' * 4)],
-      ),
-    );
-    var updates = 0;
-    final result = await paginator.paginateSpineResponsive(
-      spineIndex: 0,
-      blocks: blocks,
-      contentSize: const Size(260, 350),
-      settings: const ReaderSettings(),
-      isCancelled: () => true,
-      onProgress: (_) => updates++,
-    );
-    expect(result, isEmpty);
-    expect(updates, 0);
-  });
-
   test(
-    'responsive progress only reports growing page sets and matches sync geometry',
+    'cancelled responsive run publishes nothing and returns empty',
     () async {
       const paginator = EpubPaginatorService();
-      // Tiny blocks on a tall page: mandatory batch yields see no completed
-      // pages until the final snapshot, so unchanged sets must be skipped.
       final blocks = List.generate(
-        48,
-        (i) => const ContentBlock(
+        64,
+        (i) => ContentBlock(
           type: BlockType.paragraph,
-          runs: [InlineRun(text: 'Short line.')],
+          runs: [
+            InlineRun(text: 'Block $i with enough words to measure. ' * 4),
+          ],
         ),
       );
-      const size = Size(400, 2000);
-      const settings = ReaderSettings();
-      final expected = paginator.paginateSpine(
+      var updates = 0;
+      final result = await paginator.paginateSpineResponsive(
         spineIndex: 0,
         blocks: blocks,
-        contentSize: size,
-        settings: settings,
+        contentSize: const Size(260, 350),
+        settings: const ReaderSettings(),
+        isCancelled: () => true,
+        onProgress: (_) => updates++,
       );
-      final lengths = <int>[];
-      final actual = await paginator.paginateSpineResponsive(
-        spineIndex: 0,
-        blocks: blocks,
-        contentSize: size,
-        settings: settings,
-        isCancelled: () => false,
-        onProgress: (pages) => lengths.add(pages.length),
-      );
-      for (var i = 1; i < lengths.length; i++) {
-        expect(lengths[i], greaterThan(lengths[i - 1]));
-      }
-      expect(actual.length, expected.length);
-      for (var i = 0; i < actual.length; i++) {
-        expect(actual[i].start, expected[i].start);
-        expect(actual[i].end, expected[i].end);
-      }
+      expect(result, isEmpty);
+      expect(updates, 0);
     },
   );
+
+  test('responsive progress only reports growing page sets and matches sync geometry', () async {
+    const paginator = EpubPaginatorService();
+    // Tiny blocks on a tall page: mandatory batch yields see no completed
+    // pages until the final snapshot, so unchanged sets must be skipped.
+    final blocks = List.generate(
+      48,
+      (i) => const ContentBlock(
+        type: BlockType.paragraph,
+        runs: [InlineRun(text: 'Short line.')],
+      ),
+    );
+    const size = Size(400, 2000);
+    const settings = ReaderSettings();
+    final expected = paginator.paginateSpine(
+      spineIndex: 0,
+      blocks: blocks,
+      contentSize: size,
+      settings: settings,
+    );
+    final lengths = <int>[];
+    final actual = await paginator.paginateSpineResponsive(
+      spineIndex: 0,
+      blocks: blocks,
+      contentSize: size,
+      settings: settings,
+      isCancelled: () => false,
+      onProgress: (pages) => lengths.add(pages.length),
+    );
+    for (var i = 1; i < lengths.length; i++) {
+      expect(lengths[i], greaterThan(lengths[i - 1]));
+    }
+    expect(actual.length, expected.length);
+    for (var i = 0; i < actual.length; i++) {
+      expect(actual[i].start, expected[i].start);
+      expect(actual[i].end, expected[i].end);
+    }
+  });
 
   test('diagnostics do not change responsive pagination geometry', () async {
     const paginator = EpubPaginatorService();

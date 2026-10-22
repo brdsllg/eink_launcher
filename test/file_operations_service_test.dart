@@ -168,21 +168,24 @@ void main() {
         ) !=
         FileSystemEntityType.notFound;
 
-    test('trashEntries moves items into the bin; restore puts them back', () async {
-      Directory(p2('docs')).createSync();
-      writeFile('docs/a.txt', 'A');
-      final errors = await bin.trashEntries([p2('docs/a.txt')]);
-      expect(errors, isEmpty);
-      expect(exists('docs/a.txt'), isFalse);
-      expect(inBin('a.txt'), isTrue);
+    test(
+      'trashEntries moves items into the bin; restore puts them back',
+      () async {
+        Directory(p2('docs')).createSync();
+        writeFile('docs/a.txt', 'A');
+        final errors = await bin.trashEntries([p2('docs/a.txt')]);
+        expect(errors, isEmpty);
+        expect(exists('docs/a.txt'), isFalse);
+        expect(inBin('a.txt'), isTrue);
 
-      final restoreErrors = await bin.restoreEntries([
-        '${bin.trashItemsDir}/a.txt',
-      ]);
-      expect(restoreErrors, isEmpty);
-      expect(File(p2('docs/a.txt')).readAsStringSync(), 'A');
-      expect(inBin('a.txt'), isFalse);
-    });
+        final restoreErrors = await bin.restoreEntries([
+          '${bin.trashItemsDir}/a.txt',
+        ]);
+        expect(restoreErrors, isEmpty);
+        expect(File(p2('docs/a.txt')).readAsStringSync(), 'A');
+        expect(inBin('a.txt'), isFalse);
+      },
+    );
 
     test('trashing a folder keeps its contents', () async {
       Directory(p2('proj/sub')).createSync(recursive: true);
@@ -225,23 +228,29 @@ void main() {
       expect(File(p2('deep/nested/f.txt')).readAsStringSync(), 'F');
     });
 
-    test('restore never overwrites something now at the original path', () async {
-      writeFile('a.txt', 'old');
-      await bin.trashEntries([p2('a.txt')]);
-      writeFile('a.txt', 'new');
+    test(
+      'restore never overwrites something now at the original path',
+      () async {
+        writeFile('a.txt', 'old');
+        await bin.trashEntries([p2('a.txt')]);
+        writeFile('a.txt', 'new');
 
-      final errors = await bin.restoreEntries(['${bin.trashItemsDir}/a.txt']);
-      expect(errors, isEmpty);
-      expect(File(p2('a.txt')).readAsStringSync(), 'new');
-      expect(File(p2('a (1).txt')).readAsStringSync(), 'old');
-    });
+        final errors = await bin.restoreEntries(['${bin.trashItemsDir}/a.txt']);
+        expect(errors, isEmpty);
+        expect(File(p2('a.txt')).readAsStringSync(), 'new');
+        expect(File(p2('a (1).txt')).readAsStringSync(), 'old');
+      },
+    );
 
-    test('trashEntries reports a missing item without aborting the rest', () async {
-      writeFile('keep.txt');
-      final errors = await bin.trashEntries([p2('missing'), p2('keep.txt')]);
-      expect(errors, hasLength(1));
-      expect(inBin('keep.txt'), isTrue);
-    });
+    test(
+      'trashEntries reports a missing item without aborting the rest',
+      () async {
+        writeFile('keep.txt');
+        final errors = await bin.trashEntries([p2('missing'), p2('keep.txt')]);
+        expect(errors, hasLength(1));
+        expect(inBin('keep.txt'), isTrue);
+      },
+    );
 
     test('purgeExpiredTrash removes only items older than 30 days', () async {
       writeFile('old.txt');
@@ -314,7 +323,10 @@ void main() {
       expect((await bin.trashDaysRemaining())['a.txt'], 1); // 22 hours left
 
       clock = clock.add(const Duration(days: 2));
-      expect((await bin.trashDaysRemaining())['a.txt'], 0); // overdue, never negative
+      expect(
+        (await bin.trashDaysRemaining())['a.txt'],
+        0,
+      ); // overdue, never negative
     });
 
     test('emptyTrash permanently removes everything in the bin', () async {

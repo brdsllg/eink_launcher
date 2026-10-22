@@ -45,8 +45,10 @@ void main() {
       final source = '$shin$qamats$dagesh$shinDot$etnachta$bet$patah';
       final result = reorderHebrewMarks(source);
       expect(result.length, source.length);
-      expect(result.codeUnits.toList()..sort(),
-          source.codeUnits.toList()..sort());
+      expect(
+        result.codeUnits.toList()..sort(),
+        source.codeUnits.toList()..sort(),
+      );
     });
 
     test('does not touch non-Hebrew text', () {

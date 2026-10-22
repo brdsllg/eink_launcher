@@ -238,9 +238,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     var nextStart = start;
     if (start) {
       if (clamped <= anchor + _flipHysteresis) {
-        next = selection.copyWith(
-          baseOffset: clamped.clamp(min, anchor),
-        );
+        next = selection.copyWith(baseOffset: clamped.clamp(min, anchor));
       } else {
         // Crossed: anchor becomes the new start, finger takes the far edge.
         next = TextSelection(baseOffset: anchor, extentOffset: clamped);
@@ -250,9 +248,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
       }
     } else {
       if (clamped >= anchor - _flipHysteresis) {
-        next = selection.copyWith(
-          extentOffset: clamped.clamp(anchor, max),
-        );
+        next = selection.copyWith(extentOffset: clamped.clamp(anchor, max));
       } else {
         next = TextSelection(baseOffset: clamped, extentOffset: anchor);
         nextStart = !start;
@@ -279,8 +275,7 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     final boxes = painter.getBoxesForSelection(_selection!);
     painter.dispose();
     if (boxes.isEmpty) return const SizedBox.shrink();
-    final isRtl =
-        TextBlockLayout.directionFor(block) == TextDirection.rtl;
+    final isRtl = TextBlockLayout.directionFor(block) == TextDirection.rtl;
     final surface = _surfaceKey.currentContext!.findRenderObject() as RenderBox;
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final origin = overlay.globalToLocal(surface.localToGlobal(Offset.zero));
@@ -339,13 +334,8 @@ class _BlockSliceViewState extends State<BlockSliceView> {
             left:
                 (start
                         ? (isRtl ? first.dx : first.dx - _selectionHandleSize)
-                        : (isRtl
-                              ? last.dx - _selectionHandleSize
-                              : last.dx))
-                    .clamp(
-                      0.0,
-                      overlay.size.width - _selectionHandleSize,
-                    ),
+                        : (isRtl ? last.dx - _selectionHandleSize : last.dx))
+                    .clamp(0.0, overlay.size.width - _selectionHandleSize),
             top: (start ? first.dy : last.dy).clamp(
               0.0,
               overlay.size.height - _selectionHandleSize,
@@ -477,8 +467,9 @@ class _BlockSliceViewState extends State<BlockSliceView> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final diagnostics = ReaderDiagnostics.instance;
-          final measureWatch =
-              diagnostics.enabled ? (Stopwatch()..start()) : null;
+          final measureWatch = diagnostics.enabled
+              ? (Stopwatch()..start())
+              : null;
           final layout = TextBlockLayout.measure(
             block: block,
             width: constraints.maxWidth,
@@ -526,13 +517,11 @@ class _BlockSliceViewState extends State<BlockSliceView> {
     final prefix = TextBlockLayout.prefixFor(block, settings).length;
     final length = TextBlockLayout.displayedPlainText(block, settings).length;
     if (length <= 0) return null;
-    return TextSelection(
-      baseOffset: prefix,
-      extentOffset: prefix + length,
-    );
+    return TextSelection(baseOffset: prefix, extentOffset: prefix + length);
   }
 
-  Widget _buildBlock(TextBlockLayout layout, double width) {    if (block.type == BlockType.horizontalRule) {
+  Widget _buildBlock(TextBlockLayout layout, double width) {
+    if (block.type == BlockType.horizontalRule) {
       return Align(
         alignment: Alignment.topCenter,
         child: Container(height: 1, color: Colors.black),
@@ -723,7 +712,10 @@ class _TextBlockPainter extends CustomPainter {
     this.sliceBlockIndex,
   );
 
-  TextSelection? _displayFor(Annotation annotation, AnnotationTextMapping mapping) {
+  TextSelection? _displayFor(
+    Annotation annotation,
+    AnnotationTextMapping mapping,
+  ) {
     if (!annotation.isMultiBlock) return mapping.toDisplay(annotation);
     final length = block.plainText.length;
     Annotation probe(int start, int end) => Annotation(

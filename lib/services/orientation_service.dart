@@ -12,15 +12,11 @@ class OrientationService {
 
   static ScreenLock get current => _last;
 
-  static Future<void> lockPortrait() => _apply(
-        ScreenLock.portrait,
-        const [DeviceOrientation.portraitUp],
-      );
+  static Future<void> lockPortrait() =>
+      _apply(ScreenLock.portrait, const [DeviceOrientation.portraitUp]);
 
-  static Future<void> lockLandscape() => _apply(
-        ScreenLock.landscape,
-        const [DeviceOrientation.landscapeLeft],
-      );
+  static Future<void> lockLandscape() =>
+      _apply(ScreenLock.landscape, const [DeviceOrientation.landscapeLeft]);
 
   static Future<void> unlock() => _apply(ScreenLock.free, const []);
 

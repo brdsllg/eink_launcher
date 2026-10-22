@@ -9,11 +9,11 @@ import 'package:pdfrx/pdfrx.dart';
 
 void main() {
   PdfPageInfo info(double w, double h) => PdfPageInfo(
-        pageIndex: 0,
-        width: w,
-        height: h,
-        rotation: PdfPageRotation.none,
-      );
+    pageIndex: 0,
+    width: w,
+    height: h,
+    rotation: PdfPageRotation.none,
+  );
 
   test('fitHeight keeps aspect and full crop', () {
     final out = pdfFitGeometry(

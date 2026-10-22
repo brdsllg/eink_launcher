@@ -49,8 +49,7 @@ class Annotation {
     this.endBlockOffset,
   });
 
-  bool get isMultiBlock =>
-      endBlockIndex != null && endBlockIndex != blockIndex;
+  bool get isMultiBlock => endBlockIndex != null && endBlockIndex != blockIndex;
 
   int get resolvedEndBlockIndex => endBlockIndex ?? blockIndex;
   int get resolvedEndBlockOffset => endBlockOffset ?? endOffset;
@@ -95,10 +94,7 @@ class Annotation {
   /// Source range of this annotation within the given block of its chapter.
   /// Returns null when the block is outside the annotation or text mismatches
   /// (single-block legacy check). Middle blocks return their full extent.
-  RangeInBlock? rangeForBlock(
-    ParsedSpineItem chapter,
-    int index,
-  ) {
+  RangeInBlock? rangeForBlock(ParsedSpineItem chapter, int index) {
     if (!matchesBlock(chapter, spineIndex, index)) return null;
     final block = chapter.blocks[index];
     final length = block.plainText.length;

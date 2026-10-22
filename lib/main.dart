@@ -46,7 +46,7 @@ void main() async {
   // The LaunchTheme/NormalTheme in styles.xml hide them from the moment the
   // process starts, and this keeps them hidden once Flutter takes over.
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  
+
   // Start listening right away so no file-open is missed, but don't fetch
   // the launch file yet — MyApp sets its callback first, then initialize()
   // delivers it (or holds it until the callback exists).
@@ -145,7 +145,9 @@ class _MyAppState extends State<MyApp> {
     final extension = dotIndex > 0 ? fileName.substring(dotIndex) : '';
     if (!kReadableExtensions.contains(extension)) {
       if (mounted) {
-        final shown = extension.isEmpty ? 'no file extension' : '$extension files';
+        final shown = extension.isEmpty
+            ? 'no file extension'
+            : '$extension files';
         showMessage(
           'This app reads PDF, EPUB, TXT, and Markdown. '
           'Could not open $shown.',

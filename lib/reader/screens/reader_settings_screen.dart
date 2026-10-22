@@ -281,9 +281,8 @@ class _ReaderSettingsScreenState extends State<ReaderSettingsScreen> {
                 label: 'Chapters',
                 selected: !_settings.showDailyTehillim,
                 onPressed: () => setState(
-                  () => _settings = _settings.copyWith(
-                    showDailyTehillim: false,
-                  ),
+                  () =>
+                      _settings = _settings.copyWith(showDailyTehillim: false),
                 ),
               ),
               _ChoiceButton(

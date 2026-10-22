@@ -131,4 +131,3 @@ const double kPdfMinFlingVelocity = 60.0;
 
 /// Auto-crop threshold: pixel luminance below this value is considered ink/content.
 const int kPdfInkLuminanceThreshold = 245;
-

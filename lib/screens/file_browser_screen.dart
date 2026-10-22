@@ -538,8 +538,9 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
     }
   }
 
-  List<Widget> _selectionActions(double barHeight) =>
-      _controller.inTrash ? _trashActions(barHeight) : _browseActions(barHeight);
+  List<Widget> _selectionActions(double barHeight) => _controller.inTrash
+      ? _trashActions(barHeight)
+      : _browseActions(barHeight);
 
   // In the Recycle Bin: Restore (top level only, where the origin is known)
   // and a permanent Delete. Copy, Cut and Rename don't apply there.

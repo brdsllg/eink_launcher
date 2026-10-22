@@ -95,17 +95,15 @@ class FolderLoaderService {
   /// sorted FileEntry results (with stats initially null for fast initial render).
   Future<List<FileEntry>> loadFolder(String path) async {
     try {
-      final result = await _ask<List>(
-        [path],
-        timeout: const Duration(seconds: 15),
-      );
+      final result = await _ask<List>([
+        path,
+      ], timeout: const Duration(seconds: 15));
       return result.cast<FileEntry>();
     } on TimeoutException {
       // One retry on a fresh worker; a second hang is a real error.
-      final result = await _ask<List>(
-        [path],
-        timeout: const Duration(seconds: 15),
-      );
+      final result = await _ask<List>([
+        path,
+      ], timeout: const Duration(seconds: 15));
       return result.cast<FileEntry>();
     }
   }
@@ -114,10 +112,10 @@ class FolderLoaderService {
   /// Returns a map of path → FileStat for successful stats.
   Future<Map<String, FileStat>> loadStats(List<String> paths) async {
     try {
-      final result = await _ask<Map>(
-        ['stats', paths],
-        timeout: const Duration(seconds: 15),
-      );
+      final result = await _ask<Map>([
+        'stats',
+        paths,
+      ], timeout: const Duration(seconds: 15));
       return result.cast<String, FileStat>();
     } catch (_) {
       // File metadata is optional; an isolate hiccup must not break listing.

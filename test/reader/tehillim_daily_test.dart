@@ -128,7 +128,10 @@ Uint8List _fixture({required bool dailyNav, bool dayHeadings = false}) {
     archive.add(
       ArchiveFile.string(
         'OEBPS/chapter-$ch.xhtml',
-        _chapterSource(ch, withDayHeading: dayHeadings && (ch == 1 || ch == 119)),
+        _chapterSource(
+          ch,
+          withDayHeading: dayHeadings && (ch == 1 || ch == 119),
+        ),
       ),
     );
   }
@@ -180,10 +183,7 @@ void main() {
 
       expect(book.hasTehillimToc, isTrue);
       expect(book.tehillimDailyTableOfContents, hasLength(30));
-      expect(
-        book.tehillimDailyTableOfContents.first.children,
-        hasLength(9),
-      );
+      expect(book.tehillimDailyTableOfContents.first.children, hasLength(9));
       final day26 = book.tehillimDailyTableOfContents[25];
       expect(day26.title, 'Day 26');
       expect(day26.targetHref, contains('#tehillim-day-26'));
@@ -417,8 +417,7 @@ void main() {
               onPressed: () async {
                 selected = await Navigator.of(context).push<TocEntry>(
                   MaterialPageRoute(
-                    builder: (_) =>
-                        const ReaderTocScreen(entries: dayEntries),
+                    builder: (_) => const ReaderTocScreen(entries: dayEntries),
                   ),
                 );
               },

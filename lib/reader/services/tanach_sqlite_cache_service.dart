@@ -110,9 +110,9 @@ class TanachSqliteCacheService {
 
   /// Sidecar candidates in lookup order: subfolder first, next-to-EPUB second.
   static List<String> sidecarCandidatesForEpub(String epubPath) => [
-        sidecarSubdirPathForEpub(epubPath),
-        sidecarPathForEpub(epubPath),
-      ];
+    sidecarSubdirPathForEpub(epubPath),
+    sidecarPathForEpub(epubPath),
+  ];
 
   /// Adopts a laptop-built sidecar index, either from the `study` subfolder or
   /// sitting next to the EPUB.
@@ -378,8 +378,7 @@ class TanachSqliteCacheService {
             TocEntry.fromJson(value as Map<String, dynamic>),
         ],
         tehillimDailyTableOfContents: [
-          for (final value
-              in jsonDecode(meta['tehillim_toc'] ?? '[]') as List)
+          for (final value in jsonDecode(meta['tehillim_toc'] ?? '[]') as List)
             TocEntry.fromJson(value as Map<String, dynamic>),
         ],
         tanachDatabasePath: path,
@@ -482,7 +481,9 @@ class TanachSqliteCacheService {
             'modern',
             'commentary',
           };
-          for (final aside in baseClone.querySelectorAll('aside[data-source]')) {
+          for (final aside in baseClone.querySelectorAll(
+            'aside[data-source]',
+          )) {
             if (commentaryCategories.contains(
               aside.attributes['data-category'],
             )) {
@@ -503,12 +504,10 @@ class TanachSqliteCacheService {
             Uint8List.fromList(gzip.encode(utf8.encode(entry.value))),
             normalizeTanachSearchText(document.body?.text ?? document.outerHtml)
                 .replaceAll(RegExp(r'\s+'), ''),
-            normalizeTanachSearchText(
-              baseClone.body?.text ?? '',
-            ).replaceAll(RegExp(r'\s+'), ''),
-            normalizeTanachSearchText(
-              commentaryText,
-            ).replaceAll(RegExp(r'\s+'), ''),
+            normalizeTanachSearchText(baseClone.body?.text ?? '')
+                .replaceAll(RegExp(r'\s+'), ''),
+            normalizeTanachSearchText(commentaryText)
+                .replaceAll(RegExp(r'\s+'), ''),
           ]);
           for (final link in document.querySelectorAll('a[href]')) {
             final isNote = link.attributes.entries.any(
@@ -594,18 +593,13 @@ class TanachSqliteCacheService {
           'toc': jsonEncode(
             book.tableOfContents.map((entry) => entry.toJson()).toList(),
           ),
-          'parsha_toc': jsonEncode(
-            [
-              for (final entry in book.parshaTableOfContents)
-                entry.toJson(),
-            ],
-          ),
-          'tehillim_toc': jsonEncode(
-            [
-              for (final entry in book.tehillimDailyTableOfContents)
-                entry.toJson(),
-            ],
-          ),
+          'parsha_toc': jsonEncode([
+            for (final entry in book.parshaTableOfContents) entry.toJson(),
+          ]),
+          'tehillim_toc': jsonEncode([
+            for (final entry in book.tehillimDailyTableOfContents)
+              entry.toJson(),
+          ]),
         };
         for (final entry in meta.entries) {
           database.execute('INSERT INTO meta VALUES (?, ?)', [
