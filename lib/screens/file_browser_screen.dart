@@ -23,6 +23,7 @@ import '../widgets/file_action_dialogs.dart';
 import '../widgets/file_entry_tile.dart';
 import '../widgets/inverting_ink_well.dart';
 import '../widgets/paginated_list.dart';
+import '../widgets/screen_edges_dialog.dart';
 import '../widgets/search_overlay.dart';
 import 'app_drawer_screen.dart';
 import 'launcher_recovery_screen.dart';
@@ -786,6 +787,8 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
                         _confirmEmptyBin();
                       case 'orientation':
                         _toggleBrowserOrientation();
+                      case 'screenEdges':
+                        showScreenEdgesDialog(this.context);
                       case 'paste':
                         _showSnackFrom(
                           _controller.paste(
@@ -817,6 +820,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen>
                           ? 'Portrait'
                           : 'Landscape',
                     ),
+                    _boxedMenuItem('screenEdges', 'Screen edges'),
                     _boxedMenuItem(
                       'paste',
                       'Paste',

@@ -13,6 +13,8 @@ import 'reader/widgets/reading_state_warning.dart';
 import 'screens/file_browser_screen.dart';
 import 'services/file_intent_service.dart';
 import 'services/launcher_error_service.dart';
+import 'services/screen_insets_service.dart';
+import 'widgets/screen_insets_frame.dart';
 
 Color? _buttonForeground(Set<WidgetState> states) {
   if (states.contains(WidgetState.disabled)) return Colors.grey;
@@ -46,6 +48,10 @@ void main() async {
   // The LaunchTheme/NormalTheme in styles.xml hide them from the moment the
   // process starts, and this keeps them hidden once Flutter takes over.
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+  // The tablet's panel is cracked along two edges; load how much of it to
+  // avoid before the first frame so nothing is drawn there and then moved.
+  await ScreenInsetsService.instance.load();
 
   // Start listening right away so no file-open is missed, but don't fetch
   // the launch file yet — MyApp sets its callback first, then initialize()
@@ -184,9 +190,11 @@ class _MyAppState extends State<MyApp> {
       title: 'E-Ink Launcher',
       scaffoldMessengerKey: _scaffoldMessengerKey,
       navigatorKey: _navigatorKey,
-      builder: (context, child) => ReadingStateWarning(
-        store: BookStoreService.instance,
-        child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => ScreenInsetsFrame(
+        child: ReadingStateWarning(
+          store: BookStoreService.instance,
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
       // No "DEBUG" banner in the corner when running debug builds.
       debugShowCheckedModeBanner: false,

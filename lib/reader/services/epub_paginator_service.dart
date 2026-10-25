@@ -455,7 +455,7 @@ class TextBlockLayout {
     for (final run in runs) {
       final visible = settings.hideVowelPoints
           ? withoutVowelPoints(run.text)
-          : reorderHebrewMarks(run.text);
+          : withoutOverlappingMeteg(run.text);
       final text = settings.hyphenate
           ? const HyphenationService().hyphenateLatinText(visible)
           : visible;
@@ -545,7 +545,7 @@ class TextBlockLayout {
   ) => block.runs.map((run) {
     final base = settings.hideVowelPoints
         ? withoutVowelPoints(run.text)
-        : reorderHebrewMarks(run.text);
+        : withoutOverlappingMeteg(run.text);
     return settings.hyphenate
         ? const HyphenationService().hyphenateLatinText(base)
         : base;
@@ -606,7 +606,8 @@ class TextBlockLayout {
 
   /// Maps display boundaries (excluding the decorative prefix) to source text.
   /// Repeated offsets represent inserted discretionary break characters.
-  /// Hidden vowel points consume source offsets but produce no display chars.
+  /// Hidden vowel points (and a meteg skipped because it would overlap a
+  /// patah) consume source offsets but produce no display chars.
   static List<int> sourceOffsetsForDisplay(
     ContentBlock block,
     ReaderSettings settings,
@@ -616,18 +617,26 @@ class TextBlockLayout {
     for (final run in block.runs) {
       final base = settings.hideVowelPoints
           ? withoutVowelPoints(run.text)
-          : reorderHebrewMarks(run.text);
-      // Source offset of each base char, so removed vowels still advance.
+          : withoutOverlappingMeteg(run.text);
+      // Positions (inside this run) of meteg characters display skips.
+      final skippedMeteg = settings.hideVowelPoints
+          ? const <int>{}
+          : metegPositionsToSkip(run.text).toSet();
+      // Source offset of each base char, so removed marks still advance.
       final baseToSource = <int>[];
       var cursor = source;
+      var local = 0;
       for (final rune in run.text.runes) {
         final char = String.fromCharCode(rune);
-        if (settings.hideVowelPoints && _isVowelMark(rune)) {
+        if ((settings.hideVowelPoints && _isVowelMark(rune)) ||
+            skippedMeteg.contains(local)) {
           cursor += char.length;
+          local += char.length;
           continue;
         }
         baseToSource.add(cursor);
         cursor += char.length;
+        local += char.length;
       }
       final display = settings.hyphenate
           ? const HyphenationService().hyphenateLatinText(base)

@@ -27,6 +27,46 @@ The file browser and app drawer keep their 15 portrait / 12 landscape vertical b
 Other screens use 56px control rows with content heights set by their text. The
 reading surface and gestures are unchanged.
 
+## Cracked-screen edges (HW-001)
+
+The owner's panel is cracked along two edges. Touch still works there, but the picture
+is unreadable, so the whole app is drawn inside the clear area. One wrapper around the
+app (`ScreenInsetsFrame`) shrinks the screen every other widget sees, so the browser's
+equal bands, the reader pages, dialogs and the keyboard all fit with no per-screen
+changes. The blocked strips are painted white. Whether it works on the device is
+tracked as HW-001 in [DEVICE_TESTING.md](DEVICE_TESTING.md).
+
+**Measurements** (owner, ADB touch readout, 25 Oct 2026; display density 300, pixel
+ratio 1.875):
+
+| Tablet position | Screen size | Last clean point | Blocked strips |
+| --- | --- | --- | --- |
+| Upright (portrait) | 1264 × 1680 px | x 1017, y 1340 | right 247 px, bottom 340 px |
+| Sideways (browser **Landscape**) | 1680 × 1264 px | x 1353, y 253 | right 327 px, top 253 px |
+
+The two readings were taken at the same physical corner and differ by 6 to 13 px, so
+the larger loss on each edge is used: **253 px** on the short-side edge and **340 px**
+on the long-side edge. In logical pixels that is about 134.9 and 181.3.
+
+The damage is fixed to the panel, so the strips move as the tablet turns:
+
+| Display rotation | Blocked edges |
+| --- | --- |
+| Upright | right 253 px, bottom 340 px |
+| Turned counter-clockwise (browser **Landscape**) | top 253 px, right 340 px |
+| Upside down | left 253 px, top 340 px |
+| Turned clockwise | bottom 253 px, left 340 px |
+
+**Bottom-left corner.** The damaged strip along the bottom does **not** span the full
+width: the bottom-left corner works fine. It is not used yet, because the app blocks a
+full-width strip. Using it needs one more measurement, where along the bottom edge the
+damage begins, and then a rectangle cut-out instead of a full strip.
+
+**Changing it.** **+ → Screen edges** in the file browser turns the feature on or off
+and edits the two sizes (pixels, measured upright). **Reset** restores 253 and 340.
+The system status and navigation bars are already hidden by the app's full-screen
+mode.
+
 ## Previews
 
 Host-rendered previews are in `.buildlog/` (project root), in portrait (432×897),

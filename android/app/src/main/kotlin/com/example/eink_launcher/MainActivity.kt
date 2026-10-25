@@ -80,6 +80,25 @@ class MainActivity : FlutterActivity() {
             }
         })
 
+        // Display rotation (0-3), so the app can keep its content away from
+        // the cracked edges of the panel as the tablet is turned.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "eink_launcher/display",
+        ).setMethodCallHandler { call, result ->
+            if (call.method != "getRotation") {
+                result.notImplemented()
+                return@setMethodCallHandler
+            }
+            val rotation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                display?.rotation
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay.rotation
+            }
+            result.success(rotation ?: 0)
+        }
+
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "eink_launcher/open_with",

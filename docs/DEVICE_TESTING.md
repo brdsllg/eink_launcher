@@ -3,7 +3,7 @@
 The one place for everything checked on the physical device: what was tested, what
 broke, whether it is fixed, and what to check next.
 
-Last updated: 22 Oct 2026. This file was restructured into an issue tracker on 7 Oct
+Last updated: 25 Oct 2026. This file was restructured into an issue tracker on 7 Oct
 2026. Statuses and the status log were reconstructed from the older notes, so some
 change dates are the date a pass reported them, not the exact day of the fix.
 
@@ -83,6 +83,8 @@ books first (see the [checklist](#checklist-for-the-next-device-pass)).
 | --- | --- | --- | --- | --- |
 | TAN-002 | In Parshiyot mode, chapter headings were still shown (only parsha and aliyah headings should show). | **FIX BUILT** | Parshiyot mode shows only parsha and aliyah headings, each as side-by-side English and Hebrew like the verses. Chapters mode and Parshiyot mode are never shown together. | 6 Oct 2026 |
 | TAN-003 | Parshiyot were in the wrong order in the Contents (Miketz appeared after Vayechi). Leviticus was also out of order. | **FIX BUILT** | Rebuild the Tanach books, then check the Contents order of the weekly portions. | 6 Oct 2026 |
+| HEB-001 | In some Hebrew fonts the meteg (the small vertical bar that belongs beside a vowel) is drawn right under the vowel and merges with it, so the letter shows a false vowel. Patah plus meteg looks like qamats; segol and tsere with a meteg are also wrong. | **FIX BUILT** | Written 23 Oct; analysis and tests passed on the first version of this fix and need a rerun for the widened rule; not checked on the HiBreak. Web search found that Unicode does not fix where a meteg sits, so each font decides and no character trick forces it. The reader now hides the meteg on every letter that has a vowel point; the text itself still contains it, so search and copy are unchanged. A meteg on a letter with no vowel is still drawn. On the HiBreak, find words with a meteg beside a patah, segol, tsere and a chataf vowel and check each shows its own plain vowel in the three Hebrew fonts (Frank Ruhl Libre, Noto Serif Hebrew, Heebo). | 23 Oct 2026 |
+| HW-001 | The Bigme's panel is cracked. The right edge and the bottom edge show unreadable garbage, although touch still works there. The damaged strip along the bottom does not run the full width of the screen, and the bottom-left corner works fine. | **FIX BUILT** | Built 25 Oct: the whole app now stays inside the clear part of the screen, in every rotation, with a **Screen edges** entry in the browser's **+** menu (on/off and the two sizes). Needs a rebuild, install and device check. Measurements (owner, ADB touch readout): upright, the last clean point is x 1017 px of 1264 and y 1340 px of 1680; held sideways (browser **Landscape**) it is x 1353 px of 1680 and y 253 px of 1264. The app blocks 253 px on the right and 340 px at the bottom, upright, and the strips move to the matching edges when the tablet turns. On the HiBreak check: portrait browser and reader, **+ → Landscape**, nothing readable is hidden and nothing is drawn in the damaged strips, and **Screen edges** can turn it off and back on. Not measured yet: where along the bottom the damaged strip begins. Until it is, the usable bottom-left corner is left empty. | 25 Oct 2026 |
 
 ### 3. Fixed, closed, or confirmed
 
@@ -109,6 +111,10 @@ books first (see the [checklist](#checklist-for-the-next-device-pass)).
 ## Status log
 
 One line per change, newest first. Older dates are when a pass reported the change.
+
+- **25 Oct 2026:** HW-001 added as FIX BUILT. The owner's panel is cracked along the right and bottom edges (touch still works there). Boundaries were measured with the ADB touch readout, upright and sideways. The app now keeps everything inside the clear area. The bottom damaged strip is shorter than the full width and the bottom-left corner works; that corner is not used yet.
+
+- **23 Oct 2026:** HEB-001 added as FIX BUILT. Cause found by the owner: the meteg bar overlaps the patah and the pair looks like a qamats. An earlier attempt that reordered the marks on each letter was removed, because it did not address this cause.
 
 - **22 Oct 2026:** SEL-006 to SEL-023 added from a code review of selection, handles, **More**, underlines and PDF selection. Nothing was run and none was seen on the HiBreak. SEL-003, SEL-004 and SEL-005 stay OPEN with notes on likely causes. SEL-002 stays FIX BUILT; see also SEL-009 to SEL-012.
 
@@ -183,6 +189,7 @@ specific problem is fixed; only the tracker does.
 | Selection, notes, underlines | Partly checked. Handle size OK. Notes, underlines and text-layer PDF passed 5 Oct and were not re-run. | SEL-001 to 023 |
 | Tanach study books | Partly checked. Chapters mode, bilingual headings and chapter contents pass. | TAN-001 to 007 |
 | Talmud study books | Partly checked. Berakhot pilot starts, headings, links and commentary grouping pass. Tamid freezes when opened or read; Berakhot and Bava Kama did not (TAL-015). | TAL-001 to 015 |
+| Cracked-screen edges (content kept inside the clear area) | Built, not yet checked on the device. Boundaries measured 25 Oct. | HW-001 |
 | Renderer preference, preview and sharpen timing, unplugged idle battery drain | Not measured (optional) | none |
 
 ## Rules for writing in this document
@@ -191,7 +198,7 @@ These keep the file clean. Anyone editing it, human or AI, follows them.
 
 1. **One problem, one ID, one tracker row.** An ID is an area prefix plus three
    digits: `PDF`, `SEL` (selection), `TAN` (Tanach), `TAL` (Talmud), `BTN` (buttons),
-   `BRW` (file browser). New area: add a prefix here first. IDs are never reused or
+   `BRW` (file browser), `HEB` (Hebrew text display), `HW` (the device itself: screen, hardware). New area: add a prefix here first. IDs are never reused or
    renumbered.
 2. **Use only the seven status words**, in bold capitals, exactly as spelled in the
    table above.
@@ -235,6 +242,22 @@ Results say what was observed that day (Passed, Problem seen, Skipped). They lis
 IDs but never say whether an issue is fixed now.
 
 ## Test passes (newest first)
+
+### 25 Oct 2026: screen damage measurements (owner, HiBreak, ADB touch readout)
+
+Build and settings: no app change involved; measured with Android's pointer-location
+readout (`adb shell settings put system pointer_location 1`). Touch works across the
+whole panel, including the damaged strips, so the readout was used as a ruler.
+
+| Step | Result | Issues |
+| --- | --- | --- |
+| Upright (1264 × 1680), finger slid to the last clean point at the bottom-right corner | x 1017 px, y 1340 px | HW-001 |
+| Sideways (browser **Landscape**, 1680 × 1264), same corner, now top-right | x 1353 px, y 253 px | HW-001 |
+| Bottom strip across the width | Does not run the full width; the bottom-left corner works fine. How far left the damage begins was not measured | HW-001 |
+
+New issues: HW-001.
+Notes: the two corners differ by 6 to 13 px, so the larger loss on each edge was
+used. Display density on the device is 300 (pixel ratio 1.875).
 
 ### 6 Oct 2026: follow-up pass (owner, HiBreak, latest build)
 
@@ -435,6 +458,7 @@ Skip tabs and layouts unless something regresses (owner decision, 6 Oct 2026).
 | Handles: flip either way, in English, in Hebrew, and in a mixed paragraph; **More** stretches the selection across paragraphs; then Copy, Dictionary, Add Note and Underline; restart and confirm notes and underlines survive; repeat in a text-layer PDF (PDFs stay single-paragraph) | SEL-002 to SEL-005 | After those fixes are built. There is nothing new to check yet. |
 | Talmud settings no longer show Paragraphs / Continuous | TAL-012 | After the setting is removed |
 | Repeat anything odd in the file browser; write down exact steps | BRW-001 | Only if it happens again |
+| Content stays inside the clear part of the screen in the browser and reader, upright and sideways; **+ → Screen edges** turns it off and on | HW-001 | After the new build is installed |
 
 **PDF regression (after future PDF changes).** Use one text/vector PDF and one scanned
 PDF, with the same renderer and refresh mode:

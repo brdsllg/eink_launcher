@@ -35,6 +35,11 @@ sideloading. It has been tested on a Bigme HiBreak (model B751C, Android 14).
 - Uses 15 equal-height screen bands in portrait and 12 in landscape.
 - Opens ordinary files with Android, with an explicit **Open with** chooser.
 - Shows battery status and a minute-accurate clock.
+- **Cracked-screen edges:** keeps every screen inside the readable part of a
+  damaged panel (right and bottom edges on the owner's Bigme), in every rotation.
+  **+ → Screen edges** turns it off or changes the two sizes. Measurements and the
+  open question about the bottom-left corner are in [LAYOUT_DESIGN.md](LAYOUT_DESIGN.md);
+  whether it works is tracked as HW-001 in [DEVICE_TESTING.md](DEVICE_TESTING.md).
 - Startup has loading, ready, and recovery states. A bad saved home folder falls
   back to internal storage. Repeated unfinished launches open recovery controls
   with access to the app drawer. Diagnostics stay on the device.
@@ -90,6 +95,7 @@ Opens PDF, EPUB, TXT, and Markdown directly from the file browser.
 | Location | Purpose |
 | --- | --- |
 | `lib/main.dart` | Startup, theme, lifecycle, memory-pressure handling |
+| `lib/services/screen_insets_service.dart`, `lib/widgets/screen_insets_frame.dart` | Cracked-screen edges: saved sizes, rotation, and the wrapper that shrinks the whole app |
 | `lib/controllers/`, `lib/screens/`, `lib/widgets/` | File browser and launcher UI |
 | `lib/services/` | File operations, search, app discovery, Android bridges, startup health |
 | `lib/reader/controllers/` | PDF/text sessions and their lifecycle |
@@ -135,7 +141,7 @@ until the app has its own `FileProvider`; the file chooser relies on it.
 | Document | What it covers |
 | --- | --- |
 | [READER_PLAN.md](READER_PLAN.md) | How the reader works: decisions, PDF and text pipelines, study books, tabs, remaining work |
-| [LAYOUT_DESIGN.md](LAYOUT_DESIGN.md) | Screen layout dimensions and the reasons behind them |
+| [LAYOUT_DESIGN.md](LAYOUT_DESIGN.md) | Screen layout dimensions and the reasons behind them, including the cracked-screen edges |
 | [BUTTON_SUPPORT.md](BUTTON_SUPPORT.md) | Physical page-button behavior and supported key pairs |
 | [annotation_plan.md](annotation_plan.md) | Selection and annotation design, and the remaining device check |
 | [ANDROID_HARDENING_PLAN.md](ANDROID_HARDENING_PLAN.md) | Startup, recovery, and Android reliability work |

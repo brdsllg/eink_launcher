@@ -30,76 +30,64 @@ bool isHebrewCombiningMark(int rune) =>
 bool isHebrewPunctuation(int rune) =>
     rune == 0x05BE || rune == 0x05C0 || rune == 0x05C3 || rune == 0x05C6;
 
-/// Display order of the marks stacked on one Hebrew letter, or null when
-/// [rune] is not a combining mark.
-///
-/// Hebrew fonts are built for the *logical* order: shin/sin dot, then
-/// dagesh (or rafe), then the vowel, then meteg, then the cantillation
-/// accents. Unicode canonical order (what normalised text and many text
-/// sources use) sorts these differently: vowel before dagesh before shin dot.
-/// A font that only handles the logical order then attaches the wrong vowel
-/// glyph, or drops a mark.
-int? _hebrewMarkRank(int rune) {
-  if (!isHebrewCombiningMark(rune)) return null;
-  if (rune == 0x05C1 || rune == 0x05C2) return 0; // shin dot, sin dot
-  if (rune == 0x05BC || rune == 0x05BF) return 1; // dagesh/mapiq, rafe
-  if ((rune >= 0x05B0 && rune <= 0x05BB) || rune == 0x05C7) {
-    return 2; // vowel points, qamats qatan
-  }
-  if (rune == 0x05BD) return 3; // meteg
-  return 4; // cantillation accents and the remaining marks
-}
+const int _meteg = 0x05BD;
 
-/// Puts every run of Hebrew marks on a letter into the font-friendly logical
-/// order described at [_hebrewMarkRank]. Display only: the result has exactly
-/// the same length and the same set of characters as [source], so source
-/// offsets (annotations, bookmarks, search matches) stay valid. Marks of equal
-/// rank keep their relative order, and text without out-of-order marks is
-/// returned unchanged.
-String reorderHebrewMarks(String source) {
-  if (!_hebrewMarksOutOfOrder(source)) return source;
-  final runes = source.runes.toList();
-  var changed = false;
-  var i = 0;
-  while (i < runes.length) {
-    if (_hebrewMarkRank(runes[i]) == null) {
-      i++;
+/// Vowel points U+05B0..U+05BB (sheva, the chataf vowels, hiriq, tsere, segol,
+/// patah, qamats, holam, qubuts) plus qamats qatan U+05C7.
+bool _isVowelPoint(int unit) =>
+    (unit >= 0x05B0 && unit <= 0x05BB) || unit == 0x05C7;
+
+/// UTF-16 positions in [source] of every meteg that display must skip.
+///
+/// A meteg is the small vertical bar that belongs beside a vowel. Unicode does
+/// not fix where it sits: each font decides, and several fonts draw it
+/// directly under the vowel. The bar then merges with the vowel and makes a
+/// different one (patah plus meteg looks like qamats; segol or tsere plus
+/// meteg also turn into something that is not the vowel in the text). No
+/// character sequence can force a font to move it, so display skips the meteg
+/// on every letter that carries a vowel point. A meteg on a letter with no
+/// vowel point is left alone.
+///
+/// Display only. The source text, search, copy and saved annotations keep the
+/// meteg, so nothing stored changes. Returns an empty list when nothing needs
+/// skipping, which is the case for almost all text.
+List<int> metegPositionsToSkip(String source) {
+  if (!source.contains('\u05BD')) return const [];
+  final skip = <int>[];
+  var k = 0;
+  while (k < source.length) {
+    if (!isHebrewCombiningMark(source.codeUnitAt(k))) {
+      k++;
       continue;
     }
-    var end = i;
-    while (end < runes.length && _hebrewMarkRank(runes[end]) != null) {
+    // One run of marks stacked on a single letter.
+    var hasVowel = false;
+    final metegs = <int>[];
+    var end = k;
+    while (end < source.length &&
+        isHebrewCombiningMark(source.codeUnitAt(end))) {
+      final unit = source.codeUnitAt(end);
+      if (_isVowelPoint(unit)) hasVowel = true;
+      if (unit == _meteg) metegs.add(end);
       end++;
     }
-    // Stable insertion sort; a letter carries at most a handful of marks.
-    for (var a = i + 1; a < end; a++) {
-      final value = runes[a];
-      final rank = _hebrewMarkRank(value)!;
-      var b = a - 1;
-      while (b >= i && _hebrewMarkRank(runes[b])! > rank) {
-        runes[b + 1] = runes[b];
-        b--;
-        changed = true;
-      }
-      runes[b + 1] = value;
-    }
-    i = end;
+    if (hasVowel) skip.addAll(metegs);
+    k = end;
   }
-  return changed ? String.fromCharCodes(runes) : source;
+  return skip;
 }
 
-/// Cheap scan so the common case (marks already in logical order, or no
-/// Hebrew at all) returns without allocating. Layout calls this for every
-/// text run each time a block is measured or painted.
-bool _hebrewMarksOutOfOrder(String source) {
-  var previous = -1;
-  for (var k = 0; k < source.length; k++) {
-    final rank = _hebrewMarkRank(source.codeUnitAt(k));
-    if (rank == null) {
-      previous = -1;
-      continue;
-    }
-    if (rank < previous) return true;
-    previous = rank;
+/// [source] without the meteg characters listed by [metegPositionsToSkip].
+/// Returns the same string object when there is nothing to remove.
+String withoutOverlappingMeteg(String source) {
+  final skip = metegPositionsToSkip(source);
+  if (skip.isEmpty) return source;
+  final buffer = StringBuffer();
+  var from = 0;
+  for (final position in skip) {
+    buffer.write(source.substring(from, position));
+    from = position + 1;
   }
-  return false;
+  buffer.write(source.substring(from));
+  return buffer.toString();
 }

@@ -2,58 +2,85 @@ import 'package:eink_launcher/reader/services/hebrew_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  const shin = '\u05E9';
-  const bet = '\u05D1';
   const alef = '\u05D0';
-  const shinDot = '\u05C1';
-  const dagesh = '\u05BC';
+  const bet = '\u05D1';
+  const sheva = '\u05B0';
+  const hatafPatah = '\u05B2';
+  const hiriq = '\u05B4';
+  const tsere = '\u05B5';
+  const segol = '\u05B6';
   const patah = '\u05B7';
   const qamats = '\u05B8';
+  const holam = '\u05B9';
+  const qubuts = '\u05BB';
   const meteg = '\u05BD';
   const etnachta = '\u0591';
   const maqaf = '\u05BE';
 
-  group('reorderHebrewMarks', () {
-    test('turns canonical order into shin dot, dagesh, vowel', () {
-      // Unicode canonical order: vowel, dagesh, shin dot.
+  group('withoutOverlappingMeteg', () {
+    test('drops the meteg on a letter with any vowel point', () {
+      for (final vowel in [
+        sheva,
+        hatafPatah,
+        hiriq,
+        tsere,
+        segol,
+        patah,
+        qamats,
+        holam,
+        qubuts,
+      ]) {
+        expect(withoutOverlappingMeteg('$bet$vowel$meteg'), '$bet$vowel');
+      }
+    });
+
+    test('drops the meteg whichever way round the marks are stored', () {
+      expect(withoutOverlappingMeteg('$bet$meteg$segol'), '$bet$segol');
+    });
+
+    test('drops the meteg when a cantillation accent sits in between', () {
       expect(
-        reorderHebrewMarks('$shin$qamats$dagesh$shinDot'),
-        '$shin$shinDot$dagesh$qamats',
+        withoutOverlappingMeteg('$bet$tsere$etnachta$meteg'),
+        '$bet$tsere$etnachta',
       );
     });
 
-    test('puts meteg after the vowel and accents last', () {
+    test('keeps a meteg on a letter that has no vowel point', () {
+      final text = '$bet$meteg';
+      expect(identical(withoutOverlappingMeteg(text), text), isTrue);
+    });
+
+    test('only touches letters that carry a vowel point', () {
       expect(
-        reorderHebrewMarks('$bet$etnachta$meteg$patah'),
-        '$bet$patah$meteg$etnachta',
+        withoutOverlappingMeteg('$alef$meteg $bet$patah$meteg'),
+        '$alef$meteg $bet$patah',
       );
     });
 
-    test('leaves text already in logical order untouched', () {
-      final text = '$shin$shinDot$dagesh$qamats $bet$patah$etnachta';
-      expect(identical(reorderHebrewMarks(text), text), isTrue);
+    test('a vowel on the previous letter does not affect the next letter', () {
+      final text = '$alef$patah$bet$meteg';
+      expect(identical(withoutOverlappingMeteg(text), text), isTrue);
     });
 
-    test('keeps maqaf in place and treats it as a run boundary', () {
-      expect(
-        reorderHebrewMarks('$alef$patah$maqaf$bet$patah$dagesh'),
-        '$alef$patah$maqaf$bet$dagesh$patah',
-      );
+    test('treats maqaf as the end of a letter group', () {
+      final text = '$alef$patah$maqaf$bet$meteg';
+      expect(identical(withoutOverlappingMeteg(text), text), isTrue);
     });
 
-    test('keeps the length and the characters unchanged', () {
-      final source = '$shin$qamats$dagesh$shinDot$etnachta$bet$patah';
-      final result = reorderHebrewMarks(source);
-      expect(result.length, source.length);
-      expect(
-        result.codeUnits.toList()..sort(),
-        source.codeUnits.toList()..sort(),
-      );
+    test('returns text without a meteg unchanged', () {
+      const text = 'Plain English, $bet$patah no marks.';
+      expect(identical(withoutOverlappingMeteg(text), text), isTrue);
+    });
+  });
+
+  group('metegPositionsToSkip', () {
+    test('reports positions in the original string', () {
+      expect(metegPositionsToSkip('$alef $bet$segol$meteg'), [4]);
     });
 
-    test('does not touch non-Hebrew text', () {
-      const text = 'Plain English, no marks.';
-      expect(identical(reorderHebrewMarks(text), text), isTrue);
+    test('is empty when nothing needs skipping', () {
+      expect(metegPositionsToSkip('$bet$meteg'), isEmpty);
+      expect(metegPositionsToSkip('$bet$patah'), isEmpty);
     });
   });
 }
