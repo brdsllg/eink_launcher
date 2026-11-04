@@ -104,6 +104,7 @@ Opens PDF, EPUB, TXT, and Markdown directly from the file browser.
 | `android/app/src/main/` | Manifest, launcher activity, native channels, startup marker |
 | `test/`, `android/app/src/test/` | Flutter tests and native startup-policy tests |
 | `tanach/`, `talmud/` | Separate EPUB-building segments (see their READMEs) |
+| `kindle/` | Port to the Kindle Paperwhite: KOReader front-end fork with this app's design (see `kindle/README.md` and [kindle/KINDLE_PLAN.md](kindle/KINDLE_PLAN.md)) |
 
 For a full file list, run `rg --files lib test android/app/src`; the source tree is
 more reliable than a hand-kept catalog.
